@@ -138,6 +138,8 @@ LL <- function(Y, vs, N, C, hom2, V, fixed=NULL, random_variances=NULL, random_M
 screml_hom <- function(
 Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=NULL, nrep=10
 ){
+    # when par is NULL, the script actually run 2*nrep replications of optimization 
+    # if it's not converged in the first run
     N <- nrow(Y)
     C <- ncol(Y)
 
@@ -165,19 +167,8 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
         }
     }
 
-    result <- tryCatch({
-        out <- optim( par=par, fn=screml_hom_loglike, 
-            Y=Y, N=N, C=C, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
-        list( out=out, method=method)
-    }, error=function(err) {
-        message(err)
-        method <- "Nelder-Mead"
-        out <- optim( par=par, fn=screml_hom_loglike, 
-            Y=Y, N=N, C=C, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
-        list( out=out, method=method)
-    })
-    out <- result$out
-    method <- result$method
+    out <- optim( par=par, fn=screml_hom_loglike, 
+        Y=Y, N=N, C=C, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
 
 	hom2_ <- out$par[1]
     overVariance <- (hom2_ > overVariance_threshold)
@@ -219,7 +210,6 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     if ( !is.null(random_MMT) ) {
         r2 <- out$par[2:length(out$par)]
         randomeffect_vars <-RandomeffectVariance(r2, random)[[2]]
-        #randomV <- RandomeffectVariance(r2, random)[[3]]
 
         for (i in 1:length(random_MMT)){
             sig2s <- sig2s + r2[i] * random_MMT[[i]]
@@ -227,7 +217,6 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     } else {
         randomeffect_vars <- NULL
         r2 <- NULL
-        #randomV <- NULL
     }
     sig2s_inv <- solve(sig2s)
     H <- t(X) %*% sig2s_inv
@@ -239,15 +228,9 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     hess = hessian(screml_hom_loglike, x=out$par, Y=Y, N=N, C=C, vs=vs, fixed=fixed, 
                    random_MMT=random_MMT)
 
-    #tryCatch({
-    #    solve(hess)
-    #}, error=function(err) {
-    #    print(paste('Hom', err))
-    #})
     return ( list(hom2=hom2, l=l, hess=hess, beta=beta, fixedeffect_vars=fixedeffect_vars,
                   randomeffect_vars=randomeffect_vars, r2=r2, convergence=out$convergence, 
                   method=method) )
-                  #randomeffect_vars=randomeffect_vars, randomV=randomV, convergence=out$convergence, 
 }
 
 screml_hom_loglike<- function(par, Y, N, C, vs, fixed, random_MMT){
@@ -265,6 +248,8 @@ screml_hom_loglike<- function(par, Y, N, C, vs, fixed, random_MMT){
 screml_iid <- function(
 Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=NULL, nrep=10
 ){
+    # when par is NULL, the script actually run 2*nrep replications of optimization 
+    # if it's not converged in the first run
     N <- nrow(Y)
     C <- ncol(Y)
 
@@ -293,19 +278,8 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
         }
     }
 
-    result <- tryCatch({
-        out<- optim( par=par, fn=screml_iid_loglike,
-            Y=Y, N=N, C=C, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
-        list( out=out, method=method )
-    }, error=function(err) {
-        message(err)
-        method <- "Nelder-Mead"
-        out<- optim( par=par, fn=screml_iid_loglike,
-            Y=Y, N=N, C=C, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
-        list( out=out, method=method )
-    })
-    out <- result$out
-    method <- result$method
+    out <- optim( par=par, fn=screml_iid_loglike,
+        Y=Y, N=N, C=C, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
 
 	hom2_ <- out$par[1]
 	V_ <- diag(C) * out$par[2]
@@ -350,7 +324,6 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     if ( !is.null(random_MMT) ) {
         r2 <- out$par[3:length(out$par)]
         randomeffect_vars <-RandomeffectVariance(r2, random)[[2]]
-        #randomV <- RandomeffectVariance(r2, random)[[3]]
 
         for (i in 1:length(random_MMT)){
             sig2s <- sig2s + random_variances[i] * random_MMT[[i]]
@@ -358,7 +331,6 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     } else {
         randomeffect_vars <- NULL
         r2 <- NULL
-        #randomV <- NULL
     }
     sig2s_inv <- solve(sig2s)
     F <- t(X) %*% sig2s_inv
@@ -370,16 +342,9 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     hess = hessian(screml_iid_loglike, x=out$par, Y=Y, N=N, C=C, vs=vs, fixed=fixed,
                    random_MMT=random_MMT)
 
-    #tryCatch({
-    #    solve(hess)
-    #}, error=function(err) {
-    #    print(paste('IID', err))
-    #})
-    #try(solve(out$hessian))
     return ( list(hom2=hom2, V=V, l=l, hess=hess, beta=beta, fixedeffect_vars=fixedeffect_vars,
                   randomeffect_vars=randomeffect_vars, r2=r2, convergence=out$convergence,
                   method=method) )
-                  #randomeffect_vars=randomeffect_vars, randomV=randomV, convergence=out$convergence,
 }
 
 screml_iid_loglike <- function(par, Y, N, C, vs, fixed, random_MMT){
@@ -390,7 +355,6 @@ screml_iid_loglike <- function(par, Y, N, C, vs, fixed, random_MMT){
         random_variances <- par[3:length(par)]
     }
     L <- LL(Y, vs, N, C, hom2, V, fixed, random_variances, random_MMT)
-    #print( L )
 
     return( L )
 }
@@ -398,6 +362,8 @@ screml_iid_loglike <- function(par, Y, N, C, vs, fixed, random_MMT){
 screml_free <- function(
 Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=NULL, nrep=10
 ){
+    # when par is NULL, the script actually run 2*nrep replications of optimization 
+    # if it's not converged in the first run
     N <- nrow(Y)
     C <- ncol(Y)
 
@@ -426,19 +392,8 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
         }
     }
 
-    result <- tryCatch({
-        out<- optim( par=par, fn=screml_free_loglike, 
-            Y=Y, N=N, C=C, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
-        list( out=out, method=method )
-    }, error=function(err) {
-        message(err)
-        method <- "Nelder-Mead"
-        out<- optim( par=par, fn=screml_free_loglike, 
-            Y=Y, N=N, C=C, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
-        list( out=out, method=method )
-    })
-    out <- result$out
-    method <- result$method
+    out <- optim( par=par, fn=screml_free_loglike, 
+        Y=Y, N=N, C=C, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
 
 	hom2_ <- out$par[1]
 	V_ <- diag(out$par[1+1:C])
@@ -485,7 +440,6 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     if ( !is.null(random_MMT) ) {
         r2 <- out$par[(C+2):length(out$par)]
         randomeffect_vars <- RandomeffectVariance(r2, random)[[2]]
-        #randomV <- RandomeffectVariance(r2, random)[[3]]
 
         for (i in 1:length(random_MMT)){
             sig2s <- sig2s + r2[i] * random_MMT[[i]]
@@ -493,7 +447,6 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     } else {
         randomeffect_vars <- NULL
         r2 <- NULL
-        #randomV <- NULL
     }
     sig2s_inv <- solve(sig2s)
     F_ <- t(X) %*% sig2s_inv
@@ -505,14 +458,8 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     hess = hessian(screml_free_loglike, x=out$par, Y=Y, N=N, C=C, vs=vs, fixed=fixed,
                    random_MMT=random_MMT)
 
-    #tryCatch({
-    #    solve(hess)
-    #}, error=function(err) {
-    #    print(paste('Free', err))
-    #})
     return ( list(hom2=hom2, V=V, l=l, hess=hess, beta=beta, fixedeffect_vars=fixedeffect_vars,
                  randomeffect_vars=randomeffect_vars, r2=r2, convergence=out$convergence, method=method ))
-                 #randomeffect_vars=randomeffect_vars, randomV=randomV, convergence=out$convergence, method=method ))
 }
 
 screml_free_loglike<- function(par, Y, N, C, vs, fixed, random_MMT){
@@ -529,6 +476,8 @@ screml_free_loglike<- function(par, Y, N, C, vs, fixed, random_MMT){
 screml_full <- function(
 Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=NULL, nrep=10
 ){
+    # when par is NULL, the script actually run 2*nrep replications of optimization 
+    # if it's not converged in the first run
     N <- nrow(Y)
     C <- ncol(Y)
 
@@ -557,19 +506,8 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
         }
     }
 
-    result <- tryCatch({
-        out <- optim( par=par, fn=screml_full_loglike, 
-            Y=Y, N=N, C=C, ngam=ngam, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
-        list( out=out, method=method )
-    }, error=function(err) {
-        message(err)
-        method <- "Nelder-Mead"
-        out <- optim( par=par, fn=screml_full_loglike, 
-            Y=Y, N=N, C=C, ngam=ngam, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
-        list( out=out, method=method )
-    })
-    out <- result$out
-    method <- result$method
+    out <- optim( par=par, fn=screml_full_loglike, 
+        Y=Y, N=N, C=C, ngam=ngam, vs=vs, fixed=fixed, random_MMT=random_MMT, method=method, hessian=FALSE)
 
     V_   <- matrix( 0, C, C )
     V_[lower.tri(V_,diag=T)]  <- out$par[1:ngam]
@@ -615,7 +553,6 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     if ( !is.null(random_MMT) ) {
         r2 <- out$par[(ngam+1):length(out$par)]
         randomeffect_vars <-RandomeffectVariance(r2, random)[[2]]
-        #randomV <- RandomeffectVariance(r2, random)[[3]]
 
         for (i in 1:length(random_MMT)){
             sig2s <- sig2s + r2[i] * random_MMT[[i]]
@@ -623,7 +560,6 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     } else {
         randomeffect_vars <- NULL
         r2 <- NULL
-        #randomV <- NULL
     }
     sig2s_inv <- solve(sig2s)
     F <- t(X) %*% sig2s_inv
@@ -635,14 +571,8 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_threshold=5, method="BFGS", par=
     hess = hessian(screml_full_loglike, x=out$par, Y=Y, N=N, C=C, ngam=ngam, vs=vs, fixed=fixed,
                    random_MMT=random_MMT)
 
-    #tryCatch({
-    #    solve(hess)
-    #}, error=function(err) {
-    #    print(paste('Full', err))
-    #})
     return ( list( V=V, l=l, hess=hess, beta=beta, fixedeffect_vars=fixedeffect_vars,
                  randomeffect_vars=randomeffect_vars, r2=r2, convergence=out$convergence, method=method ))
-                 #randomeffect_vars=randomeffect_vars, randomV=randomV, convergence=out$convergence, method=method ))
 }
 
 screml_full_loglike <- function(par, Y, N, C, ngam, vs, fixed, random_MMT){
