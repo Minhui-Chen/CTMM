@@ -323,7 +323,6 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
     wald_p['hom2'] = wald.wald_test(hom2, 0, D[X.shape[1],X.shape[1]], N-n_par)
     var_V = D[(X.shape[1]+1):(X.shape[1]+C+1), (X.shape[1]+1):(X.shape[1]+C+1)]
     wald_p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
-    wald_p['V_iid'] = util.wald_ct_beta(np.diag(V), var_V, n=N, P=n_par)
     wald_p['Vi'] = [wald.wald_test(V[i,i], 0, D[X.shape[1]+i+1,X.shape[1]+i+1], N-n_par) for i in range(C)]
     #wald_p['beta'] = [wald.wald_test(beta[i], 0, D[i,i], two_sided=True) for i in range(X.shape[1])]
     wald_p['ct_beta'] = util.wald_ct_beta(beta[:C], D[:C,:C], n=N, P=n_par)
@@ -461,7 +460,6 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         wald_p['hom2'] = wald.wald_test(hom2, 0, D[0,0], N-n_par)
         var_V = D[1:(C+1), 1:(C+1)]
         wald_p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
-        wald_p['V_iid'] = util.wald_ct_beta(np.diag(V), var_V, n=N, P=n_par)
         wald_p['Vi'] = [wald.wald_test(V[i,i], 0, D[i+1,i+1], N-n_par) for i in range(C)]
         # wald test beta1 = beta2 = beta3
         wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
@@ -503,7 +501,6 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
 
         wald_p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         wald_p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
-        wald_p['V_iid'] = util.wald_ct_beta(np.diag(V), var_V, n=N, P=n_par)
         # wald test beta1 = beta2 = beta3
         wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
 
@@ -735,41 +732,32 @@ def main():
                 out['he'] = { 'free': free_he, 'wald':{'free': free_he_wald} }
             else:
                 hom_he, hom_he_wald = cuomo_ctng_test.hom_HE(y_f, P_f, nu_f, jack_knife=True)
-                iid_he, iid_he_wald = cuomo_ctng_test.iid_HE(y_f, P_f, nu_f, jack_knife=True)
                 full_he, full_he_wald = full_HE(y_f, nu_f)
 
-                out['he'] = {'hom': hom_he, 'iid': iid_he, 'free': free_he, 'full': full_he,
-                        'wald':{'hom':hom_he_wald, 'iid': iid_he_wald, 'free': free_he_wald, 'full':full_he_wald} }
+                out['he'] = {'hom': hom_he, 'free': free_he, 'full': full_he,
+                        'wald':{'hom':hom_he_wald, 'free': free_he_wald, 'full':full_he_wald} }
 
         ## ML
         if snakemake.params.ML:
-            null_ml = null_ML(y_f, P_f, nu_f)
             if not snakemake.params.HE_as_initial:
                 hom_ml, hom_ml_wald = hom_ML(y_f, P_f, nu_f)
-                iid_ml, iid_ml_wald = iid_ML(y_f, P_f, nu_f)
                 free_ml, free_ml_wald = free_ML(y_f, P_f, nu_f)
                 full_ml = full_ML(y_f, P_f, nu_f)
             else:
                 hom_ml, hom_ml_wald = hom_ML(y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, ML=True) )
-                iid_ml, iid_ml_wald = iid_ML(y_f, P_f, nu_f, par=util.generate_HE_initial(iid_he, ML=True) )
                 free_ml, free_ml_wald = free_ML(y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, ML=True) )
                 full_ml = full_ML(y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, ML=True) )
 
-            out['ml'] = {'null': null_ml, 'hom': hom_ml, 'iid': iid_ml, 'free': free_ml, 'full': full_ml,
-                    'wald':{'hom':hom_ml_wald, 'iid':iid_ml_wald, 'free':free_ml_wald} }
+            out['ml'] = {'hom': hom_ml, 'free': free_ml, 'full': full_ml,
+                    'wald':{'hom':hom_ml_wald, 'free':free_ml_wald} }
 
             # LRT
-            hom_null_lrt = mystats.lrt(out['ml']['hom']['l'], out['ml']['null']['l'], 1)
-            iid_hom_lrt = mystats.lrt(out['ml']['iid']['l'], out['ml']['hom']['l'], 1)
             free_hom_lrt = mystats.lrt(out['ml']['free']['l'], out['ml']['hom']['l'], C)
-            free_iid_lrt = mystats.lrt(out['ml']['free']['l'], out['ml']['iid']['l'], C-1)
             full_hom_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['hom']['l'], C*(C+1)//2-1)
-            full_iid_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['iid']['l'], C*(C+1)//2-2)
             full_free_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['free']['l'], C*(C+1)//2-C-1)
 
-            out['ml']['lrt'] = {'hom_null':hom_null_lrt, 'iid_hom':iid_hom_lrt, 'free_hom':free_hom_lrt,
-                    'free_iid':free_iid_lrt, 'full_hom':full_hom_lrt, 'full_iid':full_iid_lrt,
-                    'full_free':full_free_lrt}
+            out['ml']['lrt'] = {'free_hom':free_hom_lrt,
+                    'full_hom':full_hom_lrt, 'full_free':full_free_lrt}
 
         ## REML
         if snakemake.params.REML:
@@ -785,7 +773,6 @@ def main():
                         free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f)
                 else:
                     hom_reml, hom_reml_wald = hom_REML(y_f, P_f, nu_f)
-                    iid_reml, iid_reml_wald = iid_REML(y_f, P_f, nu_f)
                     if 'Free_reml_jk' in snakemake.params.keys():
                         free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, nrep=5, 
                                 jack_knife=snakemake.params.Free_reml_jk)
@@ -794,27 +781,28 @@ def main():
                     full_reml = full_REML(y_f, P_f, nu_f)
             else:
                 hom_reml, hom_reml_wald = hom_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, REML=True))
-                iid_reml, iid_reml_wald = iid_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(iid_he, REML=True))
                 free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(free_he,REML=True))
                 full_reml = full_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, REML=True))
 
             if snakemake.params.Free_reml_only:
                 out['reml'] = {'free':free_reml, 'wald':{'free':free_reml_wald} }
             else:
-                out['reml'] = {'hom':hom_reml, 'iid':iid_reml, 'free':free_reml, 'full':full_reml,
-                        'wald':{'hom':hom_reml_wald, 'iid':iid_reml_wald, 'free':free_reml_wald} }
+                out['reml'] = {'hom':hom_reml, 'free':free_reml, 'full':full_reml,
+                        'wald':{'hom':hom_reml_wald, 'free':free_reml_wald} }
 
                 ## REML
-                iid_hom_lrt = mystats.lrt(out['reml']['iid']['l'], out['reml']['hom']['l'], 1)
-                free_hom_lrt = mystats.lrt(out['reml']['free']['l'], out['reml']['hom']['l'], C)
-                free_iid_lrt = mystats.lrt(out['reml']['free']['l'], out['reml']['iid']['l'], C-1)
-                full_hom_lrt = mystats.lrt(out['reml']['full']['l'], out['reml']['hom']['l'], C*(C+1)//2-1)
-                full_iid_lrt = mystats.lrt(out['reml']['full']['l'], out['reml']['iid']['l'], C*(C+1)//2-2)
-                full_free_lrt = mystats.lrt(out['reml']['full']['l'], out['reml']['free']['l'], C*(C+1)//2-C-1)
+                free_hom_lrt = mystats.lrt(out['reml']['free']['l'], 
+                                            out['reml']['hom']['l'], C)
+                full_hom_lrt = mystats.lrt(out['reml']['full']['l'], 
+                                            out['reml']['hom']['l'], C*(C+1)//2-1)
+                full_free_lrt = mystats.lrt(out['reml']['full']['l'], 
+                                            out['reml']['free']['l'], C*(C+1)//2-C-1)
 
-                out['reml']['lrt'] = {'iid_hom':iid_hom_lrt, 'free_hom':free_hom_lrt,
-                        'free_iid':free_iid_lrt, 'full_hom':full_hom_lrt, 'full_iid':full_iid_lrt,
-                        'full_free':full_free_lrt}
+                out['reml']['lrt'] = {
+                                        'free_hom':free_hom_lrt,
+                                        'full_hom':full_hom_lrt, 
+                                        'full_free':full_free_lrt
+                                        }
 
         # save
         np.save(out_f, out)
