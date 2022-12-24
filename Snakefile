@@ -6,7 +6,6 @@ import matplotlib as mpl
 mpl.use('agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
-#import rpy2.robjects as robjects
 import mystats, plot_help
 sys.path.insert(0, 'bin')
 import screml, wald
@@ -21,20 +20,6 @@ def generate_tmpfn():
     tmpf.close()
     print(tmpfn)
     return tmpfn
-
-#def bmatrix(a):
-#    """Returns a LaTeX bmatrix
-#
-#    :a: numpy array
-#    :returns: LaTeX bmatrix as a string
-#    """
-#    if len(a.shape) > 2:
-#        raise ValueError('bmatrix can at most display two dimensions')
-#    lines = str(a).replace('[', '').replace(']', '').splitlines()
-#    rv = [r'\begin{bmatrix}']
-#    rv += ['  ' + ' & '.join(l.split()) + r'\\' for l in lines]
-#    rv +=  [r'\end{bmatrix}']
-#    return '\n'.join(rv)
 
 def get_subspace(arg, model_params):
     ''' model_params df include or not include the column of model, but the first row is the basemodel'''
@@ -189,7 +174,6 @@ for _, batch in enumerate(ong_batches):
                 pd = P-pi
                 ## covariance
                 s = (pd.T @ pd)/ss
-                #print(bmatrix(s))
                 np.savetxt(s_f, s, delimiter='\t')
 
                 # draw alpha / hom effect
@@ -441,52 +425,12 @@ rule ong_all:
         png = 'results/ong/mainfig.LRT.png',
 
 #########################################################################################
-# CT pseudo-bulk non-genetic
+# CTP
 #########################################################################################
 # par
 ctng_replicates = 1000
 ctng_batch_no = 100
 ctng_batches = np.array_split(range(ctng_replicates), ctng_batch_no)
-
-## declare a dataframe to be a paramspace
-#ctng_params = pd.read_table("ctng.params.txt", dtype="str", comment='#')
-#if ctng_params.shape[0] != ctng_params.drop_duplicates().shape[0]:
-#    sys.exit('Duplicated parameters!\n')
-#ctng_par_columns = list(ctng_params.columns)
-#ctng_par_columns.remove('model')
-#ctng_paramspace = Paramspace(ctng_params[ctng_par_columns])
-#
-#ctng_plot_order = {
-#    'hom':{
-#        'ss':['1e2', '5e2', '1e3', '2e3'], 'a':['0.5_2_2_2', '1_2_2_2', '2_2_2_2', '4_2_2_2']
-#        },
-#    'iid':{
-#        'ss':['1e2', '5e2', '1e3', '2e3'], 'a':['0.5_2_2_2', '1_2_2_2', '2_2_2_2', '4_2_2_2'],
-#        'vc':['0.2_0.2_0.1_0.3_0.2', '0.2_0.2_0.2_0.2_0.2', '0.2_0.2_0.3_0.1_0.2']
-#        }, 
-#    'free': {
-#        'ss':['1e2', '5e2', '1e3', '2e3', '5e3'], 'a':['0.5_2_2_2', '1_2_2_2', '2_2_2_2', '4_2_2_2'], 
-#        'vc':['0.2_0.2_0.1_0.3_0.2', '0.2_0.2_0.2_0.2_0.2', '0.2_0.2_0.3_0.1_0.2'],
-#        'V_diag':['64_16_4_1', '27_9_3_1', '8_4_2_1', '1_1_1_1'],
-#        },
-#    'full':{
-#        'ss':['1e2', '5e2', '1e3', '2e3'], 'a':['0.5_2_2_2', '1_2_2_2', '2_2_2_2', '4_2_2_2'],
-#        'vc':['0.2_0.2_0.1_0.3_0.2', '0.2_0.2_0.2_0.2_0.2', '0.2_0.2_0.3_0.1_0.2'],
-#        'V_diag':['64_64_1_1', '64_16_4_1', '27_9_3_1', '8_4_2_1', '1_1_1_1'],
-#        'V_tril':['0.25_0.25_0_-0.25_0_0', '0.5_0.5_0_-0.5_0_0', '0.75_0.75_0_-0.75_0_0', '0.95_0.95_0.95_-0.95_-0.95_-0.95']
-#        },
-#    }
-
-
-#rule ctng_celltype_expectedPInSnBETAnV:
-#    output:
-#        pi = f'analysis/ctng/{{model}}/{ctng_paramspace.wildcard_pattern}/PI.txt',
-#        s = f'analysis/ctng/{{model}}/{ctng_paramspace.wildcard_pattern}/S.txt',
-#        beta = f'analysis/ctng/{{model}}/{ctng_paramspace.wildcard_pattern}/celltypebeta.txt',
-#        V = f'analysis/ctng/{{model}}/{ctng_paramspace.wildcard_pattern}/V.txt',
-#    params:
-#        simulation=ctng_paramspace.instance,
-#    script: "bin/ctng_celltype_expectedPInSnBETAnV.py"
 
 localrules: ctng_generatedata_batch
 rule ctng_generatedata_batch:
@@ -562,7 +506,6 @@ for _, batch in enumerate(ctng_batches):
                 pd = P-pi
                 ## covariance
                 s = (pd.T @ pd)/ss
-                #print(bmatrix(s))
                 np.savetxt(s_f, s, delimiter='\t')
 
                 # draw alpha / hom effect
@@ -747,10 +690,6 @@ def ctng_agg_truebeta_subspace(wildcards):
     subspace = get_subspace(wildcards.arg, ong_params.loc[ong_params['model']==wildcards.model])
     return expand('analysis/ong/{{model}}/{params}/celltypebeta.txt', params=subspace.instance_patterns)
 
-#def ctng_agg_trueV_subspace(wildcards):
-#    subspace = get_subspace(wildcards.arg, ong_params.loc[ong_params['model']==wildcards.model])
-#    return expand('analysis/ong/{{model}}/{params}/V.txt', params=subspace.instance_patterns)
-
 use rule ong_MLestimates_subspace_plot as ctng_MLestimates_subspace_plot with:
     input:
         out = ctng_agg_out_subspace,
@@ -848,7 +787,6 @@ use rule ong_REMLwaldNlrt_subspace_plot as ctng_REMLwaldNlrt_subspace_plot with:
         out = ctng_agg_out_subspace, 
     output:
         waldNlrt = 'results/ctng/{model}/REML.waldNlrt.AGG{arg}.png',
-    #script: "bin/ctng_REMLwaldNlrt_subspace_plot.py"
 
 use rule ong_REMLwaldNlrt_subspace_plot as ctng_REMLwaldNlrt_subspace_plot2 with:
     input:
@@ -902,33 +840,9 @@ rule ctng_AGGarg:
     output:
         flag = touch('staging/ctng/{model}/all.flag'),
 
-#use rule ong_mainfig_LRT as ctng_mainfig_LRT with:
-#    input:
-#        hom_ss = expand('analysis/ctng/hom/{params}/out.npy',
-#                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-#        iid_ss = expand('analysis/ctng/iid/{params}/out.npy',
-#                params=get_subspace('ss', ong_params.loc[ong_params['model']=='iid']).instance_patterns),
-#        free_ss = expand('analysis/ctng/free/{params}/out.npy',
-#                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-#        hom_a = expand('analysis/ctng/hom/{params}/out.npy',
-#                params=get_subspace('a', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-#        iid_a = expand('analysis/ctng/iid/{params}/out.npy',
-#                params=get_subspace('a', ong_params.loc[ong_params['model']=='iid']).instance_patterns),
-#        free_a = expand('analysis/ctng/free/{params}/out.npy',
-#                params=get_subspace('a', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-#        iid_vc = expand('analysis/ctng/iid/{params}/out.npy',
-#                params=get_subspace('vc', ong_params.loc[ong_params['model']=='iid']).instance_patterns),
-#        free_vc = expand('analysis/ctng/free/{params}/out.npy',
-#                params=get_subspace('vc', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-#        free_V_diag = expand('analysis/ctng/free/{params}/out.npy',
-#                params=get_subspace('V_diag', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-#    output:
-#        png = 'results/ctng/mainfig.LRT.png',
-
 rule ctng_all:
     input:
         flag = expand('staging/ctng/{model}/all.flag', model=['hom','free', 'full']),
-        #png = 'results/ctng/mainfig.LRT.png',
 
 rule ong_test_remlJK:
     input:
@@ -1258,6 +1172,7 @@ rule ctng_HE_tmp:
         expand('results/tmp/ctng/{{model}}/{n_equation}.png', n_equation=['ind', 'indXct']),
     output:
         touch('staging/tmp/ctng/{model}.flag'),
+
 #####################################################################################
 # Add noise to Nu in ctng 
 #####################################################################################
@@ -1944,22 +1859,6 @@ rule cuomo_day_pseudobulk_log_varNU_dist:
         png = 'results/cuomo/data/log/bootstrapedNU/day.raw.var_nu.png',
     script: 'bin/cuomo_day_pseudobulk_log_varNU_dist.py'
 
-#use rule cuomo_day_pseudobulk_log as cuomo_day_pseudobulk_raw with:
-#    input:
-#        meta = 'analysis/cuomo/data/meta.txt',
-#        counts = 'data/cuomo2020natcommun/raw_counts.csv.gz',
-#    output:
-#        y = 'analysis/cuomo/data/raw/day.raw.pseudobulk.gz', # donor - day * gene
-#        nu = 'analysis/cuomo/data/raw/day.raw.nu.gz', # donor - day * gene
-
-#rule cuomo_day_countspercell_dist:
-#    input:
-#        log = 'data/cuomo2020natcommun/log_normalised_counts.csv.gz', # donor - day * gene
-#        raw = 'data/cuomo2020natcommun/raw_counts.csv.gz', # donor - day * gene
-#    output:
-#        png = 'analysis/cuomo/data/counts.png',
-#    script: 'bin/cuomo_day_pseudobulk_dist.py'
-
 #################################### analysis ###############
 ## read parameters
 cuomo_params = pd.read_table('cuomo.params.txt', dtype="str", comment='#')
@@ -2358,26 +2257,6 @@ rule cuomo_ctng_pvalue_REMLvsHE_addrVariance:
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.free.REMLvsHE.rVariance.png',
     script: 'bin/cuomo_ctng_pvalue_REMLvsHE_addrVariance.py'
-
-#rule cuomo_ctng_bugs:
-#    input:
-#        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-#        imputed_ct_y = [f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.y.txt'
-#                for i in range(cuomo_batch_no)], # donor - day * gene
-#        n = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterInds.cellnum.gz', # donor * day
-#    output:
-#        png = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng_bugs.png',
-#    script: 'bin/ctng_bugs.py' 
-
-#rule cuomo_ongVSctng_hom:
-#    input:
-#        ong = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-#        ctng = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-#    output:
-#        hom = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ongVSctng.hom.png',
-#        V = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ongVSctng.V.png',
-#        beta = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ongVSctng.beta.png',
-#    script: "bin/cuomo_ongVSctng_hom.py"
 
 rule cuomo_ng_all:
     input:
