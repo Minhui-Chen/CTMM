@@ -105,7 +105,7 @@ ong_excluderareCT_plot_order = copy.deepcopy(ong_plot_order)
 for model in ong_excluderareCT_plot_order.keys():
     ong_excluderareCT_plot_order[model]['a'].remove('0.5_2_2_2')
 
-rule ong_celltype_expectedPInSnBETAnV:
+rule op_parameters:
     output:
         pi = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/PI.txt',
         s = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/S.txt',
@@ -113,109 +113,40 @@ rule ong_celltype_expectedPInSnBETAnV:
         V = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/V.txt',
     params:
         simulation=ong_paramspace.instance,
-    script: 'bin/ong_celltype_expectedPInSnBETAnV.py'
+    script: 'bin/sim/op_parameters.py'
 
-localrules: ong_generatedata_batch
-rule ong_generatedata_batch:
-    output: touch(f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/generatedata.batch')
-
-for _, batch in enumerate(ong_batches):
-    rule: # generate simulation data for each batch
-        name: f'ong_generatedata_batch{_}'
-        input:
-            flag = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/generatedata.batch',
-            beta = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/celltypebeta.txt',
-            V = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/V.txt',
-        output:
-            P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{_}.txt',
-            pi = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.batch{_}.txt',
-            s = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{_}.txt',
-            nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{_}.txt',
-            y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/pseudobulk.batch{_}.txt',
-        params:
-            P = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/P.txt' for i in batch],
-            pi = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/estPI.txt' 
-                    for i in batch],
-            s = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/estS.txt' 
-                    for i in batch],# sample prop cov matrix
-            nu = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/nu.txt' for i in batch],
-            y = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/pseudobulk.txt' for i in batch],
-            sim = ong_paramspace.instance,
-        run:
-            # par
-            beta = np.loadtxt(input.beta)
-            V = np.loadtxt(input.V)
-            try:
-                hom2 = float(params.sim['vc'].values[0].split('_')[0]) # variance of individual effect
-                mean_nu = float(params.sim['vc'].values[0].split('_')[-1]) # mean variance for residual error acros individuals
-                var_nu = float(params.sim['var_nu'].values[0]) #variance of variance for residual error across individuals
-                a = np.array([float(x) for x in params.sim['a'].values[0].split('_')])
-                ss = int(float(params.sim['ss'].values[0]))
-                C = len(params.sim['a'].values[0].split('_'))
-            except:
-                hom2 = float(params.sim['vc'].split('_')[0]) # variance of individual effect
-                mean_nu = float(params.sim['vc'].split('_')[-1]) # mean variance for residual error acros individuals
-                var_nu = float(params.sim['var_nu']) #variance of variance for residual error across individuals
-                a = np.array([float(x) for x in params.sim['a'].split('_')])
-                ss = int(float(params.sim['ss']))
-                C = len(params.sim['a'].split('_'))
-            rng = np.random.default_rng()
-
-            for P_f, pi_f, s_f, y_f, nu_f in zip(params.P, params.pi, params.s, params.y, params.nu):
-                os.makedirs(os.path.dirname(P_f), exist_ok=True)
-                # simulate cell type proportions
-                P = rng.dirichlet(alpha=a, size=ss)
-                np.savetxt(P_f, P, delimiter='\t')
-                pi = np.mean(P, axis=0)
-                np.savetxt(pi_f, pi, delimiter='\t')
-
-                # estimate cov matrix S
-                ## demeaning P 
-                pd = P-pi
-                ## covariance
-                s = (pd.T @ pd)/ss
-                np.savetxt(s_f, s, delimiter='\t')
-
-                # draw alpha / hom effect
-                alpha = rng.normal(loc=0, scale=math.sqrt(hom2), size=ss)
-
-                # draw gamma (interaction)
-                if wildcards.model != 'hom':
-                    gamma = rng.multivariate_normal(np.zeros(C), V, size=ss)
-                    interaction = np.sum(P * gamma, axis=1)
-                    #interaction = scipy.linalg.khatri_rao(np.eye(ss), P.T).T @ gamma.flatten()
-
-                # draw residual error
-                ## draw variance of residual error for each individual from gamma distribution \Gamma(k, theta)
-                ## with mean = k * theta, var = k * theta^2, so theta = var / mean, k = mean / theta
-                ## since mean = 0.25 and assume var = 0.01, we can get k and theta
-                theta = var_nu / mean_nu 
-                k = mean_nu / theta 
-                ### variance of residual error for each individual
-                nu = rng.gamma(k, scale=theta, size=ss)
-                np.savetxt(nu_f, nu, delimiter='\t')
-
-                ## draw residual error from normal distribution with variance drawn above
-                delta = rng.normal(np.zeros_like(nu), np.sqrt(nu))
-
-                # generate pseudobulk
-                if wildcards.model == 'hom':
-                    y = alpha + P @ beta + delta
-                else:
-                    y = alpha + P @ beta + interaction + delta 
-                
-                # save
-                np.savetxt(y_f, y, delimiter='\t')
-
-            with open(output.P, 'w') as f: f.write('\n'.join(params.P))
-            with open(output.pi, 'w') as f: f.write('\n'.join(params.pi))
-            with open(output.s, 'w') as f: f.write('\n'.join(params.s))
-            with open(output.y, 'w') as f: f.write('\n'.join(params.y))
-            with open(output.nu, 'w') as f: f.write('\n'.join(params.nu))
+rule op_simulation:
+    input:
+        beta = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/celltypebeta.txt',
+        V = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/V.txt',
+    output:
+        P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        pi = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.batch{{i}}.txt',
+        s = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{{i}}.txt',
+        nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+        cty = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        # add a test fixed effect. if it's not needed, this file is 'NA'
+        fixed = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
+        # add a test random effect. if it's not needed, this file is 'NA'
+        random = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
+    params:
+        batch = lambda wildcards: ong_batches[int(wildcards.i)],
+        P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/P.txt',
+        pi = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/estPI.txt',
+        s = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/estS.txt',
+        nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/nu.txt',
+        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/op.txt',
+        ctnu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/ctnu.txt',
+        cty = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/ctp.txt',
+        fixed = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/fixed.X.txt',
+        random = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/random.X.txt',
+    script: 'bin/sim/opNctp_simulation.py'
 
 rule ong_test:
     input:
-        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/pseudobulk.batch{{i}}.txt',
+        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
         P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
         nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
     output:
@@ -234,7 +165,8 @@ rule ong_aggReplications:
     input:
         s = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{i}.txt'
                 for i in range(len(ong_batches))],
-        nu = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{i}.txt' for i in range(len(ong_batches))],
+        nu = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{i}.txt' 
+                for i in range(len(ong_batches))],
         pi = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.batch{i}.txt' 
                 for i in range(len(ong_batches))],
         out = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.batch{i}' 
@@ -424,6 +356,33 @@ rule ong_all:
         flag = expand('staging/ong/{model}/all.flag', model=['null', 'hom', 'iid', 'free', 'full']),
         png = 'results/ong/mainfig.LRT.png',
 
+rule ong_test_remlJK:
+    input:
+        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+    output:
+        out = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.batch{{i}}',
+    params:
+        out = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/rep/out.remlJK.npy',
+        batch = lambda wildcards: ong_batches[int(wildcards.i)],
+        ML = False,
+        REML = True,
+        Free_reml_only = True,
+        Free_reml_jk = True,
+        HE = False,
+    resources:
+        mem_per_cpu = '10gb',
+    script: 'bin/ong_test.py'
+
+rule ong_test_remlJK_aggReplications:
+    input:
+        out = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.batch{i}' 
+                for i in range(len(ctng_batches))],
+    output:
+        out = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.npy',
+    script: 'bin/mergeBatches.py'
+
 #########################################################################################
 # CTP
 #########################################################################################
@@ -432,221 +391,37 @@ ctng_replicates = 1000
 ctng_batch_no = 100
 ctng_batches = np.array_split(range(ctng_replicates), ctng_batch_no)
 
-localrules: ctng_generatedata_batch
-rule ctng_generatedata_batch:
-    output: touch(f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/generatedata.batch')
-
-for _, batch in enumerate(ctng_batches):
-    rule: # generate simulation data for each batch
-        name: f'ctng_generatedata_batch{_}'
-        input:
-            flag = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/generatedata.batch',
-            beta = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/celltypebeta.txt',
-            V = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/V.txt',
-        output:
-            P = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{_}.txt',
-            pi = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.batch{_}.txt',
-            s = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{_}.txt',
-            nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{_}.txt',
-            y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/pseudobulk.batch{_}.txt',
-            overall_nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/overall.nu.batch{_}.txt',
-            overall_y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/overall.pseudobulk.batch{_}.txt',
-            fixed_M = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/overall.fixedeffectmatrix.batch{_}.txt',
-            random_M = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/overall.randomeffectmatrix.batch{_}.txt',
-        params:
-            P = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/P.txt' for i in batch],
-            pi = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/estPI.txt' 
-                    for i in batch],
-            s = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/estS.txt' 
-                    for i in batch],# sample prop cov matrix
-            nu = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/nu.txt' for i in batch],
-            y = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/pseudobulk.txt' for i in batch],
-            overall_nu = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/overall.nu.txt' 
-                    for i in batch],
-            overall_y = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/overall.pseudobulk.txt' 
-                    for i in batch],
-            fixed_M = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/overall.fixedeffectmatrix.txt' 
-                    for i in batch],
-            random_M = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep{i}/overall.randomeffectmatrix.txt'
-                    for i in batch],
-        run:
-            # par
-            beta = np.loadtxt(input.beta)
-            V = np.loadtxt(input.V)
-            try:
-                hom2 = float(wildcards['vc'].values[0].split('_')[0]) # variance of individual effect
-                mean_nu = float(wildcards['vc'].values[0].split('_')[-1]) # mean variance for residual error acros individuals
-                var_nu = float(wildcards['var_nu'].values[0]) #variance of variance for residual error across individuals
-                a = np.array([float(x) for x in wildcards['a'].values[0].split('_')])
-                ss = int(float(wildcards['ss'].values[0]))
-                C = len(wildcards['a'].values[0].split('_'))
-            except:
-                hom2 = float(wildcards['vc'].split('_')[0]) # variance of individual effect
-                mean_nu = float(wildcards['vc'].split('_')[-1]) # mean variance for residual error acros individuals
-                var_nu = float(wildcards['var_nu']) #variance of variance for residual error across individuals
-                a = np.array([float(x) for x in wildcards['a'].split('_')])
-                ss = int(float(wildcards['ss']))
-                C = len(wildcards['a'].split('_'))
-            rng = np.random.default_rng()
-
-            for P_f, pi_f, s_f, y_f, nu_f, overall_y_f, overall_nu_f, fixed_M_f, random_M_f in zip(
-                    params.P, params.pi, params.s, params.y, params.nu, params.overall_y, params.overall_nu,
-                    params.fixed_M, params.random_M):
-                #for P_f, pi_f, s_f, y_f, nu_f in zip(
-                #    params.P, params.pi, params.s, params.y, params.nu):
-                os.makedirs(os.path.dirname(P_f), exist_ok=True)
-                # simulate cell type proportions
-                P = rng.dirichlet(alpha=a, size=ss)
-                np.savetxt(P_f, P, delimiter='\t')
-                pi = np.mean(P, axis=0)
-                np.savetxt(pi_f, pi, delimiter='\t')
-
-                # estimate cov matrix S
-                ## demeaning P 
-                pd = P-pi
-                ## covariance
-                s = (pd.T @ pd)/ss
-                np.savetxt(s_f, s, delimiter='\t')
-
-                # draw alpha / hom effect
-                alpha_overall = rng.normal(loc=0, scale=math.sqrt(hom2), size=(ss))
-                alpha = np.outer(alpha_overall, np.ones(C))
-
-                # draw gamma (interaction)
-                if wildcards.model != 'hom':
-                    gamma = rng.multivariate_normal(np.zeros(C), V, size=ss) 
-                    interaction = np.sum(P * gamma, axis=1)
-
-                # draw residual error
-                ## draw variance of residual error for each individual from gamma distribution \Gamma(k, theta)
-                ## with mean = k * theta, var = k * theta^2, so theta = var / mean, k = mean / theta
-                ## since mean = 0.25 and assume var = 0.01, we can get k and theta
-                if mean_nu != 0:
-                    theta = var_nu / mean_nu 
-                    if var_nu < 0:
-                        theta = theta * (-1)
-                    k = mean_nu / theta 
-                    ### variance of residual error for each individual
-                    nu_overall = rng.gamma(k, scale=theta, size=ss)
-                else:
-                    nu_overall = np.zeros(ss)
-                np.savetxt(overall_nu_f, nu_overall, delimiter='\t')
-                ### variance of residual error for each CT is in the ratio of the inverse of CT proportion
-                P_inv = 1 / P
-                nu = P_inv * nu_overall.reshape(-1,1)
-
-                # if mor than two CTs of one individual have low nu, 
-                # hom model broken because of sigular variance matrix.
-                # to solve the problem, regenerate NU
-                threshold = 1e-10
-                if mean_nu != 0:
-                    i = 1
-                    while np.any( np.sum(nu < threshold, axis=1) > 1 ):
-                        nu_overall = rng.gamma(k, scale=theta, size=ss)
-                        np.savetxt(overall_nu_f, nu_overall, delimiter='\t')
-                        nu = P_inv * nu_overall.reshape(-1,1)
-                        i += 1
-                        if i > 5:
-                            sys.exit('Generate NU failed!\n')
-
-                # temporary use
-                if var_nu < 0:
-                    P2 = P**2
-                    nu = (1 / P2.sum(axis=1)) * nu_overall
-                    nu = np.repeat(nu.reshape(-1,1), C, axis=1)
-
-                np.savetxt(nu_f, nu, delimiter='\t')
-
-                ## draw residual error from normal distribution with variance drawn above
-                delta_overall = rng.normal(np.zeros_like(nu_overall), np.sqrt(nu_overall))
-                delta = rng.normal(np.zeros_like(nu), np.sqrt(nu))
-
-                # generate pseudobulk
-                if wildcards.model == 'hom':
-                    y_overall = alpha_overall + P @ beta + delta_overall
-                    y = alpha + np.outer(np.ones(ss), beta) + delta
-                else:
-                    y_overall = alpha_overall + P @ beta + interaction + delta_overall
-                    y = alpha + np.outer(np.ones(ss), beta) + gamma + delta 
-
-                # add fixed effect
-                if 'fixed' in wildcards.keys():
-                    levels = int(wildcards.fixed)
-                    if levels > 0:
-                        print(np.var(y_overall))
-                        fixed = np.arange(levels)
-                        fixed = fixed / np.std(fixed) # to set variance to 1
-                        fixed_M = np.zeros( (len(y_overall), levels) )
-                        j = 0
-                        for i, chunk in enumerate( np.array_split(y_overall, levels)):
-                            fixed_M[j:(j+len(chunk)), i] = 1
-                            j = j + len(chunk)
-                        # centralize fixed effect
-                        fixed = fixed - np.mean(fixed_M @ fixed)
-
-                        y_overall = y_overall + fixed_M @ fixed
-                        print(np.var(y_overall))
-                        y = y + (fixed_M @ fixed).reshape(-1,1)
-                        # save fixed effect design matrix (get rid last column to avoid colinear)
-                        np.savetxt(fixed_M_f, fixed_M[:,:-1], delimiter='\t')
-
-                # add random effect
-                if 'random' in wildcards.keys():
-                    levels = int(wildcards.random)
-                    if levels > 0:
-                        print('variance', np.var(y_overall))
-                        random_e = rng.normal(0, 1, levels)
-                        random_M = np.zeros( (len(y_overall), levels) )
-                        j = 0
-                        for i, chunk in enumerate(np.array_split(y_overall, levels)):
-                            random_M[j:(j+len(chunk)), i] = 1
-                            j = j + len(chunk)
-                        # centralize random effect
-                        random_e = random_e - np.mean(random_M @ random_e)
-                        ## double check it's centralized
-                        if np.mean( random_M @ random_e) > 1e-3:
-                            print('mean', np.mean( random_M @ random_e ) )
-                            sys.exit('Centralization error!\n')
-
-                        y_overall = y_overall + random_M @ random_e
-                        print('variance', np.var(y_overall))
-                        y = y + (random_M @ random_e).reshape(-1,1)
-                        # save random effect design matrix
-                        np.savetxt(random_M_f, random_M, delimiter='\t')
-
-                # save
-                np.savetxt(overall_y_f, y_overall, delimiter='\t')
-                np.savetxt(y_f, y, delimiter='\t')
-
-            with open(output.P, 'w') as f: f.write('\n'.join(params.P))
-            with open(output.pi, 'w') as f: f.write('\n'.join(params.pi))
-            with open(output.s, 'w') as f: f.write('\n'.join(params.s))
-            with open(output.y, 'w') as f: f.write('\n'.join(params.y))
-            with open(output.nu, 'w') as f: f.write('\n'.join(params.nu))
-            with open(output.overall_y, 'w') as f: f.write('\n'.join(params.overall_y))
-            with open(output.overall_nu, 'w') as f: f.write('\n'.join(params.overall_nu))
-            with open(output.fixed_M, 'w') as f:
-                if 'fixed' in wildcards.keys():
-                    if int(wildcards.fixed) > 0:
-                        f.write('\n'.join(params.fixed_M))
-                    else:
-                        f.write('NA')
-                else:
-                    f.write('NA')
-            with open(output.random_M, 'w') as f:
-                if 'random' in wildcards.keys():
-                    if int(wildcards.random) > 0:
-                        f.write('\n'.join(params.random_M))
-                    else:
-                        f.write('NA')
-                else:
-                    f.write('NA')
+use rule op_simulation as ctp_simulation with:
+    input:
+        beta = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/celltypebeta.txt',
+        V = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/V.txt',
+    output:
+        P = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        pi = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.batch{{i}}.txt',
+        s = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{{i}}.txt',
+        nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+        y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+        cty = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        fixed = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
+        random = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
+    params:
+        batch = lambda wildcards: ong_batches[int(wildcards.i)],
+        P = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/P.txt',
+        pi = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/estPI.txt',
+        s = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/estS.txt',
+        nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/nu.txt',
+        y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/op.txt',
+        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/ctnu.txt',
+        cty = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/ctp.txt',
+        fixed = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/fixed.X.txt',
+        random = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/random.X.txt',
 
 rule ctng_test:
     input:
-        y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/pseudobulk.batch{{i}}.txt',
+        y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
         P = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+        nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
     output:
         out = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/out.batch{{i}}',
     params:
@@ -665,7 +440,7 @@ rule ctng_MLnREML_aggReplications:
     input:
         s = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{i}.txt'
                 for i in range(len(ctng_batches))],
-        nu = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{i}.txt' 
+        ctnu = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{i}.txt' 
                 for i in range(len(ctng_batches))],
         P = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{i}.txt'
                 for i in range(len(ctng_batches))],
@@ -675,7 +450,7 @@ rule ctng_MLnREML_aggReplications:
                 for i in range(len(ctng_batches))],
     output:
         s = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estS.txt',
-        nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/nu.txt',
+        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.txt',
         pi = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.txt',
         out = f'analysis/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/out.npy',
     script: 'bin/ctng_waldNlrt_aggReplications.py'
@@ -844,38 +619,11 @@ rule ctng_all:
     input:
         flag = expand('staging/ctng/{model}/all.flag', model=['hom','free', 'full']),
 
-rule ong_test_remlJK:
-    input:
-        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/pseudobulk.batch{{i}}.txt',
-        P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
-    output:
-        out = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.batch{{i}}',
-    params:
-        out = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/rep/out.remlJK.npy',
-        batch = lambda wildcards: ong_batches[int(wildcards.i)],
-        ML = False,
-        REML = True,
-        Free_reml_only = True,
-        Free_reml_jk = True,
-        HE = False,
-    resources:
-        mem_per_cpu = '10gb',
-    script: 'bin/ong_test.py'
-
-rule ong_test_remlJK_aggReplications:
-    input:
-        out = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.batch{i}' 
-                for i in range(len(ctng_batches))],
-    output:
-        out = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.npy',
-    script: 'bin/mergeBatches.py'
-
 rule ctng_test_remlJK:
     input:
-        y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/pseudobulk.batch{{i}}.txt',
+        cty = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
         P = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
     output:
         out = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.batch{{i}}',
     params:
