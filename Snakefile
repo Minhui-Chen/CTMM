@@ -159,13 +159,15 @@ rule op_test:
         HE = True,
     resources:
         mem_per_cpu = '5000',
-    script: 'bin/op_test.py'
+    script: 'bin/OP/op_test.py'
 
 rule op_aggReplications:
     input:
         s = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{i}.txt'
                 for i in range(len(op_batches))],
         nu = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{i}.txt' 
+                for i in range(len(op_batches))],
+        P = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{i}.txt'
                 for i in range(len(op_batches))],
         pi = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estPI.batch{i}.txt' 
                 for i in range(len(op_batches))],
@@ -176,7 +178,7 @@ rule op_aggReplications:
         nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.txt',
         pi = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estPI.txt',
         out = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
-    script: 'bin/op_aggReplications.py'
+    script: 'bin/OP/op_aggReplications.py'
 
 def op_agg_out_subspace(wildcards):
     subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']==wildcards.model])
@@ -406,7 +408,7 @@ use rule op_simulation as ctp_simulation with:
         fixed = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
         random = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
     params:
-        batch = lambda wildcards: op_batches[int(wildcards.i)],
+        batch = lambda wildcards: ctp_batches[int(wildcards.i)],
         P = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/P.txt',
         pi = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/estPI.txt',
         s = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/estS.txt',
@@ -436,7 +438,7 @@ rule ctp_test:
     priority: 1
     script: 'bin/ctp_test.py'
 
-rule ctp_MLnREML_aggReplications:
+use rule op_aggReplications as ctp_aggReplications with:
     input:
         s = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{i}.txt'
                 for i in range(len(ctp_batches))],
@@ -453,7 +455,6 @@ rule ctp_MLnREML_aggReplications:
         ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.txt',
         pi = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estPI.txt',
         out = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
-    script: 'bin/ctp_waldNlrt_aggReplications.py'
 
 def ctp_agg_out_subspace(wildcards):
     subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']==wildcards.model])
