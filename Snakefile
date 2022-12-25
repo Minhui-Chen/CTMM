@@ -163,22 +163,11 @@ rule op_test:
 
 rule op_aggReplications:
     input:
-        s = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{i}.txt'
-                for i in range(len(op_batches))],
-        nu = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{i}.txt' 
-                for i in range(len(op_batches))],
-        P = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{i}.txt'
-                for i in range(len(op_batches))],
-        pi = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estPI.batch{i}.txt' 
-                for i in range(len(op_batches))],
         out = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/out.batch{i}' 
                 for i in range(len(op_batches))],
     output:
-        s = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estS.txt',
-        nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.txt',
-        pi = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estPI.txt',
         out = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
-    script: 'bin/OP/op_aggReplications.py'
+    script: 'bin/mergeBatches.py'
 
 def op_agg_out_subspace(wildcards):
     subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']==wildcards.model])
@@ -377,13 +366,12 @@ rule op_test_remlJK:
         mem_per_cpu = '10gb',
     script: 'bin/op_test.py'
 
-rule op_test_remlJK_aggReplications:
+use rule op_aggReplications as op_remlJK_aggReplications with:
     input:
         out = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.batch{i}' 
                 for i in range(len(ctp_batches))],
     output:
         out = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.npy',
-    script: 'bin/mergeBatches.py'
 
 #########################################################################################
 # CTP
@@ -440,20 +428,9 @@ rule ctp_test:
 
 use rule op_aggReplications as ctp_aggReplications with:
     input:
-        s = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{i}.txt'
-                for i in range(len(ctp_batches))],
-        ctnu = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{i}.txt' 
-                for i in range(len(ctp_batches))],
-        P = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{i}.txt'
-                for i in range(len(ctp_batches))],
-        pi = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estPI.batch{i}.txt' 
-                for i in range(len(ctp_batches))],
         out = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.batch{i}' 
                 for i in range(len(ctp_batches))],
     output:
-        s = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estS.txt',
-        ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.txt',
-        pi = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estPI.txt',
         out = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
 
 def ctp_agg_out_subspace(wildcards):
@@ -641,13 +618,12 @@ rule ctp_test_remlJK:
     priority: 1
     script: 'bin/ctp_test.py'
 
-rule ctp_test_remlJK_aggReplications:
+use rule op_aggReplications as ctp_remlJK_aggReplications with:
     input:
         out = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.batch{i}' 
                 for i in range(len(ctp_batches))],
     output:
         out = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.npy',
-    script: 'bin/mergeBatches.py'
 
 rule paper_opNctp_power:
     input:
@@ -1128,13 +1104,12 @@ rule cuomo_op_test:
 #    return expand(f"staging/cuomo/{par[:-1]}/batch{{i}}/out.txt", 
 #            i=glob_wildcards(os.path.join(checkpoint_output, "batch{i}.txt")).i)
 
-rule cuomo_op_test_mergeBatches:
+use rule op_aggReplications as cuomo_op_aggReplications:
     input:
         out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/out.txt' 
                 for i in range(cuomo_batch_no)],
     output:
         out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-    script: 'bin/mergeBatches.py'
 
 rule cuomo_op_corr_plot:
     input:
@@ -1206,7 +1181,7 @@ rule cuomo_ctp_test:
         time = '48:00:00',
     script: 'bin/cuomo_ctp_test.py'
 
-use rule cuomo_op_test_mergeBatches as cuomo_ctp_test_mergeBatches with:
+use rule op_aggReplications as cuomo_ctp_aggReplications with:
     input:
         out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.out.txt'
                 for i in range(cuomo_batch_no)],
@@ -1239,7 +1214,7 @@ rule cuomo_ctp_test2:
         time = '48:00:00',
     script: 'bin/cuomo_ctp_test.py'
 
-use rule cuomo_op_test_mergeBatches as cuomo_ctp_test2_mergeBatches with:
+use rule op_aggReplications as cuomo_ctp_test2_aggReplications with:
     input:
         out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.out2.txt'
                 for i in range(cuomo_batch_no)],
@@ -1262,7 +1237,7 @@ use rule cuomo_ctp_test as cuomo_ctp_test_remlJK with:
         mem = '16gb',
         time = '48:00:00',
 
-use rule cuomo_op_test_mergeBatches as cuomo_ctp_test_remlJK_mergeBatches with:
+use rule op_aggReplications as cuomo_ctp_remlJK_aggReplications with:
     input:
         out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.remlJK.out.txt'
                 for i in range(cuomo_batch_no)],
@@ -1326,7 +1301,7 @@ use rule cuomo_ctp_test as cuomo_ctp_test_miny with:
         mem = '10gb',
         time = '48:00:00',
 
-use rule cuomo_op_test_mergeBatches as cuomo_ctp_test_miny_mergeBatches with:
+use rule op_aggReplications as cuomo_ctp_miny_aggReplications with:
     input:
         out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.miny.out.txt'
                 for i in range(cuomo_batch_no)],
@@ -1640,7 +1615,7 @@ use rule ctp_test as cuomo_simulateGene_hom_ctp_test with:
         REML = True,
         HE = True,
 
-use rule cuomo_op_test_mergeBatches as cuomo_simulateGene_hom_ctp_test_mergeBatches with:
+use rule op_aggReplications as cuomo_simulateGene_hom_ctp_aggReplications with:
     input:
         out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
@@ -1666,7 +1641,7 @@ use rule ctp_test as cuomo_simulateGene_hom_ctp_test_remlJK with:
         mem_per_cpu = '12gb',
         time = '48:00:00',
 
-use rule cuomo_op_test_mergeBatches as cuomo_simulateGene_hom_ctp_test_remlJK_mergeBatches with:
+use rule op_aggReplications as cuomo_simulateGene_hom_ctp_remlJK_aggReplications with:
     input:
         out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
@@ -1758,7 +1733,7 @@ use rule ctp_test as cuomo_simulateGene_Free_ctp_test with:
         REML = True,
         HE = True,
 
-use rule cuomo_op_test_mergeBatches as cuomo_simulateGene_Free_ctp_test_mergeBatches with:
+use rule op_aggReplications as cuomo_simulateGene_Free_ctp_aggReplications with:
     input:
         out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
@@ -1784,7 +1759,7 @@ use rule ctp_test as cuomo_simulateGene_Free_ctp_test_remlJK with:
         mem_per_cpu = '12gb',
         time = '48:00:00',
 
-use rule cuomo_op_test_mergeBatches as cuomo_simulateGene_Free_ctp_test_remlJK_mergeBatches with:
+use rule op_aggReplications as cuomo_simulateGene_Free_ctp_remlJK_aggReplications with:
     input:
         out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
