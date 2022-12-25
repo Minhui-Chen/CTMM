@@ -59,19 +59,19 @@ wildcard_constraints: prop = '[\d\.]+'
 # OP Simulation
 #########################################################################################
 # par
-ong_replicates = 1000
-ong_batch_no = 100
-ong_batches = np.array_split(range(ong_replicates), ong_batch_no)
+op_replicates = 1000
+op_batch_no = 100
+op_batches = np.array_split(range(op_replicates), op_batch_no)
 
 ## paramspace
-ong_params = pd.read_table("ong.params.txt", dtype="str", comment='#', na_filter=False)
-if ong_params.shape[0] != ong_params.drop_duplicates().shape[0]:
+op_params = pd.read_table("op.params.txt", dtype="str", comment='#', na_filter=False)
+if op_params.shape[0] != op_params.drop_duplicates().shape[0]:
     sys.exit('Duplicated parameters!\n')
-par_columns = list(ong_params.columns)
+par_columns = list(op_params.columns)
 par_columns.remove('model') # columns after removing 'model'
-ong_paramspace = Paramspace(ong_params[par_columns], filename_params="*")
+op_paramspace = Paramspace(op_params[par_columns], filename_params="*")
 
-ong_plot_order = {
+op_plot_order = {
         'hom':{
             'ss':['2e1', '5e1', '1e2', '2e2', '3e2', '5e2', '1e3'], 
             'a':['0.5_2_2_2', '1_2_2_2', '2_2_2_2', '4_2_2_2']
@@ -101,271 +101,271 @@ ong_plot_order = {
             },
         }
 
-ong_excluderareCT_plot_order = copy.deepcopy(ong_plot_order)
-for model in ong_excluderareCT_plot_order.keys():
-    ong_excluderareCT_plot_order[model]['a'].remove('0.5_2_2_2')
+op_excluderareCT_plot_order = copy.deepcopy(op_plot_order)
+for model in op_excluderareCT_plot_order.keys():
+    op_excluderareCT_plot_order[model]['a'].remove('0.5_2_2_2')
 
 rule op_parameters:
     output:
-        pi = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/PI.txt',
-        s = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/S.txt',
-        beta = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/celltypebeta.txt',
-        V = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/V.txt',
+        pi = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/PI.txt',
+        s = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/S.txt',
+        beta = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/celltypebeta.txt',
+        V = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/V.txt',
     params:
-        simulation=ong_paramspace.instance,
+        simulation=op_paramspace.instance,
     script: 'bin/sim/op_parameters.py'
 
 rule op_simulation:
     input:
-        beta = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/celltypebeta.txt',
-        V = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/V.txt',
+        beta = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/celltypebeta.txt',
+        V = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/V.txt',
     output:
-        P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        pi = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.batch{{i}}.txt',
-        s = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{{i}}.txt',
-        nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
-        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
-        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
-        cty = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        P = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        pi = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estPI.batch{{i}}.txt',
+        s = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{{i}}.txt',
+        nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
         # add a test fixed effect. if it's not needed, this file is 'NA'
-        fixed = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
+        fixed = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
         # add a test random effect. if it's not needed, this file is 'NA'
-        random = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
+        random = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
     params:
-        batch = lambda wildcards: ong_batches[int(wildcards.i)],
-        P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/P.txt',
-        pi = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/estPI.txt',
-        s = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/estS.txt',
-        nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/nu.txt',
-        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/op.txt',
-        ctnu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/ctnu.txt',
-        cty = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/ctp.txt',
-        fixed = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/fixed.X.txt',
-        random = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/repX/random.X.txt',
+        batch = lambda wildcards: op_batches[int(wildcards.i)],
+        P = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/P.txt',
+        pi = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/estPI.txt',
+        s = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/estS.txt',
+        nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/nu.txt',
+        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/op.txt',
+        ctnu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/ctnu.txt',
+        cty = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/ctp.txt',
+        fixed = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/fixed.X.txt',
+        random = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/random.X.txt',
     script: 'bin/sim/opNctp_simulation.py'
 
-rule ong_test:
+rule op_test:
     input:
-        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
-        P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        P = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
     output:
-        out = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.batch{{i}}',
+        out = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/out.batch{{i}}',
     params:
-        out = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/rep/out.npy',
-        batch = lambda wildcards: ong_batches[int(wildcards.i)],
+        out = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/rep/out.npy',
+        batch = lambda wildcards: op_batches[int(wildcards.i)],
         ML = True,
         REML = True,
         HE = True,
     resources:
         mem_per_cpu = '5000',
-    script: 'bin/ong_test.py'
+    script: 'bin/op_test.py'
 
-rule ong_aggReplications:
+rule op_aggReplications:
     input:
-        s = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{i}.txt'
-                for i in range(len(ong_batches))],
-        nu = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{i}.txt' 
-                for i in range(len(ong_batches))],
-        pi = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.batch{i}.txt' 
-                for i in range(len(ong_batches))],
-        out = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.batch{i}' 
-                for i in range(len(ong_batches))],
+        s = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{i}.txt'
+                for i in range(len(op_batches))],
+        nu = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{i}.txt' 
+                for i in range(len(op_batches))],
+        pi = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estPI.batch{i}.txt' 
+                for i in range(len(op_batches))],
+        out = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/out.batch{i}' 
+                for i in range(len(op_batches))],
     output:
-        s = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estS.txt',
-        nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.txt',
-        pi = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.txt',
-        out = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.npy',
-    script: 'bin/ong_aggReplications.py'
+        s = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estS.txt',
+        nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.txt',
+        pi = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estPI.txt',
+        out = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
+    script: 'bin/op_aggReplications.py'
 
-def ong_agg_out_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('analysis/ong/{{model}}/{params}/out.npy', params=subspace.instance_patterns)
+def op_agg_out_subspace(wildcards):
+    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']==wildcards.model])
+    return expand('analysis/op/{{model}}/{params}/out.npy', params=subspace.instance_patterns)
 
-def ong_agg_truebeta_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('analysis/ong/{{model}}/{params}/celltypebeta.txt', params=subspace.instance_patterns)
+def op_agg_truebeta_subspace(wildcards):
+    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']==wildcards.model])
+    return expand('analysis/op/{{model}}/{params}/celltypebeta.txt', params=subspace.instance_patterns)
 
-def ong_agg_trueV_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('analysis/ong/{{model}}/{params}/V.txt', params=subspace.instance_patterns)
+def op_agg_trueV_subspace(wildcards):
+    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']==wildcards.model])
+    return expand('analysis/op/{{model}}/{params}/V.txt', params=subspace.instance_patterns)
 
-rule ong_MLestimates_subspace_plot:
+rule op_MLestimates_subspace_plot:
     input:
-        out = ong_agg_out_subspace,
-        beta = ong_agg_truebeta_subspace,
-        V = ong_agg_trueV_subspace,
+        out = op_agg_out_subspace,
+        beta = op_agg_truebeta_subspace,
+        V = op_agg_trueV_subspace,
     output:
-        png = 'results/ong/{model}/ML.AGG{arg}.png',
+        png = 'results/op/{model}/ML.AGG{arg}.png',
     params:
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: "bin/ong_MLestimates_subspace_plot.py"
+    script: "bin/op_MLestimates_subspace_plot.py"
 
-rule ong_MLwaldNlrt_subspace_plot:
+rule op_MLwaldNlrt_subspace_plot:
     input:
-        out = ong_agg_out_subspace, 
+        out = op_agg_out_subspace, 
     output:
-        waldNlrt = 'results/ong/{model}/ML.waldNlrt.AGG{arg}.png',
+        waldNlrt = 'results/op/{model}/ML.waldNlrt.AGG{arg}.png',
     params: 
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: 'bin/ong_MLwaldNlrt_subspace_plot.py'
+    script: 'bin/op_MLwaldNlrt_subspace_plot.py'
 
-rule ong_REMLestimates_subspace_plot:
+rule op_REMLestimates_subspace_plot:
     input:
-        out = ong_agg_out_subspace,
-        V = ong_agg_trueV_subspace,
+        out = op_agg_out_subspace,
+        V = op_agg_trueV_subspace,
     output:
-        png = 'results/ong/{model}/REML.AGG{arg}.png',
+        png = 'results/op/{model}/REML.AGG{arg}.png',
     params:
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: 'bin/ong_REMLestimates_subspace_plot.py'
+    script: 'bin/op_REMLestimates_subspace_plot.py'
 
-rule ong_REMLwaldNlrt_subspace_plot:
+rule op_REMLwaldNlrt_subspace_plot:
     input:
-        out = ong_agg_out_subspace, 
+        out = op_agg_out_subspace, 
     output:
-        waldNlrt = 'results/ong/{model}/REML.waldNlrt.AGG{arg}.png',
+        waldNlrt = 'results/op/{model}/REML.waldNlrt.AGG{arg}.png',
     params: 
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: 'bin/ong_REMLwaldNlrt_subspace_plot.py'
+    script: 'bin/op_REMLwaldNlrt_subspace_plot.py'
 
-rule ong_HEestimates_AGGsubspace_plot:
+rule op_HEestimates_AGGsubspace_plot:
     input:
-        out = ong_agg_out_subspace,
-        V = ong_agg_trueV_subspace,
+        out = op_agg_out_subspace,
+        V = op_agg_trueV_subspace,
     output:
-        png = 'results/ong/{model}/HE.AGG{arg}.png',
+        png = 'results/op/{model}/HE.AGG{arg}.png',
     params: 
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: "bin/ong_HEestimates_AGGsubspace_plot.py"
+    script: "bin/op_HEestimates_AGGsubspace_plot.py"
 
-rule ong_HEwald_subspace_plot:
+rule op_HEwald_subspace_plot:
     input:
-        out = ong_agg_out_subspace, 
+        out = op_agg_out_subspace, 
     output:
-        waldNlrt = 'results/ong/{model}/HE.wald.AGG{arg}.png',
+        waldNlrt = 'results/op/{model}/HE.wald.AGG{arg}.png',
     params: 
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: 'bin/ong_HEwald_subspace_plot.py'
+    script: 'bin/op_HEwald_subspace_plot.py'
 
-def ong_MLestimates_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ong/{{model}}/ML.AGG{arg}.png', arg=effective_args)
+def op_MLestimates_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/op/{{model}}/ML.AGG{arg}.png', arg=effective_args)
 
-def ong_MLwaldNlrt_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ong/{{model}}/ML.waldNlrt.AGG{arg}.png', arg=effective_args)
+def op_MLwaldNlrt_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/op/{{model}}/ML.waldNlrt.AGG{arg}.png', arg=effective_args)
 
-def ong_REMLestimates_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ong/{{model}}/REML.AGG{arg}.png', arg=effective_args)
+def op_REMLestimates_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/op/{{model}}/REML.AGG{arg}.png', arg=effective_args)
 
-def ong_REMLwaldNlrt_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ong/{{model}}/REML.waldNlrt.AGG{arg}.png', arg=effective_args)
+def op_REMLwaldNlrt_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/op/{{model}}/REML.waldNlrt.AGG{arg}.png', arg=effective_args)
 
-def ong_HEestimates_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ong/{{model}}/HE.AGG{arg}.png', arg=effective_args)
+def op_HEestimates_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/op/{{model}}/HE.AGG{arg}.png', arg=effective_args)
 
-def ong_HEwald_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ong/{{model}}/HE.wald.AGG{arg}.png', arg=effective_args)
+def op_HEwald_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/op/{{model}}/HE.wald.AGG{arg}.png', arg=effective_args)
 
-rule ong_AGGarg:
+rule op_AGGarg:
     input:
-        ML = ong_MLestimates_AGGarg_fun,
-        ML_waldNlrt = ong_MLwaldNlrt_AGGarg_fun,
-        REML = ong_REMLestimates_AGGarg_fun,
-        REML_waldNlrt = ong_REMLwaldNlrt_AGGarg_fun,
-        HE = ong_HEestimates_AGGarg_fun,
-        HE_wald = ong_HEwald_AGGarg_fun,
+        ML = op_MLestimates_AGGarg_fun,
+        ML_waldNlrt = op_MLwaldNlrt_AGGarg_fun,
+        REML = op_REMLestimates_AGGarg_fun,
+        REML_waldNlrt = op_REMLwaldNlrt_AGGarg_fun,
+        HE = op_HEestimates_AGGarg_fun,
+        HE_wald = op_HEwald_AGGarg_fun,
     output:
-        flag = touch('staging/ong/{model}/all.flag'),
+        flag = touch('staging/op/{model}/all.flag'),
 
-rule ong_mainfig_LRT:
+rule op_mainfig_LRT:
     input:
-        hom_ss = expand('analysis/ong/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        iid_ss = expand('analysis/ong/iid/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='iid']).instance_patterns),
-        free_ss = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        hom_a = expand('analysis/ong/hom/{params}/out.npy',
-                params=get_subspace('a', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        iid_a = expand('analysis/ong/iid/{params}/out.npy',
-                params=get_subspace('a', ong_params.loc[ong_params['model']=='iid']).instance_patterns),
-        free_a = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('a', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        #hom_vc = expand('analysis/ong/hom/{params}/out.npy',
-        #        params=get_subspace('vc', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        iid_vc = expand('analysis/ong/iid/{params}/out.npy',
-                params=get_subspace('vc', ong_params.loc[ong_params['model']=='iid']).instance_patterns),
-        free_vc = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('vc', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        free_V_diag = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('V_diag', ong_params.loc[ong_params['model']=='free']).instance_patterns),
+        hom_ss = expand('analysis/op/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        iid_ss = expand('analysis/op/iid/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='iid']).instance_patterns),
+        free_ss = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        hom_a = expand('analysis/op/hom/{params}/out.npy',
+                params=get_subspace('a', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        iid_a = expand('analysis/op/iid/{params}/out.npy',
+                params=get_subspace('a', op_params.loc[op_params['model']=='iid']).instance_patterns),
+        free_a = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('a', op_params.loc[op_params['model']=='free']).instance_patterns),
+        #hom_vc = expand('analysis/op/hom/{params}/out.npy',
+        #        params=get_subspace('vc', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        iid_vc = expand('analysis/op/iid/{params}/out.npy',
+                params=get_subspace('vc', op_params.loc[op_params['model']=='iid']).instance_patterns),
+        free_vc = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('vc', op_params.loc[op_params['model']=='free']).instance_patterns),
+        free_V_diag = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('V_diag', op_params.loc[op_params['model']=='free']).instance_patterns),
     output:
-        png = 'results/ong/mainfig.LRT.png',
+        png = 'results/op/mainfig.LRT.png',
     params:
-        hom_ss = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='hom'])['ss']),
-        iid_ss = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='iid'])['ss']),
-        free_ss = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='free'])['ss']),
-        hom_a = np.array(get_subspace('a', ong_params.loc[ong_params['model']=='hom'])['a']),
-        iid_a = np.array(get_subspace('a', ong_params.loc[ong_params['model']=='iid'])['a']),
-        free_a = np.array(get_subspace('a', ong_params.loc[ong_params['model']=='free'])['a']),
-        #hom_vc = np.array(get_subspace('vc', ong_params.loc[ong_params['model']=='hom'])['vc']),
-        iid_vc = np.array(get_subspace('vc', ong_params.loc[ong_params['model']=='iid'])['vc']),
-        free_vc = np.array(get_subspace('vc', ong_params.loc[ong_params['model']=='free'])['vc']),
-        free_V_diag = np.array(get_subspace('V_diag', ong_params.loc[ong_params['model']=='free'])['V_diag']),
-        plot_order = ong_plot_order,
-    script: "bin/ong_mainfig_LRT.py"
+        hom_ss = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
+        iid_ss = np.array(get_subspace('ss', op_params.loc[op_params['model']=='iid'])['ss']),
+        free_ss = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
+        hom_a = np.array(get_subspace('a', op_params.loc[op_params['model']=='hom'])['a']),
+        iid_a = np.array(get_subspace('a', op_params.loc[op_params['model']=='iid'])['a']),
+        free_a = np.array(get_subspace('a', op_params.loc[op_params['model']=='free'])['a']),
+        #hom_vc = np.array(get_subspace('vc', op_params.loc[op_params['model']=='hom'])['vc']),
+        iid_vc = np.array(get_subspace('vc', op_params.loc[op_params['model']=='iid'])['vc']),
+        free_vc = np.array(get_subspace('vc', op_params.loc[op_params['model']=='free'])['vc']),
+        free_V_diag = np.array(get_subspace('V_diag', op_params.loc[op_params['model']=='free'])['V_diag']),
+        plot_order = op_plot_order,
+    script: "bin/op_mainfig_LRT.py"
 
-rule ong_all:
+rule op_all:
     input:
-        flag = expand('staging/ong/{model}/all.flag', model=['null', 'hom', 'iid', 'free', 'full']),
-        png = 'results/ong/mainfig.LRT.png',
+        flag = expand('staging/op/{model}/all.flag', model=['null', 'hom', 'iid', 'free', 'full']),
+        png = 'results/op/mainfig.LRT.png',
 
-rule ong_test_remlJK:
+rule op_test_remlJK:
     input:
-        y = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
-        P = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        nu = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        P = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
     output:
-        out = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.batch{{i}}',
+        out = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.batch{{i}}',
     params:
-        out = f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/rep/out.remlJK.npy',
-        batch = lambda wildcards: ong_batches[int(wildcards.i)],
+        out = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/rep/out.remlJK.npy',
+        batch = lambda wildcards: op_batches[int(wildcards.i)],
         ML = False,
         REML = True,
         Free_reml_only = True,
@@ -373,60 +373,60 @@ rule ong_test_remlJK:
         HE = False,
     resources:
         mem_per_cpu = '10gb',
-    script: 'bin/ong_test.py'
+    script: 'bin/op_test.py'
 
-rule ong_test_remlJK_aggReplications:
+rule op_test_remlJK_aggReplications:
     input:
-        out = [f'staging/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.batch{i}' 
-                for i in range(len(ctng_batches))],
+        out = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.batch{i}' 
+                for i in range(len(ctp_batches))],
     output:
-        out = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.npy',
+        out = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.npy',
     script: 'bin/mergeBatches.py'
 
 #########################################################################################
 # CTP
 #########################################################################################
 # par
-ctng_replicates = 1000
-ctng_batch_no = 100
-ctng_batches = np.array_split(range(ctng_replicates), ctng_batch_no)
+ctp_replicates = 1000
+ctp_batch_no = 100
+ctp_batches = np.array_split(range(ctp_replicates), ctp_batch_no)
 
 use rule op_simulation as ctp_simulation with:
     input:
-        beta = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/celltypebeta.txt',
-        V = f'analysis/ong/{{model}}/{ong_paramspace.wildcard_pattern}/V.txt',
+        beta = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/celltypebeta.txt',
+        V = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/V.txt',
     output:
-        P = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        pi = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.batch{{i}}.txt',
-        s = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{{i}}.txt',
-        nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
-        y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
-        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
-        cty = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
-        fixed = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
-        random = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
+        P = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        pi = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estPI.batch{{i}}.txt',
+        s = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{{i}}.txt',
+        nu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        fixed = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
+        random = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
     params:
-        batch = lambda wildcards: ong_batches[int(wildcards.i)],
-        P = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/P.txt',
-        pi = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/estPI.txt',
-        s = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/estS.txt',
-        nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/nu.txt',
-        y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/op.txt',
-        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/ctnu.txt',
-        cty = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/ctp.txt',
-        fixed = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/fixed.X.txt',
-        random = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/repX/random.X.txt',
+        batch = lambda wildcards: op_batches[int(wildcards.i)],
+        P = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/P.txt',
+        pi = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/estPI.txt',
+        s = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/estS.txt',
+        nu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/nu.txt',
+        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/op.txt',
+        ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/ctnu.txt',
+        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/ctp.txt',
+        fixed = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/fixed.X.txt',
+        random = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/random.X.txt',
 
-rule ctng_test:
+rule ctp_test:
     input:
-        y = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
-        P = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        nu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        P = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        nu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
     output:
-        out = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/out.batch{{i}}',
+        out = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.batch{{i}}',
     params:
-        out = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep/out.npy',
-        batch = lambda wildcards: ctng_batches[int(wildcards.i)],
+        out = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/rep/out.npy',
+        batch = lambda wildcards: ctp_batches[int(wildcards.i)],
         ML = True,
         REML = True,
         HE = True,
@@ -434,201 +434,201 @@ rule ctng_test:
         mem_per_cpu = '5gb',
         time = '48:00:00',
     priority: 1
-    script: 'bin/ctng_test.py'
+    script: 'bin/ctp_test.py'
 
-rule ctng_MLnREML_aggReplications:
+rule ctp_MLnREML_aggReplications:
     input:
-        s = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estS.batch{i}.txt'
-                for i in range(len(ctng_batches))],
-        ctnu = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{i}.txt' 
-                for i in range(len(ctng_batches))],
-        P = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{i}.txt'
-                for i in range(len(ctng_batches))],
-        pi = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.batch{i}.txt' 
-                for i in range(len(ctng_batches))],
-        out = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/out.batch{i}' 
-                for i in range(len(ctng_batches))],
+        s = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{i}.txt'
+                for i in range(len(ctp_batches))],
+        ctnu = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{i}.txt' 
+                for i in range(len(ctp_batches))],
+        P = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{i}.txt'
+                for i in range(len(ctp_batches))],
+        pi = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estPI.batch{i}.txt' 
+                for i in range(len(ctp_batches))],
+        out = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.batch{i}' 
+                for i in range(len(ctp_batches))],
     output:
-        s = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estS.txt',
-        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.txt',
-        pi = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/estPI.txt',
-        out = f'analysis/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/out.npy',
-    script: 'bin/ctng_waldNlrt_aggReplications.py'
+        s = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estS.txt',
+        ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.txt',
+        pi = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estPI.txt',
+        out = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
+    script: 'bin/ctp_waldNlrt_aggReplications.py'
 
-def ctng_agg_out_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, ong_params.loc[ong_params['model']==wildcards.model])
-    #ong_params.to_csv(sys.stdout, sep='\t', index=False)
+def ctp_agg_out_subspace(wildcards):
+    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']==wildcards.model])
+    #op_params.to_csv(sys.stdout, sep='\t', index=False)
     #subspace.to_csv(sys.stdout, sep='\t', index=False)
-    return expand('analysis/ctng/{{model}}/{params}/out.npy', params=subspace.instance_patterns)
+    return expand('analysis/ctp/{{model}}/{params}/out.npy', params=subspace.instance_patterns)
 
-def ctng_agg_truebeta_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('analysis/ong/{{model}}/{params}/celltypebeta.txt', params=subspace.instance_patterns)
+def ctp_agg_truebeta_subspace(wildcards):
+    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']==wildcards.model])
+    return expand('analysis/op/{{model}}/{params}/celltypebeta.txt', params=subspace.instance_patterns)
 
-use rule ong_MLestimates_subspace_plot as ctng_MLestimates_subspace_plot with:
+use rule op_MLestimates_subspace_plot as ctp_MLestimates_subspace_plot with:
     input:
-        out = ctng_agg_out_subspace,
-        beta = ctng_agg_truebeta_subspace,
-        V = ong_agg_trueV_subspace,
+        out = ctp_agg_out_subspace,
+        beta = ctp_agg_truebeta_subspace,
+        V = op_agg_trueV_subspace,
     output:
-        png = 'results/ctng/{model}/ML.AGG{arg}.png',
+        png = 'results/ctp/{model}/ML.AGG{arg}.png',
 
-use rule ong_MLestimates_subspace_plot as ctng_MLestimates_subspace_plot2 with:
+use rule op_MLestimates_subspace_plot as ctp_MLestimates_subspace_plot2 with:
     input:
-        out = ctng_agg_out_subspace,
-        beta = ctng_agg_truebeta_subspace,
-        V = ong_agg_trueV_subspace,
+        out = ctp_agg_out_subspace,
+        beta = ctp_agg_truebeta_subspace,
+        V = op_agg_trueV_subspace,
     output:
-        png = 'results/ctng/{model}/ML.excluderareCT.AGG{arg}.png',
+        png = 'results/ctp/{model}/ML.excluderareCT.AGG{arg}.png',
     params:
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_excluderareCT_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_excluderareCT_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
 
-use rule ong_MLwaldNlrt_subspace_plot as ctng_MLwaldNlrt_subspace_plot with:
+use rule op_MLwaldNlrt_subspace_plot as ctp_MLwaldNlrt_subspace_plot with:
     input:
-        out = ctng_agg_out_subspace, 
+        out = ctp_agg_out_subspace, 
     output:
-        waldNlrt = 'results/ctng/{model}/ML.waldNlrt.AGG{arg}.png',
+        waldNlrt = 'results/ctp/{model}/ML.waldNlrt.AGG{arg}.png',
 
-use rule ong_MLwaldNlrt_subspace_plot as ctng_MLwaldNlrt_subspace_plot2 with:
+use rule op_MLwaldNlrt_subspace_plot as ctp_MLwaldNlrt_subspace_plot2 with:
     input:
-        out = ctng_agg_out_subspace, 
+        out = ctp_agg_out_subspace, 
     output:
-        waldNlrt = 'results/ctng/{model}/ML.excluderareCT.waldNlrt.AGG{arg}.png',
+        waldNlrt = 'results/ctp/{model}/ML.excluderareCT.waldNlrt.AGG{arg}.png',
     params:
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_excluderareCT_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_excluderareCT_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
 
-use rule ong_HEestimates_AGGsubspace_plot as ctng_HEestimates_AGGsubspace_plot with:
+use rule op_HEestimates_AGGsubspace_plot as ctp_HEestimates_AGGsubspace_plot with:
     input:
-        out = ctng_agg_out_subspace,
-        V = ong_agg_trueV_subspace,
+        out = ctp_agg_out_subspace,
+        V = op_agg_trueV_subspace,
     output:
-        png = 'results/ctng/{model}/HE.AGG{arg}.png',
+        png = 'results/ctp/{model}/HE.AGG{arg}.png',
 
-use rule ong_HEwald_subspace_plot as ctng_HEwald_subspace_plot with:
+use rule op_HEwald_subspace_plot as ctp_HEwald_subspace_plot with:
     input:
-        out = ctng_agg_out_subspace, 
+        out = ctp_agg_out_subspace, 
     output:
-        waldNlrt = 'results/ctng/{model}/HE.wald.AGG{arg}.png',
+        waldNlrt = 'results/ctp/{model}/HE.wald.AGG{arg}.png',
 
-use rule ong_REMLestimates_subspace_plot as ctng_REMLestimates_subspace_plot with:
+use rule op_REMLestimates_subspace_plot as ctp_REMLestimates_subspace_plot with:
     input:
-        out = ctng_agg_out_subspace,
-        #beta = ctng_agg_truebeta_subspace,
-        V = ong_agg_trueV_subspace,
+        out = ctp_agg_out_subspace,
+        #beta = ctp_agg_truebeta_subspace,
+        V = op_agg_trueV_subspace,
     output:
-        png = 'results/ctng/{model}/REML.AGG{arg}.png',
+        png = 'results/ctp/{model}/REML.AGG{arg}.png',
 
-rule ctng_REMLestimates_subspace_plot_BSDposter:
+rule ctp_REMLestimates_subspace_plot_BSDposter:
     input:
-        out = ctng_agg_out_subspace,
-        V = ong_agg_trueV_subspace,
+        out = ctp_agg_out_subspace,
+        V = op_agg_trueV_subspace,
     output:
-        png = 'results/ctng/{model}/REML.AGG{arg}.poster.png',
+        png = 'results/ctp/{model}/REML.AGG{arg}.poster.png',
     params:
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: "bin/ong_MLmodelestimates_subspace_plot.poster.py"
+    script: "bin/op_MLmodelestimates_subspace_plot.poster.py"
 
-use rule ong_REMLestimates_subspace_plot as ctng_REMLestimates_subspace_plot2 with:
+use rule op_REMLestimates_subspace_plot as ctp_REMLestimates_subspace_plot2 with:
     input:
-        out = ctng_agg_out_subspace,
-        V = ong_agg_trueV_subspace,
+        out = ctp_agg_out_subspace,
+        V = op_agg_trueV_subspace,
     output:
-        png = 'results/ctng/{model}/REML.excluderareCT.AGG{arg}.png',
+        png = 'results/ctp/{model}/REML.excluderareCT.AGG{arg}.png',
     params:
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_excluderareCT_plot_order,
-        colorpalette = colorpalette,
-        pointcolor = pointcolor,
-        mycolors = mycolors,
-
-use rule ong_REMLwaldNlrt_subspace_plot as ctng_REMLwaldNlrt_subspace_plot with:
-    input:
-        out = ctng_agg_out_subspace, 
-    output:
-        waldNlrt = 'results/ctng/{model}/REML.waldNlrt.AGG{arg}.png',
-
-use rule ong_REMLwaldNlrt_subspace_plot as ctng_REMLwaldNlrt_subspace_plot2 with:
-    input:
-        out = ctng_agg_out_subspace, 
-    output:
-        waldNlrt = 'results/ctng/{model}/REML.excluderareCT.waldNlrt.AGG{arg}.png',
-    params:
-        subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_excluderareCT_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_excluderareCT_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
 
-def ctng_MLwaldNlrt_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ctng/{{model}}/ML.waldNlrt.AGG{arg}.png', arg=effective_args)
-
-def ctng_MLestimates_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ctng/{{model}}/ML.AGG{arg}.png', arg=effective_args)
-
-def ctng_HEestimates_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ctng/{{model}}/HE.AGG{arg}.png', arg=effective_args)
-
-def ctng_HEwald_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ctng/{{model}}/HE.wald.AGG{arg}.png', arg=effective_args)
-
-def ctng_REMLwaldNlrt_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ctng/{{model}}/REML.waldNlrt.AGG{arg}.png', arg=effective_args)
-
-def ctng_REMLestimates_AGGarg_fun(wildcards):
-    effective_args = get_effective_args(ong_params.loc[ong_params['model']==wildcards.model])
-    return expand('results/ctng/{{model}}/REML.AGG{arg}.png', arg=effective_args)
-
-rule ctng_AGGarg:
+use rule op_REMLwaldNlrt_subspace_plot as ctp_REMLwaldNlrt_subspace_plot with:
     input:
-        MLmodelestimates = ctng_MLestimates_AGGarg_fun,
-        MLwaldNlrt = ctng_MLwaldNlrt_AGGarg_fun,
-        HEestimates = ctng_HEestimates_AGGarg_fun,
-        HEwald = ctng_HEwald_AGGarg_fun,
-        REMLmodelestimates = ctng_REMLestimates_AGGarg_fun,
-        REMLwaldNlrt = ctng_REMLwaldNlrt_AGGarg_fun,
-        MLmodelestimates2 = 'results/ctng/{model}/ML.excluderareCT.AGGa.png',
-        MLwaldNlrt2 = 'results/ctng/{model}/ML.excluderareCT.waldNlrt.AGGa.png',
-        REMLmodelestimates2 = 'results/ctng/{model}/REML.excluderareCT.AGGa.png',
-        REMLwaldNlrt2 = 'results/ctng/{model}/REML.excluderareCT.waldNlrt.AGGa.png',
+        out = ctp_agg_out_subspace, 
     output:
-        flag = touch('staging/ctng/{model}/all.flag'),
+        waldNlrt = 'results/ctp/{model}/REML.waldNlrt.AGG{arg}.png',
 
-rule ctng_all:
+use rule op_REMLwaldNlrt_subspace_plot as ctp_REMLwaldNlrt_subspace_plot2 with:
     input:
-        flag = expand('staging/ctng/{model}/all.flag', model=['hom','free', 'full']),
-
-rule ctng_test_remlJK:
-    input:
-        cty = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
-        P = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        ctnu = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+        out = ctp_agg_out_subspace, 
     output:
-        out = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.batch{{i}}',
+        waldNlrt = 'results/ctp/{model}/REML.excluderareCT.waldNlrt.AGG{arg}.png',
     params:
-        out = f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/rep/out.remlJK.npy',
-        batch = lambda wildcards: ctng_batches[int(wildcards.i)],
+        subspace = lambda wildcards: get_subspace(wildcards.arg,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_excluderareCT_plot_order,
+        colorpalette = colorpalette,
+        pointcolor = pointcolor,
+        mycolors = mycolors,
+
+def ctp_MLwaldNlrt_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/ctp/{{model}}/ML.waldNlrt.AGG{arg}.png', arg=effective_args)
+
+def ctp_MLestimates_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/ctp/{{model}}/ML.AGG{arg}.png', arg=effective_args)
+
+def ctp_HEestimates_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/ctp/{{model}}/HE.AGG{arg}.png', arg=effective_args)
+
+def ctp_HEwald_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/ctp/{{model}}/HE.wald.AGG{arg}.png', arg=effective_args)
+
+def ctp_REMLwaldNlrt_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/ctp/{{model}}/REML.waldNlrt.AGG{arg}.png', arg=effective_args)
+
+def ctp_REMLestimates_AGGarg_fun(wildcards):
+    effective_args = get_effective_args(op_params.loc[op_params['model']==wildcards.model])
+    return expand('results/ctp/{{model}}/REML.AGG{arg}.png', arg=effective_args)
+
+rule ctp_AGGarg:
+    input:
+        MLmodelestimates = ctp_MLestimates_AGGarg_fun,
+        MLwaldNlrt = ctp_MLwaldNlrt_AGGarg_fun,
+        HEestimates = ctp_HEestimates_AGGarg_fun,
+        HEwald = ctp_HEwald_AGGarg_fun,
+        REMLmodelestimates = ctp_REMLestimates_AGGarg_fun,
+        REMLwaldNlrt = ctp_REMLwaldNlrt_AGGarg_fun,
+        MLmodelestimates2 = 'results/ctp/{model}/ML.excluderareCT.AGGa.png',
+        MLwaldNlrt2 = 'results/ctp/{model}/ML.excluderareCT.waldNlrt.AGGa.png',
+        REMLmodelestimates2 = 'results/ctp/{model}/REML.excluderareCT.AGGa.png',
+        REMLwaldNlrt2 = 'results/ctp/{model}/REML.excluderareCT.waldNlrt.AGGa.png',
+    output:
+        flag = touch('staging/ctp/{model}/all.flag'),
+
+rule ctp_all:
+    input:
+        flag = expand('staging/ctp/{model}/all.flag', model=['hom','free', 'full']),
+
+rule ctp_test_remlJK:
+    input:
+        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        P = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.batch{{i}}',
+    params:
+        out = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/rep/out.remlJK.npy',
+        batch = lambda wildcards: ctp_batches[int(wildcards.i)],
         ML = False,
         REML = True,
         Free_reml_only = True,
@@ -638,234 +638,234 @@ rule ctng_test_remlJK:
         mem_per_cpu = '10gb',
         time = '200:00:00',
     priority: 1
-    script: 'bin/ctng_test.py'
+    script: 'bin/ctp_test.py'
 
-rule ctng_test_remlJK_aggReplications:
+rule ctp_test_remlJK_aggReplications:
     input:
-        out = [f'staging/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.batch{i}' 
-                for i in range(len(ctng_batches))],
+        out = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.batch{i}' 
+                for i in range(len(ctp_batches))],
     output:
-        out = f'analysis/ctng/{{model}}/{ong_paramspace.wildcard_pattern}/out.remlJK.npy',
+        out = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.npy',
     script: 'bin/mergeBatches.py'
 
-rule paper_ongNctng_power:
+rule paper_opNctp_power:
     input:
-        ong_hom = expand('analysis/ong/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        ong_free = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ong_hom_remlJK = expand('analysis/ong/hom/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        #params=get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        ong_free_remlJK = expand('analysis/ong/free/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        #params=get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        ctng_hom = expand('analysis/ctng/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        ctng_free = expand('analysis/ctng/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ctng_hom_remlJK = expand('analysis/ctng/hom/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        #params=get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        ctng_free_remlJK = expand('analysis/ctng/free/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        #params=get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
+        op_hom = expand('analysis/op/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        op_free = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        op_hom_remlJK = expand('analysis/op/hom/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        #params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        op_free_remlJK = expand('analysis/op/free/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        #params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        ctp_hom = expand('analysis/ctp/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        ctp_free = expand('analysis/ctp/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        ctp_hom_remlJK = expand('analysis/ctp/hom/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        #params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        ctp_free_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        #params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
     output:
-        png = 'results/ctng/ongNctng.power.paper.png',
+        png = 'results/ctp/opNctp.power.paper.png',
     params: 
-        hom = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='hom'])['ss']),
-        free = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='free'])['ss']),
-        hom_remlJK = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='hom'])['ss']),
-        #hom_remlJK = np.array(get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)])['ss']),
-        free_remlJK = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='free'])['ss']),
-        #free_remlJK = np.array(get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)])['ss']),
-        plot_order = ong_plot_order,
-    script: 'bin/paper_ongNctng_power.py'
+        hom = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
+        free = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
+        hom_remlJK = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
+        #hom_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)])['ss']),
+        free_remlJK = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
+        #free_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['ss']),
+        plot_order = op_plot_order,
+    script: 'bin/paper_opNctp_power.py'
 
-rule paper_ongNctng_power_ASHG:
+rule paper_opNctp_power_ASHG:
     input:
-        ong_hom = expand('analysis/ong/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        ong_free = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ong_hom_remlJK = expand('analysis/ong/hom/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        ong_free_remlJK = expand('analysis/ong/free/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        ctng_hom = expand('analysis/ctng/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        ctng_free = expand('analysis/ctng/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ctng_hom_remlJK = expand('analysis/ctng/hom/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        ctng_free_remlJK = expand('analysis/ctng/free/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
+        op_hom = expand('analysis/op/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        op_free = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        op_hom_remlJK = expand('analysis/op/hom/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        op_free_remlJK = expand('analysis/op/free/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        ctp_hom = expand('analysis/ctp/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        ctp_free = expand('analysis/ctp/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        ctp_hom_remlJK = expand('analysis/ctp/hom/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        ctp_free_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
     output:
-        png = 'results/ctng/ongNctng.power.paper.ASHG.png',
+        png = 'results/ctp/opNctp.power.paper.ASHG.png',
     params: 
-        hom = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='hom'])['ss']),
-        free = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='free'])['ss']),
-        hom_remlJK = np.array(get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)])['ss']),
-        free_remlJK = np.array(get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)])['ss']),
-        plot_order = ong_plot_order,
-    script: 'bin/paper_ongNctng_power.ASHG.py'
+        hom = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
+        free = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
+        hom_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)])['ss']),
+        free_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['ss']),
+        plot_order = op_plot_order,
+    script: 'bin/paper_opNctp_power.ASHG.py'
 
-rule paper_ongNctng_power_ZJU:
+rule paper_opNctp_power_ZJU:
     input:
-        ong_hom = expand('analysis/ong/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        ong_free = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ong_hom_remlJK = expand('analysis/ong/hom/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        ong_free_remlJK = expand('analysis/ong/free/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        ctng_hom = expand('analysis/ctng/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        ctng_free = expand('analysis/ctng/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ctng_hom_remlJK = expand('analysis/ctng/hom/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        ctng_free_remlJK = expand('analysis/ctng/free/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
+        op_hom = expand('analysis/op/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        op_free = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        op_hom_remlJK = expand('analysis/op/hom/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        op_free_remlJK = expand('analysis/op/free/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        ctp_hom = expand('analysis/ctp/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        ctp_free = expand('analysis/ctp/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        ctp_hom_remlJK = expand('analysis/ctp/hom/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        ctp_free_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
     output:
-        png = 'results/ctng/ongNctng.power.paper.ZJU.png',
+        png = 'results/ctp/opNctp.power.paper.ZJU.png',
     params: 
-        hom = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='hom'])['ss']),
-        free = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='free'])['ss']),
-        hom_remlJK = np.array(get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)])['ss']),
-        free_remlJK = np.array(get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)])['ss']),
-        plot_order = ong_plot_order,
-    script: 'bin/paper_ongNctng_power.ZJU.py'
+        hom = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
+        free = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
+        hom_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)])['ss']),
+        free_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['ss']),
+        plot_order = op_plot_order,
+    script: 'bin/paper_opNctp_power.ZJU.py'
 
-rule paper_ctng_power:
+rule paper_ctp_power:
     input:
-        hom_ss = expand('analysis/ctng/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        hom_ss_remlJK = expand('analysis/ctng/hom/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        free_ss = expand('analysis/ctng/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        free_ss_remlJK = expand('analysis/ctng/free/{params}/out.remlJK.npy',
-                params=get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        hom_a = expand('analysis/ctng/hom/{params}/out.npy',
-                params=get_subspace('a', ong_params.loc[ong_params['model']=='hom']).instance_patterns),
-        hom_a_remlJK = expand('analysis/ctng/hom/{params}/out.remlJK.npy',
-                params=get_subspace('a', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        free_a = expand('analysis/ctng/free/{params}/out.npy',
-                params=get_subspace('a', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        free_a_remlJK = expand('analysis/ctng/free/{params}/out.remlJK.npy',
-                params=get_subspace('a', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
-        free_vc = expand('analysis/ctng/free/{params}/out.npy',
-                params=get_subspace('vc', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        free_vc_remlJK = expand('analysis/ctng/free/{params}/out.remlJK.npy',
-                params=get_subspace('vc', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)]).instance_patterns),
+        hom_ss = expand('analysis/ctp/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        hom_ss_remlJK = expand('analysis/ctp/hom/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        free_ss = expand('analysis/ctp/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        free_ss_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
+                params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        hom_a = expand('analysis/ctp/hom/{params}/out.npy',
+                params=get_subspace('a', op_params.loc[op_params['model']=='hom']).instance_patterns),
+        hom_a_remlJK = expand('analysis/ctp/hom/{params}/out.remlJK.npy',
+                params=get_subspace('a', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        free_a = expand('analysis/ctp/free/{params}/out.npy',
+                params=get_subspace('a', op_params.loc[op_params['model']=='free']).instance_patterns),
+        free_a_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
+                params=get_subspace('a', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
+        free_vc = expand('analysis/ctp/free/{params}/out.npy',
+                params=get_subspace('vc', op_params.loc[op_params['model']=='free']).instance_patterns),
+        free_vc_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
+                params=get_subspace('vc', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
     output:
-        png = 'results/ctng/power.paper.supp.png',
+        png = 'results/ctp/power.paper.supp.png',
     params: 
         arg_ss = 'ss',
-        hom_ss = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='hom'])['ss']),
-        free_ss = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='free'])['ss']),
-        hom_ss_remlJK = np.array(get_subspace('ss', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)])['ss']),
-        free_ss_remlJK = np.array(get_subspace('ss', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)])['ss']),
+        hom_ss = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
+        free_ss = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
+        hom_ss_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)])['ss']),
+        free_ss_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['ss']),
         arg_a = 'a',
-        hom_a = np.array(get_subspace('a', ong_params.loc[ong_params['model']=='hom'])['a']),
-        free_a = np.array(get_subspace('a', ong_params.loc[ong_params['model']=='free'])['a']),
-        hom_a_remlJK = np.array(get_subspace('a', ong_params.loc[(ong_params['model']=='hom') & (ong_params['ss'].astype('float')<=100)])['a']),
-        free_a_remlJK = np.array(get_subspace('a', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)])['a']),
+        hom_a = np.array(get_subspace('a', op_params.loc[op_params['model']=='hom'])['a']),
+        free_a = np.array(get_subspace('a', op_params.loc[op_params['model']=='free'])['a']),
+        hom_a_remlJK = np.array(get_subspace('a', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)])['a']),
+        free_a_remlJK = np.array(get_subspace('a', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['a']),
         arg_vc = 'vc',
-        free_vc = np.array(get_subspace('vc', ong_params.loc[ong_params['model']=='free'])['vc']),
-        free_vc_remlJK = np.array(get_subspace('vc', ong_params.loc[(ong_params['model']=='free') & (ong_params['ss'].astype('float')<=100)])['vc']),
-        plot_order = ong_plot_order,
-    script: 'bin/paper_ctng_power.py'
+        free_vc = np.array(get_subspace('vc', op_params.loc[op_params['model']=='free'])['vc']),
+        free_vc_remlJK = np.array(get_subspace('vc', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['vc']),
+        plot_order = op_plot_order,
+    script: 'bin/paper_ctp_power.py'
 
-rule paper_ongNctng_estimates_ss:
+rule paper_opNctp_estimates_ss:
     input:
-        ong_free = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ctng_free = expand('analysis/ctng/free/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        V = expand('analysis/ong/free/{params}/V.txt',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='free']).instance_patterns),
+        op_free = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        ctp_free = expand('analysis/ctp/free/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
+        V = expand('analysis/op/free/{params}/V.txt',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
     output:
-        png = 'results/ctng/ongNctng.estimate.ss.paper.supp.png',
+        png = 'results/ctp/opNctp.estimate.ss.paper.supp.png',
     params:
-        free = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='free'])['ss']),
-        plot_order = ong_plot_order,
+        free = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
+        plot_order = op_plot_order,
         #subspace = lambda wildcards: get_subspace(wildcards.arg,
-        #        ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
+        #        op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
         #colorpalette = colorpalette,
         pointcolor = pointcolor,
         #mycolors = mycolors,
-    script: 'bin/paper_ongNctng_estimates_ss.py'
+    script: 'bin/paper_opNctp_estimates_ss.py'
 
-rule paper_ongNctng_estimates_a:
+rule paper_opNctp_estimates_a:
     input:
-        ong_free = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('a', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ctng_free = expand('analysis/ctng/free/{params}/out.npy',
-                params=get_subspace('a', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        V = expand('analysis/ong/free/{params}/V.txt',
-                params=get_subspace('a', ong_params.loc[ong_params['model']=='free']).instance_patterns),
+        op_free = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('a', op_params.loc[op_params['model']=='free']).instance_patterns),
+        ctp_free = expand('analysis/ctp/free/{params}/out.npy',
+                params=get_subspace('a', op_params.loc[op_params['model']=='free']).instance_patterns),
+        V = expand('analysis/op/free/{params}/V.txt',
+                params=get_subspace('a', op_params.loc[op_params['model']=='free']).instance_patterns),
     output:
-        png = 'results/ctng/ongNctng.estimate.a.paper.supp.png',
+        png = 'results/ctp/opNctp.estimate.a.paper.supp.png',
     params:
-        free = np.array(get_subspace('a', ong_params.loc[ong_params['model']=='free'])['a']),
-        plot_order = ong_plot_order,
+        free = np.array(get_subspace('a', op_params.loc[op_params['model']=='free'])['a']),
+        plot_order = op_plot_order,
         #subspace = lambda wildcards: get_subspace(wildcards.arg,
-        #        ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
+        #        op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
         #colorpalette = colorpalette,
         pointcolor = pointcolor,
         #mycolors = mycolors,
-    script: 'bin/paper_ongNctng_estimates_a.py'
+    script: 'bin/paper_opNctp_estimates_a.py'
 
-rule paper_ongNctng_estimates_vc:
+rule paper_opNctp_estimates_vc:
     input:
-        ong_free = expand('analysis/ong/free/{params}/out.npy',
-                params=get_subspace('vc', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ctng_free = expand('analysis/ctng/free/{params}/out.npy',
-                params=get_subspace('vc', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        V = expand('analysis/ong/free/{params}/V.txt',
-                params=get_subspace('vc', ong_params.loc[ong_params['model']=='free']).instance_patterns),
-        ong_hom = expand('analysis/ong/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom'].iloc[[0]]).instance_patterns),
-        ctng_hom = expand('analysis/ctng/hom/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom'].iloc[[0]]).instance_patterns),
-        V_hom = expand('analysis/ong/hom/{params}/V.txt',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='hom'].iloc[[0]]).instance_patterns),
+        op_free = expand('analysis/op/free/{params}/out.npy',
+                params=get_subspace('vc', op_params.loc[op_params['model']=='free']).instance_patterns),
+        ctp_free = expand('analysis/ctp/free/{params}/out.npy',
+                params=get_subspace('vc', op_params.loc[op_params['model']=='free']).instance_patterns),
+        V = expand('analysis/op/free/{params}/V.txt',
+                params=get_subspace('vc', op_params.loc[op_params['model']=='free']).instance_patterns),
+        op_hom = expand('analysis/op/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom'].iloc[[0]]).instance_patterns),
+        ctp_hom = expand('analysis/ctp/hom/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom'].iloc[[0]]).instance_patterns),
+        V_hom = expand('analysis/op/hom/{params}/V.txt',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='hom'].iloc[[0]]).instance_patterns),
     output:
-        png = 'results/ctng/ongNctng.estimate.vc.paper.supp.png',
+        png = 'results/ctp/opNctp.estimate.vc.paper.supp.png',
     params:
         arg = 'vc',
-        free = np.array(get_subspace('vc', ong_params.loc[ong_params['model']=='free'])['vc']),
-        plot_order = ong_plot_order,
+        free = np.array(get_subspace('vc', op_params.loc[op_params['model']=='free'])['vc']),
+        plot_order = op_plot_order,
         #subspace = lambda wildcards: get_subspace(wildcards.arg,
-        #        ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
+        #        op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
         #colorpalette = colorpalette,
         pointcolor = pointcolor,
         #mycolors = mycolors,
-    script: 'bin/paper_ongNctng_estimates_vc.py'
+    script: 'bin/paper_opNctp_estimates_vc.py'
 
-rule paper_ongNctng_estimates_ss_full:
+rule paper_opNctp_estimates_ss_full:
     input:
-        ong_full = expand('analysis/ong/full/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='full']).instance_patterns),
-        ctng_full = expand('analysis/ctng/full/{params}/out.npy',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='full']).instance_patterns),
-        V = expand('analysis/ong/full/{params}/V.txt',
-                params=get_subspace('ss', ong_params.loc[ong_params['model']=='full']).instance_patterns),
+        op_full = expand('analysis/op/full/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='full']).instance_patterns),
+        ctp_full = expand('analysis/ctp/full/{params}/out.npy',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='full']).instance_patterns),
+        V = expand('analysis/op/full/{params}/V.txt',
+                params=get_subspace('ss', op_params.loc[op_params['model']=='full']).instance_patterns),
     output:
-        png = 'results/ctng/ongNctng.estimate.ss.full.paper.supp.png',
+        png = 'results/ctp/opNctp.estimate.ss.full.paper.supp.png',
     params:
-        full = np.array(get_subspace('ss', ong_params.loc[ong_params['model']=='full'])['ss']),
-        plot_order = ong_plot_order,
+        full = np.array(get_subspace('ss', op_params.loc[op_params['model']=='full'])['ss']),
+        plot_order = op_plot_order,
         #subspace = lambda wildcards: get_subspace(wildcards.arg,
-        #        ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
+        #        op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
         #colorpalette = colorpalette,
         pointcolor = pointcolor,
         #mycolors = mycolors,
-        vc = get_subspace('ss', ong_params.loc[ong_params['model']=='full'])['vc'][0],
-    script: 'bin/paper_ongNctng_estimates_ss_full.py'
+        vc = get_subspace('ss', op_params.loc[op_params['model']=='full'])['vc'][0],
+    script: 'bin/paper_opNctp_estimates_ss_full.py'
 
 
 #########################################################################################
@@ -955,7 +955,7 @@ rule cuomo_day_pseudobulk_log_varNU_merge:
         for data in nus[1:]:
             #if np.any( donors != data['donor'] ) or np.any( days != data['day'] ):
             if np.any( index != data.index ):
-                sys.exit('Wrong order!\n')
+                sys.exit('Wrop order!\n')
         # merge
         data = pd.concat( nus, axis=1 )
         data.to_csv( output.var_nu, sep='\t')
@@ -1033,7 +1033,7 @@ rule cuomo_day_imputeGenome:
         time = '20:00:00',
     script: 'bin/cuomo_day_imputeGenome.py'
 
-rule cuomo_day_imputeNinputForONG:
+rule cuomo_day_imputeNinputForop:
     # also exclude individuals with nu = 0 which cause null model fail (some individuals have enough cells, but all cells have no expression of specific gene)
     # seems we should keep nu = 0
     input:
@@ -1045,13 +1045,13 @@ rule cuomo_day_imputeNinputForONG:
     output:
         y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/y.txt', # list # y for each gene is sorted by ind order
         nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.txt', # list
-        nu_ctng = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctng.txt', # list
+        nu_ctp = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctp.txt', # list
         P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/P.txt', # list
         imputed_ct_y = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.y.txt', # donor - day * gene
         imputed_ct_nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.txt', #donor-day * gene # negative ct_nu set to 0
-        imputed_ct_nu_ctng = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctng.txt', #donor-day * gene # negative ct_nu set to max(ct_nu)
+        imputed_ct_nu_ctp = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene # negative ct_nu set to max(ct_nu)
     resources: mem = '10gb',
-    script: 'bin/cuomo_day_imputeNinputForONG.py'
+    script: 'bin/cuomo_day_imputeNinputForop.py'
 
 rule cuomo_day_summary_imputation:
     input:
@@ -1095,7 +1095,7 @@ rule cuomo_day_PCassociatedVar:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.associatedVar.png',
     script: 'bin/cuomo_day_PCassociatedVar.py'
 
-rule cuomo_ong_test:
+rule cuomo_op_test:
     input:
         y_batch = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/y/batch{{i}}.txt', # genes
         y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/y.txt',
@@ -1115,9 +1115,9 @@ rule cuomo_ong_test:
         time = '48:00:00',
         mem = '8gb',
     priority: -1
-    script: "bin/cuomo_ong_test.py"
+    script: "bin/cuomo_op_test.py"
 
-#def cuomo_ong_test_agg(wildcards):
+#def cuomo_op_test_agg(wildcards):
 #    checkpoint_output = checkpoints.cuomo_split2batches.get(**wildcards).output[0]
 #    # snakemake bug
 #    par = ''
@@ -1127,7 +1127,7 @@ rule cuomo_ong_test:
 #    return expand(f"staging/cuomo/{par[:-1]}/batch{{i}}/out.txt", 
 #            i=glob_wildcards(os.path.join(checkpoint_output, "batch{i}.txt")).i)
 
-rule cuomo_ong_test_mergeBatches:
+rule cuomo_op_test_mergeBatches:
     input:
         out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/out.txt' 
                 for i in range(cuomo_batch_no)],
@@ -1135,64 +1135,64 @@ rule cuomo_ong_test_mergeBatches:
         out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
     script: 'bin/mergeBatches.py'
 
-rule cuomo_ong_corr_plot:
+rule cuomo_op_corr_plot:
     input:
         base = expand('analysis/cuomo/{params}/out.npy', 
                 params=Paramspace(cuomo_params.iloc[[0]], filename_params="*").instance_patterns),
         out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/CTcorr.png',
-    script: 'bin/cuomo_ong_corr_plot.py'
+    script: 'bin/cuomo_op_corr_plot.py'
 
-rule cuomo_ong_rVariance_plot:
+rule cuomo_op_rVariance_plot:
     input:
         out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/rVariance.png',
-    script: 'bin/cuomo_ong_rVariance_plot.py'
+    script: 'bin/cuomo_op_rVariance_plot.py'
 
-rule cuomo_ong_variance_plot:
+rule cuomo_op_variance_plot:
     input:
         out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/vc.png',
     params:
         cut_off = {'free':[-1.5,2], 'full':[-3,3]},
-    script: 'bin/cuomo_ong_variance_plot.py'
+    script: 'bin/cuomo_op_variance_plot.py'
 
-rule cuomo_ong_waldNlrt_plot:
+rule cuomo_op_waldNlrt_plot:
     input:
         out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/waldNlrt.png',
-    script: 'bin/cuomo_ong_waldNlrt_plot.py'
+    script: 'bin/cuomo_op_waldNlrt_plot.py'
 
-rule cuomo_ong_experimentR_plot:
+rule cuomo_op_experimentR_plot:
     input:
         out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy', 
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/hom.png',
-    script: 'bin/cuomo_ong_experimentR_plot.py'
+    script: 'bin/cuomo_op_experimentR_plot.py'
 
-rule cuomo_ong_experimentR_all:
+rule cuomo_op_experimentR_all:
     input:
         png = expand('results/cuomo/{params}/hom.png',
                 params=Paramspace(cuomo_params.loc[cuomo_params['experiment']=='R'], filename_params="*").instance_patterns),
 
-rule cuomo_ctng_test:
+rule cuomo_ctp_test:
     input:
         y_batch = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/y/batch{{i}}.txt', # genes
         imputed_ct_y = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.y.txt', # donor - day * gene
-        nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctng.txt', # list
-        imputed_ct_nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctng.txt', #donor-day * gene 
+        nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctp.txt', # list
+        imputed_ct_nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene 
         P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/P.txt', # list
         pca = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.txt',
         supp = f'data/cuomo2020natcommun/suppdata2.txt', # sex disease
         meta = 'analysis/cuomo/data/meta.txt', # experiment
     output:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctng.out.txt',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.out.txt',
     params:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctng/rep/out.npy',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp/rep/out.npy',
         genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
         ML = True,  
         REML = True,
@@ -1203,29 +1203,29 @@ rule cuomo_ctng_test:
     resources: 
         mem = '10gb',
         time = '48:00:00',
-    script: 'bin/cuomo_ctng_test.py'
+    script: 'bin/cuomo_ctp_test.py'
 
-use rule cuomo_ong_test_mergeBatches as cuomo_ctng_test_mergeBatches with:
+use rule cuomo_op_test_mergeBatches as cuomo_ctp_test_mergeBatches with:
     input:
-        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctng.out.txt'
+        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.out.txt'
                 for i in range(cuomo_batch_no)],
     output:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
 
-rule cuomo_ctng_test2:
+rule cuomo_ctp_test2:
     input:
         y_batch = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/y/batch{{i}}.txt', # genes
         imputed_ct_y = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.y.txt', # donor - day * gene
-        nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctng.txt', # list
-        imputed_ct_nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctng.txt', #donor-day * gene 
+        nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctp.txt', # list
+        imputed_ct_nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene 
         P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/P.txt', # list
         pca = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.txt',
         supp = f'data/cuomo2020natcommun/suppdata2.txt', # sex disease
         meta = 'analysis/cuomo/data/meta.txt', # experiment
     output:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctng.out2.txt',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.out2.txt',
     params:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctng/rep/out2.npy',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp/rep/out2.npy',
         genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
         ML = True,  
         REML = True,
@@ -1236,20 +1236,20 @@ rule cuomo_ctng_test2:
     resources: 
         mem = '10gb',
         time = '48:00:00',
-    script: 'bin/cuomo_ctng_test.py'
+    script: 'bin/cuomo_ctp_test.py'
 
-use rule cuomo_ong_test_mergeBatches as cuomo_ctng_test2_mergeBatches with:
+use rule cuomo_op_test_mergeBatches as cuomo_ctp_test2_mergeBatches with:
     input:
-        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctng.out2.txt'
+        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.out2.txt'
                 for i in range(cuomo_batch_no)],
     output:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out2.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out2.npy',
 
-use rule cuomo_ctng_test as cuomo_ctng_test_remlJK with:
+use rule cuomo_ctp_test as cuomo_ctp_test_remlJK with:
     output:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctng.remlJK.out.txt',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.remlJK.out.txt',
     params:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctng/rep/remlJK.out.npy',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp/rep/remlJK.out.npy',
         genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
         ML = False,  
         REML = True,
@@ -1261,61 +1261,61 @@ use rule cuomo_ctng_test as cuomo_ctng_test_remlJK with:
         mem = '16gb',
         time = '48:00:00',
 
-use rule cuomo_ong_test_mergeBatches as cuomo_ctng_test_remlJK_mergeBatches with:
+use rule cuomo_op_test_mergeBatches as cuomo_ctp_test_remlJK_mergeBatches with:
     input:
-        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctng.remlJK.out.txt'
+        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.remlJK.out.txt'
                 for i in range(cuomo_batch_no)],
     output:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.remlJK.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
 
-use rule cuomo_ong_waldNlrt_plot as  cuomo_ctng_waldNlrt_plot with:
+use rule cuomo_op_waldNlrt_plot as  cuomo_ctp_waldNlrt_plot with:
     # when using LRT test p value in Free REML
-#rule cuomo_ctng_waldNlrt_plot:
+#rule cuomo_ctp_waldNlrt_plot:
     # when using Wald test p value in Free REML
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.waldNlrt.png',
-    #script: 'bin/cuomo_ctng_waldNlrt_plot.py'
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.waldNlrt.png',
+    #script: 'bin/cuomo_ctp_waldNlrt_plot.py'
 
-use rule cuomo_ong_corr_plot as cuomo_ctng_corr_plot with:
+use rule cuomo_op_corr_plot as cuomo_ctp_corr_plot with:
     input:
-        base = expand('analysis/cuomo/{params}/ctng.out.npy', 
+        base = expand('analysis/cuomo/{params}/ctp.out.npy', 
                 params=Paramspace(cuomo_params.iloc[[0]], filename_params="*").instance_patterns),
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.CTcorr.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.CTcorr.png',
 
-use rule cuomo_ong_rVariance_plot as cuomo_ctng_rVariance_plot with:
+use rule cuomo_op_rVariance_plot as cuomo_ctp_rVariance_plot with:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.rVariance.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.rVariance.png',
 
-rule cuomo_ctng_variance_plot:
+rule cuomo_ctp_variance_plot:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-        nu_ctng = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/nu.ctng.txt'
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        nu_ctp = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/nu.ctp.txt'
                 for i in range(cuomo_batch_no)],
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.vc.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.vc.png',
     params:
         free = ['hom', 'CT_main', 'ct_random_var', 'nu'],
         cut_off = {'free':[-0.5,0.5], 'full':[-3,3]},
-    script: 'bin/cuomo_ctng_variance_plot.py'
+    script: 'bin/cuomo_ctp_variance_plot.py'
 
-rule cuomo_ctng_Vplot:
+rule cuomo_ctp_Vplot:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.V.png',
-    script: 'bin/cuomo_ctng_Vplot.py'
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.V.png',
+    script: 'bin/cuomo_ctp_Vplot.py'
 
-use rule cuomo_ctng_test as cuomo_ctng_test_miny with:
+use rule cuomo_ctp_test as cuomo_ctp_test_miny with:
     output:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctng.miny.out.txt',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.miny.out.txt',
     params:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctng/rep/miny.out.npy',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp/rep/miny.out.npy',
         genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
         ML = True,  
         REML = True,
@@ -1325,82 +1325,82 @@ use rule cuomo_ctng_test as cuomo_ctng_test_miny with:
         mem = '10gb',
         time = '48:00:00',
 
-use rule cuomo_ong_test_mergeBatches as cuomo_ctng_test_miny_mergeBatches with:
+use rule cuomo_op_test_mergeBatches as cuomo_ctp_test_miny_mergeBatches with:
     input:
-        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctng.miny.out.txt'
+        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.miny.out.txt'
                 for i in range(cuomo_batch_no)],
     output:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.miny.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.out.npy',
 
-use rule cuomo_ctng_waldNlrt_plot as cuomo_ctng_waldNlrt_plot_miny with:
+use rule cuomo_ctp_waldNlrt_plot as cuomo_ctp_waldNlrt_plot_miny with:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.miny.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.miny.waldNlrt.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.waldNlrt.png',
 
-use rule cuomo_ong_rVariance_plot as cuomo_ctng_rVariance_plot_miny with:
+use rule cuomo_op_rVariance_plot as cuomo_ctp_rVariance_plot_miny with:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.miny.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.miny.rVariance.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.rVariance.png',
 
-rule cuomo_ctng_HEpvalue_acrossmodel_plot:
+rule cuomo_ctp_HEpvalue_acrossmodel_plot:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.HEpvalue.png',
-    script: 'bin/cuomo_ctng_HEpvalue_acrossmodel_plot.py'
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.HEpvalue.png',
+    script: 'bin/cuomo_ctp_HEpvalue_acrossmodel_plot.py'
 
 ###### p values in REML vs HE free
-rule cuomo_ctng_pvalue_REMLvsHE:
+rule cuomo_ctp_pvalue_REMLvsHE:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
         y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.Gimputed.pseudobulk.gz', # donor - day * gene
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.free.REMLvsHE.inflated_zeros_{{prop}}.png',
-    script: 'bin/cuomo_ctng_pvalue_REMLvsHE.py'
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.free.REMLvsHE.inflated_zeros_{{prop}}.png',
+    script: 'bin/cuomo_ctp_pvalue_REMLvsHE.py'
 
-rule cuomo_ctng_pvalue_REMLvsHE_addrVariance:
+rule cuomo_ctp_pvalue_REMLvsHE_addrVariance:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
         y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.Gimputed.pseudobulk.gz', # donor - day * gene
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.free.REMLvsHE.rVariance.png',
-    script: 'bin/cuomo_ctng_pvalue_REMLvsHE_addrVariance.py'
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.free.REMLvsHE.rVariance.png',
+    script: 'bin/cuomo_ctp_pvalue_REMLvsHE_addrVariance.py'
 
 rule cuomo_ng_all:
     input:
         imputation = expand('analysis/cuomo/{params}/imputation.png', 
                 params=cuomo_paramspace.instance_patterns),
-        ong_CTcorr = expand('results/cuomo/{params}/CTcorr.png', 
+        op_CTcorr = expand('results/cuomo/{params}/CTcorr.png', 
                 params=cuomo_paramspace.instance_patterns),
-        #ong_rVar = expand('results/cuomo/{params}/rVariance.png', 
+        #op_rVar = expand('results/cuomo/{params}/rVariance.png', 
         #        params=cuomo_paramspace.instance_patterns),
-        #ong_varcomponent = expand('results/cuomo/{params}/vc.png', 
+        #op_varcomponent = expand('results/cuomo/{params}/vc.png', 
         #        params=cuomo_paramspace.instance_patterns),
-        ctng_CTcorr = expand('results/cuomo/{params}/ctng.CTcorr.png', 
+        ctp_CTcorr = expand('results/cuomo/{params}/ctp.CTcorr.png', 
                 params=cuomo_paramspace.instance_patterns),
-        ctng_rVar = expand('results/cuomo/{params}/ctng.rVariance.png', 
+        ctp_rVar = expand('results/cuomo/{params}/ctp.rVariance.png', 
                 params=cuomo_paramspace.instance_patterns),
-        #ctng_varcomponent = expand('results/cuomo/{params}/ctng.vc.png', 
+        #ctp_varcomponent = expand('results/cuomo/{params}/ctp.vc.png', 
         #        params=cuomo_paramspace.instance_patterns),
-        #ongVSctng = expand('results/cuomo/{params}/ongVSctng.hom.png',
+        #opVSctp = expand('results/cuomo/{params}/opVSctp.hom.png',
         #        params=cuomo_paramspace.instance_patterns),
-        #ctng_bugs = expand('analysis/cuomo/{params}/ctng_bugs.png',
+        #ctp_bugs = expand('analysis/cuomo/{params}/ctp_bugs.png',
         #        params=cuomo_paramspace.instance_patterns),
         pca = expand('results/cuomo/{params}/pca.associatedVar.png',
                 params=cuomo_paramspace.instance_patterns),
-        ong_wald = expand('results/cuomo/{params}/waldNlrt.png',
+        op_wald = expand('results/cuomo/{params}/waldNlrt.png',
                 params=cuomo_paramspace.instance_patterns),
-        ctng_wald = expand('results/cuomo/{params}/ctng.waldNlrt.png',
+        ctp_wald = expand('results/cuomo/{params}/ctp.waldNlrt.png',
                 params=cuomo_paramspace.instance_patterns),
-        #ctng_HE = expand('results/cuomo/{params}/ctng.HEpvalue.png',
+        #ctp_HE = expand('results/cuomo/{params}/ctp.HEpvalue.png',
         #        params=cuomo_paramspace.instance_patterns),
-        ctng_REMLvsHE = expand('results/cuomo/{params}/ctng.free.REMLvsHE.inflated_zeros_1.png',
+        ctp_REMLvsHE = expand('results/cuomo/{params}/ctp.free.REMLvsHE.inflated_zeros_1.png',
                 params=cuomo_paramspace.instance_patterns),
-        #ctng_enrichment = expand('results/cuomo/{params}/enrichment/reml.V_bon.beta_bon.enrich.txt',
+        #ctp_enrichment = expand('results/cuomo/{params}/enrichment/reml.V_bon.beta_bon.enrich.txt',
         #        params=cuomo_paramspace.instance_patterns),
-        #ctng_remlJK = expand('analysis/cuomo/{params}/ctng.remlJK.out.npy',
+        #ctp_remlJK = expand('analysis/cuomo/{params}/ctp.remlJK.out.npy',
         #        params=cuomo_paramspace.instance_patterns),
 
 # single cell expression pattern plot
@@ -1408,12 +1408,12 @@ rule cuomo_sc_expressionpattern:
     input:
         meta = 'analysis/cuomo/data/meta.txt',
         counts = 'data/cuomo2020natcommun/log_normalised_counts.csv.gz',
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.remlJK.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
         imputed_ct_y = [f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.y.txt'
                 for i in range(cuomo_batch_no)], # donor - day * gene
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/ctng.{{gene}}.png', 
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/ctp.{{gene}}.png', 
     params:
         mycolors = mycolors,
         paper = True,
@@ -1423,12 +1423,12 @@ rule cuomo_sc_expressionpattern_paper:
     input:
         meta = 'analysis/cuomo/data/meta.txt',
         counts = 'data/cuomo2020natcommun/log_normalised_counts.csv.gz',
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.remlJK.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
         imputed_ct_y = [f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.y.txt'
                 for i in range(cuomo_batch_no)], # donor - day * gene
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/paper.ctng.png', 
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/paper.ctp.png', 
     params:
         mycolors = mycolors,
         genes = ['ENSG00000204531_POU5F1', 'NDUFB4', 'ENSG00000185155_MIXL1', 'ENSG00000163508_EOMES'],
@@ -1436,121 +1436,121 @@ rule cuomo_sc_expressionpattern_paper:
 
 rule cuomo_sc_expressionpattern_collect:
     input:
-        png = [f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/ctng.{gene}.png'
+        png = [f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/ctp.{gene}.png'
                 for gene in ['ENSG00000111704_NANOG', 'ENSG00000141448_GATA6', 'ENSG00000204531_POU5F1',
                     'ENSG00000181449_SOX2', 'ENSG00000065518_NDUFB4', 'ENSG00000074047_GLI2', 'ENSG00000136997_MYC',
                     'ENSG00000125845_BMP2', 'ENSG00000107984_DKK1', 'ENSG00000234964_FABP5P7', 
                     'ENSG00000166105_GLB1L3', 'ENSG00000237550_UBE2Q2P6', 'ENSG00000230903_RPL9P8']],
     output:
-        touch(f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.sc_expressionpattern.flag'),
+        touch(f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.sc_expressionpattern.flag'),
 
 # likelihood
 rule cuomo_likelihood_plot:
     input:
-        imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctng.txt'
+        imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt'
                 for i in range(cuomo_batch_no)], #donor-day * gene 
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.likelihood.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.likelihood.png',
     script: 'bin/cuomo_likelihood_plot.py'
 
 # p value across test methods: HE, ML, REML, Wald, JK
-rule cuomo_ctng_p:
+rule cuomo_ctp_p:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-        out2 = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out2.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.remlJK.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        out2 = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out2.npy',
+        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
     output:
-        hom2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.hom2.png',
-        p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.p.png',
-    script: 'bin/cuomo_ctng_p.py'
+        hom2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.hom2.png',
+        p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.p.png',
+    script: 'bin/cuomo_ctp_p.py'
 
-rule cuomo_ongVSctng_p:
+rule cuomo_opVSctp_p:
     input:
-        ong = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.remlJK.out.npy',
+        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
+        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
     output:
-        p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ongVSctng.p.png',
-    script: 'bin/cuomo_ongVSctng_p.py'
+        p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/opVSctp.p.png',
+    script: 'bin/cuomo_opVSctp_p.py'
 
 # find top genes
 rule cuomo_geneP:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/ctng.{{gene}}.P.txt',
+        p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/ctp.{{gene}}.P.txt',
     script: 'bin/cuomo_geneP.py'
 
 rule cuomo_topgenes:
     input:
-        ong = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        ctng = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.remlJK.out.npy',
+        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
+        ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
     output:
-        topgenes = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ongNctng.topgenes.txt',
+        topgenes = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/opNctp.topgenes.txt',
     params:
-        ong = ['reml', 'he'],
-        ctng = ['remlJK', 'he'],
+        op = ['reml', 'he'],
+        ctp = ['remlJK', 'he'],
     script: 'bin/cuomo_topgenes.py'
 
 # paper plot
-rule paper_cuomo_ong_pvalue_plot:
+rule paper_cuomo_op_pvalue_plot:
     input:
         out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/waldNlrt.supp.png',
-    script: 'bin/cuomo_ong_waldNlrt_plot_paper.py'
+    script: 'bin/cuomo_op_waldNlrt_plot_paper.py'
 
-rule paper_cuomo_ctng_pvalue_plot:
+rule paper_cuomo_ctp_pvalue_plot:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.remlJK.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
     output:
-        reml_p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.REMLpvalue.paper.png',
-        he_p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.HEpvalue.paper.png',
-        qq = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.qq.supp.png',
-    script: 'bin/paper_cuomo_ctng_pvalue_plot.py'
+        reml_p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.REMLpvalue.paper.png',
+        he_p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.HEpvalue.paper.png',
+        qq = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.qq.supp.png',
+    script: 'bin/paper_cuomo_ctp_pvalue_plot.py'
 
-rule paper_cuomo_ctng_pvalue_plot_ASHG:
+rule paper_cuomo_ctp_pvalue_plot_ASHG:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.remlJK.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.REMLpvalue.paper.ASHG.png',
-        png2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.HEpvalue.paper.ASHG.png',
-    script: 'bin/paper_cuomo_ctng_pvalue_plot.ASHG.py'
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.REMLpvalue.paper.ASHG.png',
+        png2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.HEpvalue.paper.ASHG.png',
+    script: 'bin/paper_cuomo_ctp_pvalue_plot.ASHG.py'
 
 rule paper_cuomo_freeNfull_Variance_plot:
     input:
-        ong = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        ctng = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
+        ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.freeNfull.Variance.paper.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.freeNfull.Variance.paper.png',
     script: 'bin/paper_cuomo_freeNfull_Variance_plot.py'
 
 rule paper_cuomo_freeNfull_Variance_plot_ASHG:
     input:
-        ong = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        ctng = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
+        ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.freeNfull.Variance.paper.ASHG.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.freeNfull.Variance.paper.ASHG.png',
     script: 'bin/paper_cuomo_freeNfull_Variance_plot.ASHG.py'
 
 rule paper_cuomo_freeNfull_Variance_plot_supp:
     input:
-        ong = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        ctng = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
+        ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        ong = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ong.freeNfull.Variance.supp.png',
-        ctng = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.freeNfull.Variance.supp.png',
+        op = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/op.freeNfull.Variance.supp.png',
+        ctp = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.freeNfull.Variance.supp.png',
     script: 'bin/paper_cuomo_freeNfull_Variance_plot_supp.py'
 
-rule paper_cuomo_ctng_corr_plot:
+rule paper_cuomo_ctp_corr_plot:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.CTcorr.paper.png',
-    script: 'bin/paper_cuomo_ctng_corr_plot.py'
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.CTcorr.paper.png',
+    script: 'bin/paper_cuomo_ctp_corr_plot.py'
 
 
 ###########################################################################################
@@ -1561,8 +1561,8 @@ cuomo_simulateGene_batch_no = 100
 cuomo_simulateGene_batches = np.array_split(range(cuomo_simulateGene_gene_no), cuomo_simulateGene_batch_no)
 rule cuomo_simulateGene_randompickgene:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
-        imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.ctng.txt'
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.ctp.txt'
                 for i in range(cuomo_batch_no)], #donor-day * gene 
     output:
         genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/genes.txt',
@@ -1578,9 +1578,9 @@ for _, batch in enumerate(cuomo_simulateGene_batches):
         name: f'cuomo_simulateGene_hom_batch{_}'
         input:
             flag = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/generatedata.batch',
-            out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+            out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
             genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/genes.txt',
-            imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.ctng.txt'
+            imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.ctp.txt'
                     for i in range(cuomo_batch_no)], #donor-day * gene 
             P = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/P.txt'
                     for i in range(cuomo_batch_no)], # list
@@ -1624,38 +1624,38 @@ rule cuomo_simulateGene_hom_addUncertainty:
             output_nus.write(uncertain_nu_f+'\n')
         output_nus.close()
 
-use rule ctng_test as cuomo_simulateGene_hom_ctng_test with:
+use rule ctp_test as cuomo_simulateGene_hom_ctp_test with:
     input:
         genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{{i}}.txt',
         y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/cty.batch{{i}}.txt',
         P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/P.batch{{i}}.txt',
         nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctnu.batch{{i}}.txt',
     output:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctng.batch{{i}}.out',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctng.out.npy',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctp.out.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
         ML = True,
         REML = True,
         HE = True,
 
-use rule cuomo_ong_test_mergeBatches as cuomo_simulateGene_hom_ctng_test_mergeBatches with:
+use rule cuomo_op_test_mergeBatches as cuomo_simulateGene_hom_ctp_test_mergeBatches with:
     input:
-        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctng.batch{i}.out'
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctng.out.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.out.npy',
 
-use rule ctng_test as cuomo_simulateGene_hom_ctng_test_remlJK with:
+use rule ctp_test as cuomo_simulateGene_hom_ctp_test_remlJK with:
     input:
         genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{{i}}.txt',
         y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/cty.batch{{i}}.txt',
         P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/P.batch{{i}}.txt',
         nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctnu.batch{{i}}.txt',
     output:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctng.remlJK.batch{{i}}.out',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctng.remlJK.out.npy',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctp.remlJK.out.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
         ML = False,
         REML = True,
@@ -1665,55 +1665,55 @@ use rule ctng_test as cuomo_simulateGene_hom_ctng_test_remlJK with:
         mem_per_cpu = '12gb',
         time = '48:00:00',
 
-use rule cuomo_ong_test_mergeBatches as cuomo_simulateGene_hom_ctng_test_remlJK_mergeBatches with:
+use rule cuomo_op_test_mergeBatches as cuomo_simulateGene_hom_ctp_test_remlJK_mergeBatches with:
     input:
-        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctng.remlJK.batch{i}.out'
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctng.remlJK.out.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.out.npy',
 
 nu_noises = ['1_0_0', '1_2_20', '1_2_10', '1_2_5', '1_2_3', '1_2_2']
-rule cuomo_simulateGene_hom_ctng_test_powerplot:
+rule cuomo_simulateGene_hom_ctp_test_powerplot:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
                 for nu_noise in nu_noises],
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctng.hom.power.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.hom.power.png',
     params:
         nu_noises = nu_noises,
-    script: 'bin/cuomo_simulateGene_hom_ctng_test_powerplot.py'
+    script: 'bin/cuomo_simulateGene_hom_ctp_test_powerplot.py'
 
-rule cuomo_simulateGene_hom_ctng_test_estimates:
+rule cuomo_simulateGene_hom_ctp_test_estimates:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
                 for nu_noise in nu_noises],
-        real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
         genes = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{i}.txt' 
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctng.hom.estimates.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.hom.estimates.png',
     params:
         nu_noises = nu_noises,
-    script: 'bin/cuomo_simulateGene_hom_ctng_test_estimates.py'
+    script: 'bin/cuomo_simulateGene_hom_ctp_test_estimates.py'
 
-rule cuomo_simulateGene_hom_ctng_test_estimates_paper:
+rule cuomo_simulateGene_hom_ctp_test_estimates_paper:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
                 for nu_noise in nu_noises],
-        #remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.remlJK.out.npy'
+        #remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
         #        for nu_noise in nu_noises],
-        #real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        #real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
         #genes = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{i}.txt' 
         #        for i in range(cuomo_simulateGene_batch_no)],
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctng.hom.estimates.paper.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.hom.estimates.paper.png',
     params:
         nu_noises = nu_noises,
-    script: 'bin/cuomo_simulateGene_hom_ctng_test_estimates_paper.py'
+    script: 'bin/cuomo_simulateGene_hom_ctp_test_estimates_paper.py'
 
 rule cuomo_simulateGene_Free_addV:
     input:
@@ -1742,38 +1742,38 @@ rule cuomo_simulateGene_Free_addV:
             free_fs.write(free_f + '\n')
         free_fs.close()
 
-use rule ctng_test as cuomo_simulateGene_Free_ctng_test with:
+use rule ctp_test as cuomo_simulateGene_Free_ctp_test with:
     input:
         genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{{i}}.txt',
         y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/cty.batch{{i}}.txt',
         P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/P.batch{{i}}.txt',
         nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctnu.batch{{i}}.txt',
     output:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctng.batch{{i}}.out',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctng.out.npy',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctp.out.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
         ML = True,
         REML = True,
         HE = True,
 
-use rule cuomo_ong_test_mergeBatches as cuomo_simulateGene_Free_ctng_test_mergeBatches with:
+use rule cuomo_op_test_mergeBatches as cuomo_simulateGene_Free_ctp_test_mergeBatches with:
     input:
-        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctng.batch{i}.out'
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctng.out.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.out.npy',
 
-use rule ctng_test as cuomo_simulateGene_Free_ctng_test_remlJK with:
+use rule ctp_test as cuomo_simulateGene_Free_ctp_test_remlJK with:
     input:
         genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{{i}}.txt',
         y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/cty.batch{{i}}.txt',
         P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/P.batch{{i}}.txt',
         nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctnu.batch{{i}}.txt',
     output:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctng.remlJK.batch{{i}}.out',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctng.remlJK.out.npy',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctp.remlJK.out.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
         ML = False,
         REML = True,
@@ -1783,110 +1783,110 @@ use rule ctng_test as cuomo_simulateGene_Free_ctng_test_remlJK with:
         mem_per_cpu = '12gb',
         time = '48:00:00',
 
-use rule cuomo_ong_test_mergeBatches as cuomo_simulateGene_Free_ctng_test_remlJK_mergeBatches with:
+use rule cuomo_op_test_mergeBatches as cuomo_simulateGene_Free_ctp_test_remlJK_mergeBatches with:
     input:
-        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctng.remlJK.batch{i}.out'
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctng.remlJK.out.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.out.npy',
 
 V1 = ['0_0_0_0', '0.05_0_0_0','0.1_0_0_0', '0.2_0_0_0', '0.5_0_0_0']
 V2 = ['0.05_0.05_0.05_0.05', '0.1_0.1_0.1_0.1', '0.2_0.2_0.2_0.2', '0.5_0.5_0.5_0.5']
 V3 = ['0_0_0_0', '0.05_0.1_0.1_0.1', '0.1_0.1_0.1_0.1', '0.2_0.1_0.1_0.1', '0.5_0.1_0.1_0.1']
-rule cuomo_simulateGene_Free_ctng_test_powerplot:
+rule cuomo_simulateGene_Free_ctp_test_powerplot:
     input:
-        outs1 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.out.npy'
+        outs1 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
                 for V in V1],
-        outs2 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.out.npy'
+        outs2 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
                 for V in V2],
-        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.out.npy'
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
                 for V in V3],
-        remlJKs1 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.remlJK.out.npy'
+        remlJKs1 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
                 for V in V1],
-        remlJKs2 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.remlJK.out.npy'
+        remlJKs2 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
                 for V in V2],
-        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.remlJK.out.npy'
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
                 for V in V3],
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctng.free.1_2_5.power.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.free.1_2_5.power.png',
     params:
         V1 = V1,
         V2 = V2,
         V3 = V3,
-    script: 'bin/cuomo_simulateGene_Free_ctng_test_powerplot.py'
+    script: 'bin/cuomo_simulateGene_Free_ctp_test_powerplot.py'
 
-rule cuomo_simulateGene_ctng_test_powerplot_paper:
+rule cuomo_simulateGene_ctp_test_powerplot_paper:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
                 for nu_noise in nu_noises],
         nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
         var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
-        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.out.npy'
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
                 for V in V3],
-        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.remlJK.out.npy'
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
                 for V in V3],
     output:
-        png1 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctng.power.paper.supp.png',
-        png2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctng.power.paper.png',
+        png1 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.power.paper.supp.png',
+        png2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.power.paper.png',
     params:
         nu_noises = nu_noises,
         V3 = V3,
-    script: 'bin/cuomo/simulateGene_ctng_test_powerplot_paper.py'
+    script: 'bin/cuomo/simulateGene_ctp_test_powerplot_paper.py'
 
-rule cuomo_simulateGene_ctng_test_powerplot_paper_ASHG:
+rule cuomo_simulateGene_ctp_test_powerplot_paper_ASHG:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
                 for nu_noise in nu_noises],
         nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
         var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
-        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.out.npy'
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
                 for V in V3],
-        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.remlJK.out.npy'
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
                 for V in V3],
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctng.power.paper.ASHG.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.power.paper.ASHG.png',
     params:
         nu_noises = nu_noises,
         V3 = V3,
-    script: 'bin/cuomo_simulateGene_ctng_test_powerplot_paper.ASHG.py'
+    script: 'bin/cuomo_simulateGene_ctp_test_powerplot_paper.ASHG.py'
 
-rule cuomo_simulateGene_ctng_test_powerplot_paper_ZJU:
+rule cuomo_simulateGene_ctp_test_powerplot_paper_ZJU:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctng.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
                 for nu_noise in nu_noises],
         nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
         var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
-        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.out.npy'
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
                 for V in V3],
-        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.remlJK.out.npy'
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
                 for V in V3],
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctng.power.paper.ZJU.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.power.paper.ZJU.png',
     params:
         nu_noises = nu_noises,
         V3 = V3,
-    script: 'bin/cuomo_simulateGene_ctng_test_powerplot_paper.ZJU.py'
+    script: 'bin/cuomo_simulateGene_ctp_test_powerplot_paper.ZJU.py'
 
-rule cuomo_simulateGene_free_ctng_test_estimates:
+rule cuomo_simulateGene_free_ctp_test_estimates:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
                 for V in V3],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctng.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
                 for V in V3],
-        #real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctng.out.npy',
+        #real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
         #genes = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{i}.txt' 
         #        for i in range(cuomo_simulateGene_batch_no)],
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctng.free.estimates.png',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.free.estimates.png',
     params:
         V3 = V3,
-    script: 'bin/cuomo_simulateGene_free_ctng_test_estimates.py'
+    script: 'bin/cuomo_simulateGene_free_ctp_test_estimates.py'
 
 
 #########################################################################
@@ -1976,9 +1976,9 @@ use rule cuomo_day_imputeGenome as cuomo_imputation_day_imputeGenome with:
         #y = temp(f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/day.Gimputed.pseudobulk.gz'), # donor - day * gene
         #nu = temp(f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/day.Gimputed.nu.gz'), #donor - day * gene
 
-#use rule cuomo_day_imputeNinputForONG as cuomo_imputation_day_imputeNinputForONG with:
+#use rule cuomo_day_imputeNinputForop as cuomo_imputation_day_imputeNinputForop with:
 # no standardization of y and nu
-rule cuomo_imputation_day_imputeNinputForONG:
+rule cuomo_imputation_day_imputeNinputForop:
     input:
         #P = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/day.filterInds.prop.gz', # donor * day
         #n = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/day.filterInds.cellnum.gz', # donor * day
@@ -1993,35 +1993,35 @@ rule cuomo_imputation_day_imputeNinputForONG:
     output:
         #y = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/y.txt', # list # y for each gene is sorted by ind order
         #nu = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/nu.txt', # list
-        #nu_ctng = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/nu.ctng.txt', # list
+        #nu_ctp = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/nu.ctp.txt', # list
         #P = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/P.txt', # list
         #imputed_ct_y = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/ct.y.txt', # donor - day * gene
         #imputed_ct_nu = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/ct.nu.txt', #donor-day * gene # negative ct_nu set to 0
-        #imputed_ct_nu_ctng = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/ct.nu.ctng.txt', #donor-day * gene # negative ct_nu set to max(ct_nu)
+        #imputed_ct_nu_ctp = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene # negative ct_nu set to max(ct_nu)
         y = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/y.txt', # list # y for each gene is sorted by ind order
         nu = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/nu.txt', # list
-        nu_ctng = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/nu.ctng.txt', # list
+        nu_ctp = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/nu.ctp.txt', # list
         P = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/P.txt', # list
         imputed_ct_y = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/ct.y.txt', # list 
         imputed_ct_nu = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.txt', # list # negative ct_nu set to 0
-        imputed_ct_nu_ctng = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctng.txt', # list  # negative ct_nu set to max(ct_nu)
+        imputed_ct_nu_ctp = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', # list  # negative ct_nu set to max(ct_nu)
     resources: 
         time= '200:00:00',
         mem = lambda wildcards: '15gb' if wildcards.im_mvn == 'N' else '5gb',
-    script: 'bin/cuomo_imputation_day_imputeNinputForONG.py'
+    script: 'bin/cuomo_imputation_day_imputeNinputForop.py'
 
 rule cuomo_imputation_day_cleanfile:
     input:
         #y = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/y.txt', # list # y for each gene is sorted by ind order
         #nu = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/nu.txt', # list
-        #nu_ctng = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/nu.ctng.txt', # list
+        #nu_ctp = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/nu.ctp.txt', # list
         #P = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/P.txt', # list
-        #imputed_ct_nu_ctng = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/ct.nu.ctng.txt', #donor-day * gene # negative ct_nu set to max(ct_nu)
+        #imputed_ct_nu_ctp = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene # negative ct_nu set to max(ct_nu)
         y = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/y.txt', # list # y for each gene is sorted by ind order
         nu = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/nu.txt', # list
-        nu_ctng = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/nu.ctng.txt', # list
+        nu_ctp = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/nu.ctp.txt', # list
         P = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/P.txt', # list
-        imputed_ct_nu_ctng = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctng.txt', # list * gene # negative ct_nu set to max(ct_nu)
+        imputed_ct_nu_ctp = f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', # list * gene # negative ct_nu set to max(ct_nu)
     output:
         #touch(f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/batch{{i}}/clean.txt'),
         touch(f'staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/{cuomo_imput_paramspace.wildcard_pattern}/batch{{i}}/clean.txt'),
@@ -2181,51 +2181,51 @@ rule paper_cuomo_imputation_all:
 #        png = 'paper/modelview.png',
 #    script: 'bin/paper_modelview.py'
 
-rule paper_ongNctng_REML_subspace_plot:
+rule paper_opNctp_REML_subspace_plot:
     input:
-        ong_out = ong_agg_out_subspace,
-        ong_V = ong_agg_trueV_subspace,
-        ctng_out = ctng_agg_out_subspace,
+        op_out = op_agg_out_subspace,
+        op_V = op_agg_trueV_subspace,
+        ctp_out = ctp_agg_out_subspace,
     output:
         violin = 'results/paper/{model}/REML.AGG{arg}.violin.png',
         box = 'results/paper/{model}/REML.AGG{arg}.box.png',
     params:
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = ong_plot_order,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: 'bin/paper_ongNctng_REML.py'
+    script: 'bin/paper_opNctp_REML.py'
 
-def ong_agg_hom_out_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, ong_params.loc[ong_params['model']=='hom'])
-    return expand('analysis/ong/hom/{params}/out.npy', params=subspace.instance_patterns)
+def op_agg_hom_out_subspace(wildcards):
+    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']=='hom'])
+    return expand('analysis/op/hom/{params}/out.npy', params=subspace.instance_patterns)
 
-def ctng_agg_hom_out_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, ong_params.loc[ong_params['model']=='hom'])
-    return expand('analysis/ctng/hom/{params}/out.npy', params=subspace.instance_patterns)
+def ctp_agg_hom_out_subspace(wildcards):
+    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']=='hom'])
+    return expand('analysis/ctp/hom/{params}/out.npy', params=subspace.instance_patterns)
 
-rule paper_ongNctng_REML_waldNlrt_subspace_plot:
+rule paper_opNctp_REML_waldNlrt_subspace_plot:
     input:
-        ong_out = ong_agg_out_subspace,
-        ctng_out = ctng_agg_out_subspace,
-        ong_hom_out = ong_agg_hom_out_subspace,
-        ctng_hom_out = ctng_agg_hom_out_subspace,
+        op_out = op_agg_out_subspace,
+        ctp_out = ctp_agg_out_subspace,
+        op_hom_out = op_agg_hom_out_subspace,
+        ctp_hom_out = ctp_agg_hom_out_subspace,
     output:
         waldNlrt = 'results/paper/{model}/REML.waldNlrt.AGG{arg}.png',
     params: 
         subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']==wildcards.model]).iloc[:,:],
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
         hom_subspace = lambda wildcards: get_subspace(wildcards.arg,
-                ong_params.loc[ong_params['model']=='hom']).iloc[:,:],
-        plot_order = ong_plot_order,
+                op_params.loc[op_params['model']=='hom']).iloc[:,:],
+        plot_order = op_plot_order,
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: 'bin/paper_ongNctng_REML_waldNlrt_subspace_plot.py'
+    script: 'bin/paper_opNctp_REML_waldNlrt_subspace_plot.py'
 
-rule paper_ongNctng_REML_subspace_plot_all:
+rule paper_opNctp_REML_subspace_plot_all:
     input:
         estimates =  expand('results/paper/{model}/REML.AGG{arg}.box.png', 
                 zip, model=['free'], arg=['ss']),
