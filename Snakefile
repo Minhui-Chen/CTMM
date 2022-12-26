@@ -195,7 +195,8 @@ rule op_MLestimates_subspace_plot:
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: "bin/op_MLestimates_subspace_plot.py"
+        method = 'ml',
+    script: 'bin/OP/op_estimates_subspace_plot.py'
 
 rule op_MLwaldNlrt_subspace_plot:
     input:
@@ -211,10 +212,7 @@ rule op_MLwaldNlrt_subspace_plot:
         mycolors = mycolors,
     script: 'bin/op_MLwaldNlrt_subspace_plot.py'
 
-rule op_REMLestimates_subspace_plot:
-    input:
-        out = op_agg_out_subspace,
-        V = op_agg_trueV_subspace,
+use rule op_MLestimates_subspace_plot as op_REMLestimates_subspace_plot with:
     output:
         png = 'results/op/{model}/REML.AGG{arg}.png',
     params:
@@ -224,7 +222,7 @@ rule op_REMLestimates_subspace_plot:
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: 'bin/op_REMLestimates_subspace_plot.py'
+        method = 'reml',
 
 rule op_REMLwaldNlrt_subspace_plot:
     input:
@@ -439,14 +437,10 @@ def ctp_agg_out_subspace(wildcards):
     #subspace.to_csv(sys.stdout, sep='\t', index=False)
     return expand('analysis/ctp/{{model}}/{params}/out.npy', params=subspace.instance_patterns)
 
-def ctp_agg_truebeta_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']==wildcards.model])
-    return expand('analysis/op/{{model}}/{params}/celltypebeta.txt', params=subspace.instance_patterns)
-
 use rule op_MLestimates_subspace_plot as ctp_MLestimates_subspace_plot with:
     input:
         out = ctp_agg_out_subspace,
-        beta = ctp_agg_truebeta_subspace,
+        beta = op_agg_truebeta_subspace,
         V = op_agg_trueV_subspace,
     output:
         png = 'results/ctp/{model}/ML.AGG{arg}.png',
@@ -454,7 +448,7 @@ use rule op_MLestimates_subspace_plot as ctp_MLestimates_subspace_plot with:
 use rule op_MLestimates_subspace_plot as ctp_MLestimates_subspace_plot2 with:
     input:
         out = ctp_agg_out_subspace,
-        beta = ctp_agg_truebeta_subspace,
+        beta = op_agg_truebeta_subspace,
         V = op_agg_trueV_subspace,
     output:
         png = 'results/ctp/{model}/ML.excluderareCT.AGG{arg}.png',
@@ -465,6 +459,7 @@ use rule op_MLestimates_subspace_plot as ctp_MLestimates_subspace_plot2 with:
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
+        method = 'ml',
 
 use rule op_MLwaldNlrt_subspace_plot as ctp_MLwaldNlrt_subspace_plot with:
     input:
@@ -498,13 +493,21 @@ use rule op_HEwald_subspace_plot as ctp_HEwald_subspace_plot with:
     output:
         waldNlrt = 'results/ctp/{model}/HE.wald.AGG{arg}.png',
 
-use rule op_REMLestimates_subspace_plot as ctp_REMLestimates_subspace_plot with:
+use rule op_MLestimates_subspace_plot as ctp_REMLestimates_subspace_plot with:
     input:
         out = ctp_agg_out_subspace,
-        #beta = ctp_agg_truebeta_subspace,
+        beta = op_agg_truebeta_subspace,
         V = op_agg_trueV_subspace,
     output:
         png = 'results/ctp/{model}/REML.AGG{arg}.png',
+    params:
+        subspace = lambda wildcards: get_subspace(wildcards.arg,
+                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
+        plot_order = op_plot_order,
+        colorpalette = colorpalette,
+        pointcolor = pointcolor,
+        mycolors = mycolors,
+        method = 'reml',
 
 rule ctp_REMLestimates_subspace_plot_BSDposter:
     input:
@@ -519,11 +522,12 @@ rule ctp_REMLestimates_subspace_plot_BSDposter:
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
-    script: "bin/op_MLmodelestimates_subspace_plot.poster.py"
+    script: 'bin/op_MLmodelestimates_subspace_plot.poster.py'
 
-use rule op_REMLestimates_subspace_plot as ctp_REMLestimates_subspace_plot2 with:
+use rule op_MLestimates_subspace_plot as ctp_REMLestimates_subspace_plot2 with:
     input:
         out = ctp_agg_out_subspace,
+        beta = op_agg_truebeta_subspace,
         V = op_agg_trueV_subspace,
     output:
         png = 'results/ctp/{model}/REML.excluderareCT.AGG{arg}.png',
@@ -534,6 +538,7 @@ use rule op_REMLestimates_subspace_plot as ctp_REMLestimates_subspace_plot2 with
         colorpalette = colorpalette,
         pointcolor = pointcolor,
         mycolors = mycolors,
+        method = 'reml',
 
 use rule op_REMLwaldNlrt_subspace_plot as ctp_REMLwaldNlrt_subspace_plot with:
     input:
