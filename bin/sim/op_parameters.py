@@ -39,7 +39,7 @@ def main():
     scale = math.sqrt(vc1 / (beta @ s @ beta))
     beta = beta * scale
 
-    np.savetxt(output.beta, beta, delimiter='\t')
+    np.savetxt(snakemake.output.beta, beta, delimiter='\t')
 
     # V
     vc2 = float( snakemake.wildcards.vc.split('_')[2]) #variance explained by interaction
@@ -63,7 +63,7 @@ def main():
     V = V * scale
     #print(bmatrix(V))
 
-    np.savetxt(output.V, V, delimiter='\t')
+    np.savetxt(snakemake.output.V, V, delimiter='\t')
 
 if __name__ == '__main__':
     main()
