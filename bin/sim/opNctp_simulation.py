@@ -1,4 +1,4 @@
-import re, sys
+import os, re, sys, math
 import numpy as np, pandas as pd
 
 def add_fixed(y):
@@ -38,7 +38,8 @@ def main():
 
     rng = np.random.default_rng()
 
-    P_fs = pi_fs = s_fs = nu_fs = ctnu_fs = y_fs = cty_fs = fixed_X_fs = random_X_fs = []
+    P_fs, pi_fs, s_fs, nu_fs, ctnu_fs, y_fs, cty_fs = [],[],[],[],[],[],[]
+    fixed_X_fs, random_X_fs = [], []
     for k in snakemake.params.batch:
         P_f = re.sub('repX', 'rep'+str(k), snakemake.params.P)
         P_fs.append( P_f )
@@ -104,7 +105,7 @@ def main():
         P_inv = 1 / P
         ctnu = P_inv * nu.reshape(-1,1)
 
-        ctnu.savetxt(ctnu_f, ctnu)
+        np.savetxt(ctnu_f, ctnu)
 
         ## draw residual error from normal distribution with variance drawn above
         delta = rng.normal(np.zeros_like(nu), np.sqrt(nu))
@@ -112,7 +113,7 @@ def main():
 
         # generate pseudobulk
         y = alpha + P @ beta + delta
-        cty = np.outer(alpha, np.ones(C)) + np.outer(np.ones(ss), beta) + ct_beta
+        cty = np.outer(alpha, np.ones(C)) + np.outer(np.ones(ss), beta) + ct_delta
         if snakemake.wildcards.model != 'hom':
             # draw Gamma: CT-specific random effect
             gamma = rng.multivariate_normal(np.zeros(C), V, size=ss)
@@ -137,7 +138,7 @@ def main():
 
         # save
         np.savetxt(y_f, y)
-        np.savetxt(cty_y, cty)
+        np.savetxt(cty_f, cty)
 
     with open(snakemake.output.P, 'w') as f: f.write('\n'.join(P_fs))
     with open(snakemake.output.pi, 'w') as f: f.write('\n'.join(pi_fs))
