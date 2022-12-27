@@ -191,7 +191,7 @@ rule op_test_remlJK:
 use rule op_aggReplications as op_remlJK_aggReplications with:
     input:
         out = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.batch{i}' 
-                for i in range(len(ctp_batches))],
+                for i in range(len(op_batches))],
     output:
         out = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.npy',
 
@@ -706,7 +706,7 @@ rule cuomo_op_test:
 #    return expand(f"staging/cuomo/{par[:-1]}/batch{{i}}/out.txt", 
 #            i=glob_wildcards(os.path.join(checkpoint_output, "batch{i}.txt")).i)
 
-use rule op_aggReplications as cuomo_op_aggReplications:
+use rule op_aggReplications as cuomo_op_aggReplications with:
     input:
         out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/out.txt' 
                 for i in range(cuomo_batch_no)],
@@ -1751,64 +1751,6 @@ rule paper_cuomo_imputation_all:
         png = expand('results/imp/ind_min_cellnum{ind_min_cellnum}/ct_min_cellnum{ct_min_cellnum}/missingness{missingness}/imputation.accuracy.withinrep.paper.png',
                 ind_min_cellnum=100, ct_min_cellnum=10, missingness=[0.1]),
 
-###############################################################################
-# paper
-###############################################################################
-#rule paper_modelview:
-#    output:
-#        png = 'paper/modelview.png',
-#    script: 'bin/paper_modelview.py'
-
-rule paper_opNctp_REML_subspace_plot:
-    input:
-        op_out = op_agg_out_subspace,
-        op_V = op_agg_trueV_subspace,
-        ctp_out = ctp_agg_out_subspace,
-    output:
-        violin = 'results/paper/{model}/REML.AGG{arg}.violin.png',
-        box = 'results/paper/{model}/REML.AGG{arg}.box.png',
-    params:
-        subspace = lambda wildcards: get_subspace(wildcards.arg,
-                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
-        plot_order = op_plot_order,
-        colorpalette = colorpalette,
-        pointcolor = pointcolor,
-        mycolors = mycolors,
-    script: 'bin/paper_opNctp_REML.py'
-
-def op_agg_hom_out_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']=='hom'])
-    return expand('analysis/op/hom/{params}/out.npy', params=subspace.instance_patterns)
-
-def ctp_agg_hom_out_subspace(wildcards):
-    subspace = get_subspace(wildcards.arg, op_params.loc[op_params['model']=='hom'])
-    return expand('analysis/ctp/hom/{params}/out.npy', params=subspace.instance_patterns)
-
-rule paper_opNctp_REML_waldNlrt_subspace_plot:
-    input:
-        op_out = op_agg_out_subspace,
-        ctp_out = ctp_agg_out_subspace,
-        op_hom_out = op_agg_hom_out_subspace,
-        ctp_hom_out = ctp_agg_hom_out_subspace,
-    output:
-        waldNlrt = 'results/paper/{model}/REML.waldNlrt.AGG{arg}.png',
-    params: 
-        subspace = lambda wildcards: get_subspace(wildcards.arg,
-                op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
-        hom_subspace = lambda wildcards: get_subspace(wildcards.arg,
-                op_params.loc[op_params['model']=='hom']).iloc[:,:],
-        plot_order = op_plot_order,
-        colorpalette = colorpalette,
-        pointcolor = pointcolor,
-        mycolors = mycolors,
-    script: 'bin/paper_opNctp_REML_waldNlrt_subspace_plot.py'
-
-rule paper_opNctp_REML_subspace_plot_all:
-    input:
-        estimates =  expand('results/paper/{model}/REML.AGG{arg}.box.png', 
-                zip, model=['free'], arg=['ss']),
-        waldNlrt = expand('results/paper/{model}/REML.waldNlrt.AGG{arg}.png', 
-                zip, model=['free'], arg=['ss']),
 
 ###########
 # NEW
