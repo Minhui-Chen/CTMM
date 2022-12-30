@@ -3,7 +3,7 @@ import helper, mystats
 import scipy
 import numpy as np
 from scipy import linalg, optimize, stats
-import util, wald, cuomo_ctng_test
+import util, wald
 
 def read_covars(fixed_covars={}, random_covars={}):
     fixed_covars_tmp = {}
@@ -43,30 +43,96 @@ def cal_Vy(A, vs, r2=[], random_MMT=[]):
         Vy += var * MMT
     return( Vy )
 
-def cal_HE_base_vars(Y, vs):
-    '''
-    With 
-    Y = np.loadtxt(y_f)
-    vs = np.loadtxt(nu_f)
-    '''
-
+def HE_stats(Y, vs, fixed_covars=[], random_covars=[], reorder_random=True):
     # 
     N, C = Y.shape
+    X = get_X(fixed_covars, N, C)
+
+    #
+    R = None
+    if len( random_covars.keys() ) == 1:
+        # order by random covar
+        R = list( random_covars.values() )[0]
+        if reorder_random:
+            _, R, [Y, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, vs], fixed_covars)
+            random_covars[ list(random_covars.keys())[0] ] = R
+            X = get_X(fixed_covars, N, C)
+    else:
+        R = []
+        for key in np.sort( list(random_covars.keys()) ):
+            R.append( random_covars[key] )
+        R = np.concatenate( R, axis=1 )
+
+
+    # projection matrix
+    proj = np.eye(N * C) - X @ np.linalg.inv(X.T @ X) @ X.T
+    #proj = np.identity(N * C) - (1 / N) * np.kron(np.ones((N,N)), np.identity(C))
 
     # vectorize Y
     y = Y.flatten()
 
-    # projection matrix
-    #proj = np.identity(N * C) - (1 / N) * np.kron(np.ones((N,N)), np.identity(C))
-
     # projected y
-    y_p = y - (1 / N) * (np.transpose(Y) @ np.ones((N,N))).flatten('F')
+    y_p = proj @ y
+    stats = {'R':R, 'X':X, 'Y':Y, 'vs':vs, 'proj':proj, 'y_p':y_p}
+    #y_p = y - (1 / N) * (np.transpose(Y) @ np.ones((N,N))).flatten('F')
 
     # calculate \ve{ \Pi_P^\perp ( I_N \otimes J_C ) \Pi_P^\perp }^T t, where t is vector of dependent variable
     # t = \ve{ y' y'^T - \Pi_P^\perp D \Pi_P^\perp }
-    mt1 = (y_p.reshape(N, C).sum(axis=1)**2).sum() - vs.sum() * (N-1) / N
+    #mt1 = (y_p.reshape(N, C).sum(axis=1)**2).sum() - vs.sum() * (N-1) / N
 
-    return( {'y_p': y_p, 'mt1': mt1} )
+    return( stats )
+
+def he_ols(Y, X, vs, random_covars, model):
+    '''
+    Q: design matrix in HE OLS
+    '''
+    
+    N, C = Y.shape
+    y = Y.flatten()
+    proj = np.eye(N * C) - X @ np.linalg.inv(X.T @ X) @ X.T
+
+    # vec(M @ A @ M)^T @ vec(M @ B M) = vec(M @ A)^T @ vec((M @ B)^T), when A, B, and M are symmetric #
+    t = np.outer( proj @ y, y ) - proj * np.diag(vs.flatten()) # proj @ y @ y^T @ proj - proj @ D @ proj
+
+    if model == 'hom':
+        Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
+    elif model == 'iid':
+        Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
+        Q.append( M.flatten('F') ) # vec(M)
+    elif model == 'free':
+        Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
+        for i in range(C):
+            L = np.zeros((C,C))
+            L[i,i] = 1
+            Q.append( np.hstack( np.hsplit(proj, N) @ L ) )
+    elif model == 'full':
+        Q = []
+        for i in range(C):
+            L = np.zeros((C,C))
+            L[i,i] = 1
+            Q.append( np.hstack( np.hsplit(proj, N) @ L ) )
+        for i in range(1,C):
+            for j in range(i):
+                L = np.zeros((C,C))
+                L[i,j] = 1
+                Q.append( np.hstack( np.hsplit(proj, N) @ (L+L.T) ) )
+
+    random_MMT = []
+    for R in random_covars.values():
+        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+        random_MMT.append( m )
+        Q.append( proj @ m )
+
+    QTQ = np.array([m.flatten('F') for m in Q]) @ np.array([m.flatten() for m in Q]).T
+    QTQt = np.array([m.flatten('F') for m in Q]) @ t.flatten()
+    theta = QTQ @ QTQt
+
+    #if return_QTQQT:
+        #return( theta, sigma_y2, random_vars, QTQ, QTQQT )
+        #return( theta, random_MMT, QTQQT )
+    #else:
+        #return( theta, sigma_y2, random_vars, QTQ )
+    return( theta, random_MMT )
 
 def optim(fun, par, args, method):
     if method is None:
@@ -154,7 +220,7 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
 
             AD_inv_sum += AD_inv
             AD_det_sum += AD_det
-            ADy += ADy
+            ADy_sum += ADy
             yADy_sum += yADy
 
         w, v = linalg.eigh( AD_inv_sum )
@@ -298,9 +364,9 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             par = [hom2] + list(beta) + [hom2] * n_random
 
     random_MMT = []
-    for value in random_covars.values():
-        m = np.repeat(value, C, axis=0)
-        random_MMT.append( m @ m.T )
+    for R in random_covars.values():
+        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+        random_MMT.append( m )
        
     out, opt = optim(hom_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
     
@@ -371,12 +437,15 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             hom2 = np.var(Y.flatten() - X @ beta) / ( n_random + 1 )
             par = [hom2] * (n_random + 1)
 
-    def reml_f(Y, X, N, C, vs, P, fixed_covars, random_covars, method):
+    def reml_f(Y, vs, P, fixed_covars, random_covars, method):
         ''' wrapper for hom reml '''
+        N, C = Y.shape
+        X = get_X(fixed_covars, N, C)
+
         random_MMT = []
-        for value in random_covars.values():
-            m = np.repeat(value, C, axis=0)
-            random_MMT.append( m @ m.T )
+        for R in random_covars.values():
+            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+            random_MMT.append( m )
            
         out, opt = optim(hom_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         
@@ -392,7 +461,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
 
     #
     hom2, r2, beta, l, fixed_vars, random_vars, Vy, opt = reml_f(
-            Y, X, N, C, vs, P, fixed_covars, random_covars, method)
+            Y, vs, P, fixed_covars, random_covars, method)
 
     # wald
     Z = [np.repeat(np.eye(N), C, axis=0)]
@@ -418,9 +487,8 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         for i in range(N):
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
-            X_jk = get_X(fixed_covars_jk, N-1, C)
             hom2_jk, _, beta_jk, _, _, _, _ = reml_f(
-                    Y_jk, X_jk, N-1, C, vs_jk, P_jk, fixed_covars_jk, random_covars_jk, method)
+                    Y_jk, vs_jk, P_jk, fixed_covars_jk, random_covars_jk, method)
 
             jacks['hom2'].append( hom2_jk )
             jacks['ct_beta'].append( beta_jk['ct_beta'] )
@@ -435,45 +503,68 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     print( time.time() - start, flush=True )
     return(reml, p)
 
-#def hom_HE(y_f, nu_f):
-#    print('Hom HE')
-#    start = time.time()
-#
-#    def hom_HE_(Y, vs):
-#        N, C = Y.shape
-#
-#        # calculate useful variables
-#        vars = cal_HE_base_vars(Y, vs)
-#
-#        hom2 = vars['mt1'] / ( (N-1) * C * C )
-#
-#        # beta
-#        A = np.ones((C,C)) * hom2
-#        sig2s = np.kron(np.eye(N), A) + np.diag(vs.flatten())
-#        beta = util.glse( sig2s, np.kron(np.ones((N,1)), np.eye(C)), Y.flatten() )
-#
-#        return(hom2, beta)
-#
-#    Y = np.loadtxt(y_f)
-#    vs = np.loadtxt(nu_f)
-#    D = np.diag(vs.flatten())
-#    N, C = Y.shape
-#    n_par = 1
-#
-#    hom2, beta = hom_HE_(Y, vs)
-#
-#    ### jackknife
-#    jacks = [hom_HE_(np.delete(Y, i, axis=0), np.delete(vs, i, axis=0)) for i in range(Y.shape[0])]
-#    jacks_hom2 = [x[0] for x in jacks]
-#    var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
-#    jacks_beta = [x[1] for x in jacks]
-#    var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
-#    he = {'hom2': hom2, 'ct_beta':beta}
-#    p = {'hom2': wald.wald_test(hom2, 0, var_hom2),
-#            'ct_beta': util.wald_ct_beta(beta, var_beta, n=N*C, P=n_par+C)}
-#
-#    print( time.time() - start )
-#    return(he, p)
+def hom_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, jack_knife=True):
+    print('Hom HE', flush=True )
+    start = time.time()
+
+    # par
+    fixed_covars, random_covars = read_covars(fixed_covars_d, random_covars_d)
+    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
+
+    Y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    vs = np.loadtxt(ctnu_f)
+    D = np.diag(vs.flatten())
+    N, C = Y.shape
+    n_par = 1 + n_random
+
+    def he_f(Y, vs, P, fixed_covars, random_covars):
+        N, C = Y.shape
+        y = Y.flatten()
+        X = get_X(fixed_covars, N, C)
+
+        theta, random_MMT = he_ols(Y, X, vs, random_covars, model='hom')
+        hom2, r2 = theta[0], theta[1:]
+
+        # beta
+        A = np.ones((C,C)) * hom2
+        Vy = cal_Vy( A, vs, r2, random_MMT )
+        beta = util.glse( Vy, X, y )
+        # calcualte variance of fixed and random effects, and convert to dict
+        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars)
+
+        return(hom2, r2, beta, fixed_vars, random_vars)
+
+    #
+    hom2, r2, beta, fixed_vars, random_vars = he_f(Y, vs, P, fixed_covars, random_covars)
+
+    he = {'hom2': hom2, 'beta':beta, 'fixedeffect_vars':fixed_vars,
+            'randomeffect_vars':random_vars, 'r2':r2 }
+    if nu_f:
+        he['nu'] = np.mean( np.loadtxt(nu_f) )
+
+    # p values
+    p = {}
+    if jack_knife:
+        jacks = {'ct_beta':[], 'hom2':[]}
+        for i in range(N):
+            Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
+                    i, Y, vs, fixed_covars, random_covars, P)
+            hom2_jk, _, beta_jk, _, _ = he_f(Y_jk, vs_jk, P_jk, fixed_covars_jk, random_covars_jk)
+
+            jacks['hom2'].append( hom2_jk )
+            jacks['ct_beta'].append( beta_jk['ct_beta'] )
+
+        var_hom2 = (len(jacks['hom2']) - 1.0) * np.var(jacks['hom2'])
+        var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov( np.array(jacks['ct_beta']).T, bias=True )
+        
+        p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
+        # wald test beta1 = beta2 = beta3
+        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+
+
+    print( time.time() - start )
+    return(he, p)
 
 def iid_ML_loglike(par, Y, X, N, C, vs, random_MMT):
     hom2 = par[0]
@@ -517,9 +608,9 @@ def iid_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             par = [hom2, hom2] + list(beta) + [hom2] * n_random
 
     random_MMT = []
-    for value in random_covars.values():
-        m = np.repeat(value, C, axis=0)
-        random_MMT.append( m @ m.T )
+    for R in random_covars.values():
+        m = m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+        random_MMT.append( m )
        
     out, opt = optim(iid_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
     
@@ -596,9 +687,9 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     def reml_f(Y, X, N, C, vs, P, fixed_covars, random_covars, method):
         ''' wrapper for iid reml '''
         random_MMT = []
-        for value in random_covars.values():
-            m = np.repeat(value, C, axis=0)
-            random_MMT.append( m @ m.T )
+        for R in random_covars.values():
+            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+            random_MMT.append( m )
            
         out, opt = optim(iid_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         
@@ -665,61 +756,72 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     print( time.time() - start, flush=True )
     return(reml, p)
 
-#def iid_HE(y_f, nu_f):
-#    print( 'IID HE' )
-#    start = time.time()
-#
-#    def iid_HE_(Y, vs):
-#        N, C = Y.shape
-#        D = np.diag( vs.flatten() )
-#
-#        # calculate useful variables
-#        vars = cal_HE_base_vars(Y, vs)
-#
-#        # calculate \ve{ \Pi_P^\perp (I_N \otimes I_C) \Pi_P^\perp }^T t, where t is vector of dependent variable
-#        # t = \ve{ y' y'^T - \Pi_P^\perp D \Pi_P^\perp }
-#        mt2 = (vars['y_p']**2).sum() - vs.sum() * (N-1) / N
-#
-#        #
-#        mt = np.array([vars['mt1'], mt2])
-#
-#        # make matrix M^T M, where is M is design matrix of HE regression
-#        mm = np.array([[(N-1)*C*C, (N-1)*C], [(N-1)*C, (N-1)*C]])
-#
-#        #
-#        theta = np.linalg.inv(mm) @ mt
-#        hom2, het = theta
-#
-#        # beta
-#        A = np.ones((C,C)) * hom2 + np.eye(C) * het 
-#        sig2s = np.kron(np.eye(N), A) + D
-#        beta = util.glse( sig2s, np.kron(np.ones((N,1)), np.eye(C)), Y.flatten() )
-#
-#        return(theta, beta)
-#
-#    Y = np.loadtxt(y_f)
-#    vs = np.loadtxt(nu_f)
-#    N, C = Y.shape
-#    n_par = 1 + 1
-#
-#    theta, beta = iid_HE_(Y, vs)
-#
-#    ### jackknife
-#    jacks = [iid_HE_(np.delete(Y, i, axis=0), np.delete(vs, i, axis=0)) for i in range(N)]
-#    jacks_hom2 = [x[0][0] for x in jacks]
-#    var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
-#    jacks_het = [x[0][1] for x in jacks]
-#    var_het = (len(jacks) - 1.0) * np.var(jacks_het)
-#    jacks_beta = [x[1] for x in jacks]
-#    var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
-#
-#    he = {'hom2': theta[0], 'V': np.eye(C) * theta[1]}
-#    p = { 'hom2': wald.wald_test(theta[0], 0, var_hom2),
-#            'V': wald.wald_test(theta[1], 0, var_het),
-#            'ct_beta': util.wald_ct_beta(beta, var_beta, n=N*C, P=n_par+C) }
-#
-#    print( time.time() - start )
-#    return(he, p)
+def iid_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, jack_knife=True):
+    print('IID HE', flush=True )
+    start = time.time()
+
+    # par
+    fixed_covars, random_covars = read_covars(fixed_covars_d, random_covars_d)
+    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
+
+    Y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    vs = np.loadtxt(ctnu_f)
+    D = np.diag(vs.flatten())
+    N, C = Y.shape
+    n_par = 2 + n_random
+
+    def he_f(Y, vs, P, fixed_covars, random_covars):
+        N, C = Y.shape
+        y = Y.flatten()
+
+        theta, random_MMT = he_ols(Y, X, vs, random_covars, model='iid')
+        hom2, het, r2 = theta[0], theta[1], theta[2:]
+        V = np.eye(C) * het
+
+        # beta
+        A = np.ones((C,C)) * hom2 + V
+        Vy = cal_Vy( A, vs, r2, random_MMT )
+        beta = util.glse( Vy, X, y )
+        # calcualte variance of fixed and random effects, and convert to dict
+        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars)
+        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+
+        return(hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var)
+
+    hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
+            Y, vs, P, fixed_covars, random_covars)
+
+    he = {'hom2': hom2, 'V': V, 'beta':beta, 'fixedeffect_vars':fixed_vars,
+            'ct_random_var':ct_overall_var, 'ct_specific_random_var':ct_specific_var,
+            'randomeffect_vars':random_vars, 'r2':r2 }
+    if nu_f:
+        he['nu'] = np.mean( np.loadtxt(nu_f) )
+
+    # p values
+    p = {}
+    if jack_knife:
+        jacks = { 'ct_beta':[], 'hom2':[], 'het':[] }
+        for i in range(N):
+            Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
+                    i, Y, vs, fixed_covars, random_covars, P)
+            hom2_jk, V_jk, _, beta_jk, _, _, _, _ = he_f(
+                    Y_jk, vs_jk, P_jk, fixed_covars_jk, random_covars_jk)
+
+            jacks['hom2'].append( hom2_jk )
+            jacks['ct_beta'].append( beta_jk['ct_beta'] )
+            jacks['het'].append( V_jk[0,0] )
+
+        var_hom2 = (len(jacks['hom2']) - 1.0) * np.var(jacks['hom2'])
+        var_het = (len(jacks['het']) - 1.0) * np.var(jacks['het'])
+        var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov( np.array(jacks['ct_beta']).T, bias=True )
+
+        p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
+        p['V'] = wald.wald_test(V[0,0], 0, var_het, N-n_par)
+        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+
+    print( time.time() - start )
+    return(he, p)
 
 def free_ML_loglike(par, Y, X, N, C, vs, random_MMT):
     hom2 = par[0]
@@ -763,9 +865,9 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             par = [hom2]*(C+1) + list(beta) + [hom2] * n_random
 
     random_MMT = []
-    for value in random_covars.values():
-        m = np.repeat(value, C, axis=0)
-        random_MMT.append( m @ m.T )
+    for R in random_covars.values():
+        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+        random_MMT.append( m )
        
     out, opt = optim(free_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
     
@@ -849,9 +951,9 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
     def reml_f(Y, X, N, C, vs, P, fixed_covars, random_covars, method):
         ''' wrapper for iid reml '''
         random_MMT = []
-        for value in random_covars.values():
-            m = np.repeat(value, C, axis=0)
-            random_MMT.append( m @ m.T )
+        for R in random_covars.values():
+            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+            random_MMT.append( m )
            
         out, opt = optim(free_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         
@@ -926,68 +1028,80 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
     print( time.time() - start, flush=True )
     return(reml, p)
 
-#def free_HE(y_f, nu_f):
-#    print( 'Free HE' )
-#    start = time.time()
-#
-#    def free_HE_(Y, vs):
-#        N, C = Y.shape
-#        D = np.diag( vs.flatten() )
-#
-#        # calculate useful variables
-#        vars = cal_HE_base_vars(Y, vs)
-#
-#        mt = [vars['mt1']]
-#        # calculate \ve{  \Pi_P^\perp (I_N \otimes { m_{k,k}=1 }  \Pi_P^\perp } t, where t is vector of dependent variable
-#        # t = \ve{ y' y'^T - \Pi_P^\perp D \Pi_P^\perp }
-#        for k in range(C):
-#            mt.append((vars['y_p'].reshape(N,C)[:,k]**2).sum() - vs[:,k].sum() * (N-1) / N)
-#
-#        # make matrix M^T M, where is M is design matrix of HE regression
-#        mm = np.identity(C+1)
-#        mm[0,:] = 1
-#        mm[:,0] = 1
-#        mm = (N-1) * mm
-#        mm[0,0] = (N-1) * C * C
-#        #print(mm)
-#
-#        #
-#        theta = np.linalg.inv(mm) @ mt
-#        hom2 = theta[0]
-#        V = np.diag(theta[1:])
-#
-#        # beta
-#        A = np.ones((C,C)) * hom2 + V
-#        sig2s = np.kron(np.eye(N), A) + D
-#        beta = util.glse( sig2s, np.kron(np.ones((N,1)), np.eye(C)), Y.flatten() )
-#
-#        return(theta, beta)
-#
-#    Y = np.loadtxt(y_f)
-#    vs = np.loadtxt(nu_f)
-#    N, C = Y.shape
-#    n_par = 1 + C 
-#
-#    theta, beta = free_HE_(Y, vs)
-#    hom2, V = theta[0], np.diag(theta[1:])
-#
-#    ### jackknife
-#    jacks = [free_HE_(np.delete(Y, i, axis=0), np.delete(vs, i, axis=0)) for i in range(N)]
-#    jacks_hom2 = [x[0][0] for x in jacks]
-#    var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
-#    jacks_V = [x[0][1:] for x in jacks]
-#    var_V = (len(jacks) - 1.0) * np.cov(np.array(jacks_V).T, bias=True)
-#    jacks_beta = [x[1] for x in jacks]
-#    var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
-#
-#    he = {'hom2': hom2, 'V': V}
-#    p = {'hom2': wald.wald_test(hom2, 0, var_hom2, N*C-n_par),
-#            'V': wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N*C*N*C, P=n_par),
-#            'Vi': [wald.wald_test(V[i,i], 0, var_V[i,i], N*C-n_par) for i in range(C)],
-#            'ct_beta': util.wald_ct_beta(beta, var_beta, n=N*C, P=n_par+C) }
-#
-#    print( time.time() - start )
-#    return(he, p)
+def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, jack_knife=False, n_equation=None):
+    print('Free HE', flush=True )
+    start = time.time()
+
+    # par
+    fixed_covars, random_covars = read_covars(fixed_covars_d, random_covars_d)
+    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
+
+    Y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    vs = np.loadtxt(ctnu_f)
+    D = np.diag(vs.flatten())
+    N, C = Y.shape
+    if not n_equation:
+        n_equation = N
+    elif n_equation == 'ind':
+        n_equation = N
+    elif n_equation == 'indXct':
+        n_equation = N*C
+
+    n_par = 1 + C + n_random
+
+    def he_f(Y, vs, P, fixed_covars, random_covars):
+        N, C = Y.shape
+        y = Y.flatten()
+
+        theta, random_MMT = he_ols(Y, X, vs, random_covars, model='free')
+        hom2, r2 = theta[0], theta[(1+C):]
+        V = np.diag( theta[1:(C+1)] )
+
+        # beta
+        A = np.ones((C,C)) * hom2 + V
+        Vy = cal_Vy( A, vs, r2, random_MMT )
+        beta = util.glse( Vy, X, y )
+        # calcualte variance of fixed and random effects, and convert to dict
+        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars)
+        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+
+        return(hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var)
+
+    hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
+            Y, vs, P, fixed_covars, random_covars)
+
+    he = {'hom2': hom2, 'V': V, 'beta':beta, 'fixedeffect_vars':fixed_vars,
+            'ct_random_var':ct_overall_var, 'ct_specific_random_var':ct_specific_var,
+            'randomeffect_vars':random_vars, 'r2':r2 }
+    if nu_f:
+        he['nu'] = np.mean( np.loadtxt(nu_f) )
+
+    # p values
+    p = {}
+    if jack_knife:
+        jacks = { 'ct_beta':[], 'hom2':[], 'V':[] }
+        for i in range(N):
+            Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
+                    i, Y, vs, fixed_covars, random_covars, P)
+            hom2_jk, V_jk, _, beta_jk, _, _, _, _ = he_f(
+                    Y_jk, vs_jk, P_jk, fixed_covars_jk, random_covars_jk)
+
+            jacks['ct_beta'].append( beta_jk['ct_beta'] )
+            jacks['hom2'].append( hom2_jk )
+            jacks['V'].append( np.diag(V_jk) )
+
+        var_hom2 = (len(jacks['hom2']) - 1.0) * np.var(jacks['hom2'])
+        var_V = (len(jacks['V']) - 1.0) * np.cov( np.array(jacks['V']).T, bias=True )
+        var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov( np.array(jacks['ct_beta']).T, bias=True )
+
+        p['hom2'] = wald.wald_test(hom2, 0, var_hom2, n_equation-n_par)
+        p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=n_equation, P=n_par)
+        #p['V_iid'] = util.wald_ct_beta(np.diag(V), var_V, n=n_equation, P=n_par)
+        p['ct_beta'] = util.wald_ct_beta( beta['ct_beta'], var_ct_beta, n=n_equation, P=n_par+X.shape[1] )
+
+    print( time.time() - start , flush=True )
+    return(he, p)
 
 def full_ML_loglike(par, Y, X, N, C, vs, random_MMT):
     ngam = C * (C+1) // 2
@@ -1033,9 +1147,9 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             par = list(V) + list(beta) + [V[0]] * n_random
 
     random_MMT = []
-    for value in random_covars.values():
-        m = np.repeat(value, C, axis=0)
-        random_MMT.append( m @ m.T )
+    for R in random_covars.values():
+        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+        random_MMT.append( m )
        
     out, opt = optim(full_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
     
@@ -1105,9 +1219,9 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
     def reml_f(Y, X, N, C, vs, P, fixed_covars, random_covars, method):
         ''' wrapper for iid reml '''
         random_MMT = []
-        for value in random_covars.values():
-            m = np.repeat(value, C, axis=0)
-            random_MMT.append( m @ m.T )
+        for R in random_covars.values():
+            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+            random_MMT.append( m )
            
         out, opt = optim(full_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         
@@ -1138,74 +1252,53 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
     print( time.time() - start, flush=True )
     return(reml)
 
-def full_HE(y_f, nu_f):
-    print( 'Full HE', flush=True )
+def full_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}):
+    print('Full HE', flush=True )
     start = time.time()
 
-    def full_HE_(Y, vs):
-        N,C = Y.shape
-        ngam = (C - 1) * C // 2
-        D = np.diag( vs.flatten() )
+    # par
+    fixed_covars, random_covars = read_covars(fixed_covars_d, random_covars_d)
+    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
 
-        # calculate useful variables
-        vars = cal_HE_base_vars(Y, vs)
+    Y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    vs = np.loadtxt(ctnu_f)
+    D = np.diag(vs.flatten())
+    N, C = Y.shape
 
-        mt = []
-        # calculate \ve{  \Pi_P^\perp (I_N \otimes { m_{k,k}=1 }  \Pi_P^\perp } t, where t is vector of dependent variable
-        # t = \ve{ y' y'^T - \Pi_P^\perp D \Pi_P^\perp }
-        for k in range(C):
-            mt.append((vars['y_p'].reshape(N,C)[:,k]**2).sum() - vs[:,k].sum() * (N-1) / N)
+    def he_f(Y, vs, P, fixed_covars, random_covars):
+        N, C = Y.shape
+        ngam = C * (C+1) // 2
+        y = Y.flatten()
 
-        for a in range(1,C):
-            for b in range(a):
-                mm_ab = np.zeros((C,C))
-                mm_ab[a,b] = 1
-                mm_ab[b,a] = 1
-                mt.append(vars['y_p'] @ np.kron(np.identity(N) - np.ones((N,N)) / N, mm_ab) @ vars['y_p'])
-
-        # make matrix M^T M, where is M is design matrix of HE regression
-        mm = np.zeros((C+ngam,C+ngam))
-        for i in range(C):
-            mm[i,i] = (N-1)
-        for i in range(C, C+ngam):
-            mm[i,i] = 2 * (N-1)
-        #print(mm)
-
-        #
-        theta = np.linalg.inv(mm) @ mt
-        V = np.zeros((C,C))
-        V[np.tril_indices(C,k=-1)] = theta[C:]
-        V = V + V.T + np.diag(theta[:C])
+        theta, random_MMT = he_ols(Y, X, vs, random_covars, model='full')
+        r2 = theta[ngam:]
+        V = np.diag( theta[:C] )
+        V[np.tril_indices(C,k=-1)] = theta[C:ngam]
+        V = V + V.T - np.diag( V )
 
         # beta
         A = V
-        sig2s = np.kron(np.eye(N), A) + D
-        beta = util.glse( sig2s, np.kron(np.ones((N,1)), np.eye(C)), Y.flatten() )
+        Vy = cal_Vy( A, vs, r2, random_MMT )
+        beta = util.glse( Vy, X, y )
+        # calcualte variance of fixed and random effects, and convert to dict
+        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars)
+        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
-        return(theta, beta)
+        return(V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var)
 
-    Y = np.loadtxt(y_f)
-    vs = np.loadtxt(nu_f)
-    N, C = Y.shape
-    n_par = C*C
+    V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
+            Y, vs, P, fixed_covars, random_covars)
 
-    theta, beta = full_HE_(Y, vs)
-    V = np.zeros((C,C))
-    V[np.tril_indices(C,k=-1)] = theta[C:]
-    V = V + V.T + np.diag(theta[:C])
-    ### jackknife
-    jacks = [full_HE_(np.delete(Y, i, axis=0), np.delete(vs, i, axis=0)) for i in range(N)]
-    jacks_V_diag = [x[0][:C] for x in jacks]
-    var_V_diag = (len(jacks) - 1.0) * np.cov(np.array(jacks_V_diag).T, bias=True)
-    jacks_beta = [x[1] for x in jacks]
-    var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
+    he = {'V': V, 'beta':beta, 'fixedeffect_vars':fixed_vars,
+            'ct_random_var':ct_overall_var, 'ct_specific_random_var':ct_specific_var,
+            'randomeffect_vars':random_vars, 'r2':r2 }
+    if nu_f:
+        he['nu'] = np.mean( np.loadtxt(nu_f) )
 
-    he = {'V': V}
-    p = {'V': wald.mvwald_test(np.diag(V), np.zeros_like(C), var_V_diag, n=N, P=n_par),
-            'Vi': [wald.wald_test(V[i,i], 0, var_V_diag[i,i], df=N-n_par) for i in range(C)]}
+    print( time.time() - start )
 
-    print( time.time() - start, flush=True )
-    return(he, p)
+    return( he )
 
 def main():
     # par
@@ -1237,15 +1330,15 @@ def main():
                 n_equation = None
             else:
                 n_equation = snakemake.wildcards.n_equation
-            free_he, free_he_wald = cuomo_ctng_test.free_HE(y_f, P_f, nu_f, jack_knife=True, n_equation=n_equation)
+            free_he, free_he_wald = free_HE(y_f, P_f, nu_f, jack_knife=True, n_equation=n_equation)
             HE_free_only = False
             if 'HE_free_only' in snakemake.params.keys():
                 HE_free_only = snakemake.params.HE_free_only
             if HE_free_only:
                 out['he'] = { 'free': free_he, 'wald':{'free': free_he_wald} }
             else:
-                hom_he, hom_he_wald = cuomo_ctng_test.hom_HE(y_f, P_f, nu_f, jack_knife=True)
-                iid_he, iid_he_wald = cuomo_ctng_test.iid_HE(y_f, P_f, nu_f, jack_knife=True)
+                hom_he, hom_he_wald = hom_HE(y_f, P_f, nu_f, jack_knife=True)
+                iid_he, iid_he_wald = iid_HE(y_f, P_f, nu_f, jack_knife=True)
                 full_he, full_he_wald = full_HE(y_f, nu_f)
 
                 out['he'] = {'hom': hom_he, 'iid': iid_he, 'free': free_he, 'full': full_he,
