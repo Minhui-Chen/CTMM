@@ -98,7 +98,7 @@ def he_ols(Y, X, vs, random_covars, model):
         Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
     elif model == 'iid':
         Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
-        Q.append( M.flatten('F') ) # vec(M)
+        Q.append( proj.flatten('F') ) # vec(M)
     elif model == 'free':
         Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
         for i in range(C):
@@ -516,6 +516,7 @@ def hom_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
     vs = np.loadtxt(ctnu_f)
     D = np.diag(vs.flatten())
     N, C = Y.shape
+    X = get_X(fixed_covars, N, C)
     n_par = 1 + n_random
 
     def he_f(Y, vs, P, fixed_covars, random_covars):
@@ -769,11 +770,13 @@ def iid_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
     vs = np.loadtxt(ctnu_f)
     D = np.diag(vs.flatten())
     N, C = Y.shape
+    X = get_X(fixed_covars, N, C)
     n_par = 2 + n_random
 
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
         y = Y.flatten()
+        X = get_X(fixed_covars, N, C)
 
         theta, random_MMT = he_ols(Y, X, vs, random_covars, model='iid')
         hom2, het, r2 = theta[0], theta[1], theta[2:]
@@ -1041,6 +1044,7 @@ def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
     vs = np.loadtxt(ctnu_f)
     D = np.diag(vs.flatten())
     N, C = Y.shape
+    X = get_X(fixed_covars, N, C)
     if not n_equation:
         n_equation = N
     elif n_equation == 'ind':
@@ -1053,6 +1057,7 @@ def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
         y = Y.flatten()
+        X = get_X(fixed_covars, N, C)
 
         theta, random_MMT = he_ols(Y, X, vs, random_covars, model='free')
         hom2, r2 = theta[0], theta[(1+C):]
@@ -1270,6 +1275,7 @@ def full_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}):
         N, C = Y.shape
         ngam = C * (C+1) // 2
         y = Y.flatten()
+        X = get_X(fixed_covars, N, C)
 
         theta, random_MMT = he_ols(Y, X, vs, random_covars, model='full')
         r2 = theta[ngam:]
@@ -1339,10 +1345,10 @@ def main():
             else:
                 hom_he, hom_he_wald = hom_HE(y_f, P_f, nu_f, jack_knife=True)
                 iid_he, iid_he_wald = iid_HE(y_f, P_f, nu_f, jack_knife=True)
-                full_he, full_he_wald = full_HE(y_f, nu_f)
+                full_he = full_HE(y_f, P_f, nu_f)
 
                 out['he'] = {'hom': hom_he, 'iid': iid_he, 'free': free_he, 'full': full_he,
-                        'wald':{'hom':hom_he_wald, 'iid': iid_he_wald, 'free': free_he_wald, 'full':full_he_wald} }
+                        'wald':{'hom':hom_he_wald, 'iid': iid_he_wald, 'free': free_he_wald} }
 
         ## ML
         if snakemake.params.ML:
