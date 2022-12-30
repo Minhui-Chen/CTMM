@@ -92,13 +92,13 @@ def he_ols(Y, X, vs, random_covars, model):
     proj = np.eye(N * C) - X @ np.linalg.inv(X.T @ X) @ X.T
 
     # vec(M @ A @ M)^T @ vec(M @ B M) = vec(M @ A)^T @ vec((M @ B)^T), when A, B, and M are symmetric #
-    t = np.outer( proj @ y, y ) - proj * np.diag(vs.flatten()) # proj @ y @ y^T @ proj - proj @ D @ proj
+    t = np.outer( proj @ y, y ) - proj * vs.flatten()  # proj @ y @ y^T @ proj - proj @ D @ proj
 
     if model == 'hom':
         Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
     elif model == 'iid':
         Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
-        Q.append( proj.flatten('F') ) # vec(M)
+        Q.append( proj ) 
     elif model == 'free':
         Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
         for i in range(C):
@@ -125,7 +125,7 @@ def he_ols(Y, X, vs, random_covars, model):
 
     QTQ = np.array([m.flatten('F') for m in Q]) @ np.array([m.flatten() for m in Q]).T
     QTQt = np.array([m.flatten('F') for m in Q]) @ t.flatten()
-    theta = QTQ @ QTQt
+    theta = np.linalg.inv(QTQ) @ QTQt
 
     #if return_QTQQT:
         #return( theta, sigma_y2, random_vars, QTQ, QTQQT )
