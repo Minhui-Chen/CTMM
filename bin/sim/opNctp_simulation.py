@@ -7,8 +7,8 @@ def add_fixed(y):
     b = np.arange(levels)
     b = b / np.std(b) # to shrink
     X = np.zeros( (len(y), levels) )
-    for i, chunk in enumerate( np.array_split(np.arange(len(y))) ):
-        X.iloc[chunk,i] = 1
+    for i, chunk in enumerate( np.array_split(np.arange(len(y)), levels) ):
+        X[chunk,i] = 1
     # centralize b
     b = b - np.mean( X @ b )
 
@@ -17,11 +17,11 @@ def add_fixed(y):
 def add_random(y):
     ''' Add a test random effect'''
     levels = int(snakemake.wildcards.random)
-    rng = np.randm.default_rng()
+    rng = np.random.default_rng()
     b = rng.normal( 0, 1, levels )
     X = np.zeros( (len(y), levels) )
-    for i, chunk in enumerate( np.array_split(np.arange(len(y))) ):
-        X.iloc[chunk,i] = 1
+    for i, chunk in enumerate( np.array_split(np.arange(len(y)), levels) ):
+        X[chunk,i] = 1
 
     return( X, b )
 
@@ -123,7 +123,7 @@ def main():
         ## add a test fixed effect
         if 'fixed' in snakemake.wildcards.keys():
             if int( snakemake.wildcards.fixed ) > 0:
-                X, b = add_fixed(y)
+                X, b = add_fixed( y )
                 y = y + X @ b
                 cty = cty + np.outer( X @ b, np.ones(C) )
                 np.savetxt(fixed_X_f, X[:,:-1])
