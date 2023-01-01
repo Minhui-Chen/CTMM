@@ -10,8 +10,8 @@ def read_covars(fixed_covars={}, random_covars={}):
     covars = [fixed_covars, random_covars]
     for i in range(len(covars)):
         tmp = {}
-        for key in covars.keys():
-            f = covars[key]
+        for key in covars[i].keys():
+            f = covars[i][key]
             if isinstance( f, str ):
                 tmp[key] = np.loadtxt( f )
             else:
@@ -184,16 +184,16 @@ def RandomeffectVariance( Vs, Xs ):
     vars = [RandomeffectVariance_(V,X) for V,X in zip(Vs, Xs)]
     return( vars, Vs )
 
-#def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d):
-#    randomeffect_vars_d = {}
-#    r2_d = {}
-#    if len(random_covars_d.keys()) != 0:
-#        for key, v1, v2 in zip( np.sort( list(random_covars_d.keys()) ), randomeffect_vars_l, r2_l ):
-#            randomeffect_vars_d[key] = v1
-#            r2_d[key] = v2
-#
-#    return( randomeffect_vars_d, r2_d )
-#
+def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d):
+    randomeffect_vars_d = {}
+    r2_d = {}
+    if len(random_covars_d.keys()) != 0:
+        for key, v1, v2 in zip( np.sort( list(random_covars_d.keys()) ), randomeffect_vars_l, r2_l ):
+            randomeffect_vars_d[key] = v1
+            r2_d[key] = v2
+
+    return( randomeffect_vars_d, r2_d )
+
 def ct_randomeffect_variance( V, P ):
     N, C = P.shape
     ct_overall_var = RandomeffectVariance_(V, P)
