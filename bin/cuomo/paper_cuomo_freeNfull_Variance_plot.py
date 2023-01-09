@@ -42,23 +42,10 @@ def main():
     
     ## Free model
     def cut_data(data):
-        #mean = np.mean(np.array(data))
-        #std = np.std(np.array(data))
-        #l = mean - 2.5*std
-        #r = mean + 2.5*std
         r = 2
         data[data > r] = r
-        #data[data < l] = l
         return data
 
-    #data = cut_data(ong_data[[f'V-{ct}' for ct in CTs]].copy())
-    #sns.violinplot(data=data, ax=axes[0,0], cut=0, color=color, orient='h')
-    #data = cut_data(ctng_data[[f'V-{ct}' for ct in CTs]].copy())
-    #sns.violinplot(data=data, ax=axes[1,0], cut=0, color=color, orient='h')
-
-    #data = cut_data(ong_data[[f'V-{ct}-hom' for ct in CTs]+['hom2']].copy())
-    #sns.violinplot(data=data, ax=axes[0], cut=0, color=color, orient='h')
-    #axes[0].set_ylabel('ONG')
     data = cut_data(ctng_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy())
     sns.violinplot(data=data, ax=axes[0], cut=0, color=color)
     axes[0].axhline(0, ls='--', color='0.8', zorder=0)
@@ -76,7 +63,6 @@ def main():
         if '-' in label:
             ct = label.split('-')[1]
             labels[i] = r'$V_{%s}$'%(ct)
-            #labels[i] = r'$\sigma_\alpha^2 + V_{%s}$'%(ct)
         elif label == 'hom2':
             labels[i] = r'$\sigma_\alpha^2$'
     plt.xticks(locs, labels)
