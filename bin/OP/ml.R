@@ -20,107 +20,12 @@ LL <- function(y, P, X, C, vs, beta, hom2, V, random_variances, random_MMT){
         })
         dmvnorm(y, mean=X %*% beta, sigma = sig2s, log=TRUE) * (-1)
     } else {
-        #print(min(sig2s))
-        #print(P[which(sig2s==min(sig2s), arr.ind=TRUE),])
         if( any( sig2s < 0 ) ) return(1e12)
         (sum(log( sig2s )) + sum( (y - X %*% beta)^2 / sig2s ))/2   
     }
 }
 
 
-
-screml_null <- function(
-y, P, vs, fixed=NULL, random=NULL, rep=0, method='BFGS', hessian=TRUE, overVariance_threshold=5, par=NULL
-) {
-
-	C <- ncol(P)  # cell type number
-    N <- nrow(P)
-
-    X <- P
-    
-    if ( !is.null( fixed ) ) {
-        for ( covar in fixed ) {
-            X <- cbind( X, covar )
-        }
-    }
-
-	beta   <- solve( t(X) %*% X ) %*% ( t(X) %*% y ) # cell type effect
-    if ( is.null( par ) ) {
-        par <- c(beta)
-        if ( !is.null( random ) ) {
-            v <- var(y - X %*% beta)/length(random)
-            for (i in 1:length(random)) {
-                par <- c(par, v)
-            }
-        }
-    }
-
-    random_MMT <- NULL
-    if ( !is.null( random ) ) {
-        random_MMT <- list()
-        for (i in 1:length(random)) {
-            random_MMT[[i]] <- random[[i]] %*% t(random[[i]])
-        }
-    }
-
-	out <- optim( par=par, fn=screml_null_loglike, 
-		y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT, method = method, hessian = hessian)
-    print('test')
-
-    if ( rep > 0 ) {
-        for (i in 1:rep) {
-            par_ <- par * rgamma( length(par), 2, scale=1/2 )
-            out_ <- optim( par=c( par_ ), fn=screml_null_loglike,
-                          y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT, method = method, hessian = hessian)
-            if ( out_$value < out$value ) {
-                out <- out_
-            }
-        }
-    }
-
-    if (out$convergence != 0 | out$value > 1e10) {
-        for (i in 1:10){
-            #print(i)
-            par_ <- par * rgamma( length(par), 2, scale=1/2 ) 
-            out_ <- optim( par=c( par_ ), fn=screml_null_loglike, 
-                y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT, method = method, hessian = hessian)
-
-            if ( (out_$value * (-1)) > (out$value * (-1)) ) {
-                out <- out_
-            }
-        }
-    }
-
-    beta <- out$par[1:ncol(X)] 
-    r2 <- out$par[(ncol(X)+1):length(out$par)]
-    if ( !is.null( random ) ) {
-        randomeffect_vars <- RandomeffectVariance(r2, random)[[2]]
-    } else {
-        randomeffect_vars <- NULL
-    }
-    l <- out$value * (-1)
-    fixedeffect_vars <- FixedeffectVariance( beta, c(list(P), fixed) )[[2]]
-    
-    # estimate hessian matrix
-    #hess = hessian(screml_null_loglike, x=out$par, y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
-
-    return ( list( beta=beta, l=l, hess=hess, fixedeffect_vars=fixedeffect_vars, 
-                  randomeffect_vars=randomeffect_vars, r2=r2, convergence=out$convergence ) )
-}
-
-screml_null_loglike <- function(par, y, P, X, C, vs, random_MMT){
-
-	beta <- par[1:ncol(X)]
-    hom2 <- 0
-    V <- matrix(rep(0,C*C), nrow=C)
-    random_variances <- NULL
-    if ( !is.null( random_MMT ) ) {
-        random_variances <- par[(ncol(X)+1):length(par)]
-    }
-
-    return( LL(y, P, X, C, vs, beta, hom2, V, random_variances, random_MMT) )
-
-}
 
 screml_hom <- function(
 y, P, vs, fixed=NULL, random=NULL, rep=0, method='BFGS', hessian=TRUE, overVariance_threshold=5, par=NULL
