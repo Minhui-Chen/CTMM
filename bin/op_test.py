@@ -47,7 +47,7 @@ def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
     n_par = 1 + len(random_covars_d.keys()) + X.shape[1]
 
     def hom_ml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par):
-        ong_ml_rf = 'bin/ong.ml.R'
+        ong_ml_rf = 'bin/OP/ml.R'
         ong_ml_r = STAP( open(ong_ml_rf).read(), 'ong_ml_r' )
         if par is None:
             out_ = ong_ml_r.screml_hom(y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
@@ -229,7 +229,7 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
     n_par = 1 + 1 + len(random_covars_d.keys()) + X.shape[1]
 
     def iid_ml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par):
-        ong_ml_rf = 'bin/ong.ml.R'
+        ong_ml_rf = 'bin/OP/ml.R'
         ong_ml_r = STAP( open(ong_ml_rf).read(), 'ong_ml_r' )
         if par is None:
             out_ = ong_ml_r.screml_iid(y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
@@ -423,7 +423,7 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
     n_par = 1 + C + X.shape[1] + len(random_covars_d.keys()) # hom2, V, beta (ct beta & fixed covars), random covars
 
     def free_ml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par):
-        ong_ml_rf = 'bin/ong.ml.R'
+        ong_ml_rf = 'bin/OP/ml.R'
         ong_ml_r = STAP( open(ong_ml_rf).read(), 'ong_ml_r' )
         if par is None:
             out_ = ong_ml_r.screml_free(y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
@@ -655,7 +655,7 @@ def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
     X = get_X(P, fixed_covars_d)
 
     def full_ml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par):
-        ong_ml_rf = 'bin/ong.ml.R'
+        ong_ml_rf = 'bin/OP/ml.R'
         ong_ml_r = STAP( open(ong_ml_rf).read(), 'ong_ml_r' )
         if par is None:
             out_ = ong_ml_r.screml_full(y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
