@@ -103,7 +103,7 @@ def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
     n_par = 1 + len(random_covars_d.keys())
 
     def hom_reml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par):
-        ong_reml_rf = 'bin/ong.reml.R'
+        ong_reml_rf = 'bin/OP/reml.R'
         ong_reml_r = STAP( open(ong_reml_rf).read(), 'ong_reml_r' )
         if par is None:
             out_ = ong_reml_r.screml_hom( y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
@@ -288,7 +288,7 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
     n_par = 1 + 1 + len(random_covars_d.keys())
 
     def iid_reml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par):
-        ong_reml_rf = 'bin/ong.reml.R'
+        ong_reml_rf = 'bin/OP/reml.R'
         ong_reml_r = STAP( open(ong_reml_rf).read(), 'ong_reml_r' )
         if par is None:
             out_ = ong_reml_r.screml_iid( y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
@@ -463,7 +463,7 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
     ml = {'hom2':hom2, 'beta':beta_d, 'V':V, 'l':l, 'D':D,
             'ct_random_var':ct_random_var, 'ct_specific_random_var':ct_specific_random_var,
             'fixedeffect_vars':fixedeffect_vars_d, 'randomeffect_vars':randomeffect_vars_d, 'r2':r2_d,
-            'nu':np.mean(vs), 'hess':hess, 'hess2':np.array(out['hess2']), 'convergence':convergence}
+            'nu':np.mean(vs), 'hess':hess, 'convergence':convergence}
 
     wald_p = {}
     wald_p['hom2'] = wald.wald_test(hom2, 0, D[X.shape[1],X.shape[1]], N-n_par)
@@ -485,7 +485,7 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, j
     n_par = 1 + C + len(random_covars_d.keys()) # hom2, V, random covars
 
     def free_reml_subprocess(y, P, vs, fixed_covars_d, random_covars_d, out, par):
-        ong_reml_rf = 'bin/ong.reml.R'
+        ong_reml_rf = 'bin/OP/reml.R'
         ong_reml_r = STAP( open(ong_reml_rf).read(), 'ong_reml_r' )
         numpy2ri.activate()
         if par is None:
@@ -697,7 +697,7 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
     X = get_X(P, fixed_covars_d)
 
     def full_reml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par):
-        ong_reml_rf = 'bin/ong.reml.R'
+        ong_reml_rf = 'bin/OP/reml.R'
         ong_reml_r = STAP( open(ong_reml_rf).read(), 'ong_reml_r' )
         if par is None:
             out_ = ong_reml_r.screml_full( y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
