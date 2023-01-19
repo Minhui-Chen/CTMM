@@ -1178,7 +1178,7 @@ def full_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}):
         theta = np.linalg.inv(M.T @ M) @ M.T @ t
         V = np.zeros((C,C))
         V[np.tril_indices(C,k=-1)] = theta[C:]
-        V = V + np.transpose(V)
+        V = V + V.T
         V = V + np.diag(theta[:C])
         sig2s = np.kron(np.eye(N), V) + D
         randomeffect_vars_d = {}
@@ -1188,7 +1188,7 @@ def full_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}):
         V = np.zeros((C,C))
         ngam = C * (C+1) // 2
         V[np.tril_indices(C,k=-1)] = theta[C:ngam]
-        V = V + np.transpose(V)
+        V = V + V.T
         V = V + np.diag(theta[:C])
         sig2s = np.kron(np.eye(N), V) + D + sig2s
 
