@@ -111,8 +111,6 @@ rule op_parameters:
         s = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/S.txt',
         beta = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/celltypebeta.txt',
         V = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/V.txt',
-    params:
-        simulation=op_paramspace.instance,
     script: 'bin/sim/op_parameters.py'
 
 rule op_simulation:
@@ -124,29 +122,29 @@ rule op_simulation:
         pi = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estPI.batch{{i}}.txt',
         s = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{{i}}.txt',
         nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
-        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
-        ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
-        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/y.batch{{i}}.txt',
+        ctnu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+        cty = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/cty.batch{{i}}.txt',
         # add a test fixed effect. if it's not needed, this file is 'NA'
-        fixed = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
+        fixed = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
         # add a test random effect. if it's not needed, this file is 'NA'
-        random = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
+        random = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
     params:
         batch = lambda wildcards: op_batches[int(wildcards.i)],
         P = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/P.txt',
         pi = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/estPI.txt',
         s = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/estS.txt',
         nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/nu.txt',
-        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/op.txt',
+        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/y.txt',
         ctnu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/ctnu.txt',
-        cty = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/ctp.txt',
+        cty = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/cty.txt',
         fixed = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/fixed.X.txt',
         random = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/repX/random.X.txt',
     script: 'bin/sim/opNctp_simulation.py'
 
 rule op_test:
     input:
-        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/y.batch{{i}}.txt',
         P = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
         nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
     output:
@@ -159,7 +157,7 @@ rule op_test:
         HE = True,
     resources:
         mem_per_cpu = '5000',
-    script: 'bin/OP/op_test.py'
+    script: 'bin/op_test.py'
 
 rule op_aggReplications:
     input:
@@ -169,9 +167,39 @@ rule op_aggReplications:
         out = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
     script: 'bin/mergeBatches.py'
 
+rule op_test_scipy:
+    input:
+        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/y.batch{{i}}.txt',
+        P = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
+    output:
+        out = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/out.scipy.batch{{i}}',
+    params:
+        out = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/rep/out.scipy.npy',
+        batch = lambda wildcards: op_batches[int(wildcards.i)],
+        ML = True,
+        REML = True,
+        HE = True,
+    script: 'bin/op.py'
+
+use rule op_aggReplications as op_scipy_aggReplications with:
+    input:
+        out = [f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/out.scipy.batch{i}' 
+                for i in range(len(op_batches))],
+    output:
+        out = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.scipy.npy',
+
+rule op_compare_optim_RvsPython:
+    input:
+        r = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
+        p = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.scipy.npy',
+    output:
+        png = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/optim.RvsPython.png',
+    script: 'bin/compare_optim_RvsPython.py'
+
 rule op_test_remlJK:
     input:
-        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/y.batch{{i}}.txt',
         P = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
         nu = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
     output:
@@ -212,9 +240,9 @@ use rule op_simulation as ctp_simulation with:
         pi = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estPI.batch{{i}}.txt',
         s = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/estS.batch{{i}}.txt',
         nu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/nu.batch{{i}}.txt',
-        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/op.batch{{i}}.txt',
+        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/y.batch{{i}}.txt',
         ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
-        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/cty.batch{{i}}.txt',
         fixed = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/fixed.X.batch{{i}}.txt',
         random = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/random.X.batch{{i}}.txt',
     params:
@@ -223,15 +251,15 @@ use rule op_simulation as ctp_simulation with:
         pi = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/estPI.txt',
         s = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/estS.txt',
         nu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/nu.txt',
-        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/op.txt',
+        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/y.txt',
         ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/ctnu.txt',
-        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/ctp.txt',
+        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/cty.txt',
         fixed = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/fixed.X.txt',
         random = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/repX/random.X.txt',
 
 rule ctp_test:
     input:
-        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/cty.batch{{i}}.txt',
         P = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
         nu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
     output:
@@ -255,9 +283,41 @@ use rule op_aggReplications as ctp_aggReplications with:
     output:
         out = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
 
+rule ctp_test_scipy:
+    input:
+        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/cty.batch{{i}}.txt',
+        P = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
+        nu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.scipy.batch{{i}}',
+    params:
+        out = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/rep/out.scipy.npy',
+        batch = lambda wildcards: ctp_batches[int(wildcards.i)],
+        ML = True,
+        REML = True,
+        HE = True,
+    resources:
+        time = '48:00:00',
+    priority: 1
+    script: 'bin/ctp.py'
+
+use rule op_aggReplications as ctp_scipy_aggReplications with:
+    input:
+        out = [f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.scipy.batch{i}' 
+                for i in range(len(ctp_batches))],
+    output:
+        out = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.scipy.npy',
+
+use rule op_compare_optim_RvsPython as ctp_compare_optim_RvsPython with:
+    input:
+        r = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
+        p = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.scipy.npy',
+    output:
+        png = touch(f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/optim.RvsPython.txt'),
+
 rule ctp_test_remlJK:
     input:
-        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctp.batch{{i}}.txt',
+        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/cty.batch{{i}}.txt',
         P = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
         ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
     output:
@@ -291,29 +351,23 @@ rule paper_opNctp_power:
                 params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
         op_hom_remlJK = expand('analysis/op/hom/{params}/out.remlJK.npy',
                 params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
-        #params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
         op_free_remlJK = expand('analysis/op/free/{params}/out.remlJK.npy',
                 params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
-        #params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
         ctp_hom = expand('analysis/ctp/hom/{params}/out.npy',
                 params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
         ctp_free = expand('analysis/ctp/free/{params}/out.npy',
                 params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
         ctp_hom_remlJK = expand('analysis/ctp/hom/{params}/out.remlJK.npy',
                 params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
-        #params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
         ctp_free_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
                 params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
-        #params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
     output:
         png = 'results/ctp/opNctp.power.paper.png',
     params: 
         hom = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
         free = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
         hom_remlJK = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
-        #hom_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)])['ss']),
         free_remlJK = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
-        #free_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['ss']),
         plot_order = op_plot_order,
     script: 'bin/paper_opNctp_power.py'
 
@@ -1104,7 +1158,7 @@ rule paper_cuomo_freeNfull_Variance_plot:
         ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.freeNfull.Variance.paper.png',
-    script: 'bin/paper_cuomo_freeNfull_Variance_plot.py'
+    script: 'bin/cuomo/paper_cuomo_freeNfull_Variance_plot.py'
 
 rule paper_cuomo_freeNfull_Variance_plot_ASHG:
     input:
@@ -1755,4 +1809,5 @@ rule paper_cuomo_imputation_all:
 ###########
 # NEW
 ###########
+include: 'CTMM.snake'
 include: 'xCTMM.snake'
