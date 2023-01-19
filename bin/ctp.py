@@ -22,45 +22,45 @@ def cal_Vy(A, vs, r2=[], random_MMT=[]):
         Vy += var * MMT
     return( Vy )
 
-def HE_stats(Y, vs, fixed_covars=[], random_covars=[], reorder_random=True):
-    # 
-    N, C = Y.shape
-    X = get_X(fixed_covars, N, C)
-
-    #
-    R = None
-    if len( random_covars.keys() ) == 1:
-        # order by random covar
-        R = list( random_covars.values() )[0]
-        if reorder_random:
-            _, R, [Y, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, vs], fixed_covars)
-            random_covars[ list(random_covars.keys())[0] ] = R
-            X = get_X(fixed_covars, N, C)
-    else:
-        R = []
-        for key in np.sort( list(random_covars.keys()) ):
-            R.append( random_covars[key] )
-        R = np.concatenate( R, axis=1 )
-
-
-    # projection matrix
-    proj = np.eye(N * C) - X @ np.linalg.inv(X.T @ X) @ X.T
-    #proj = np.identity(N * C) - (1 / N) * np.kron(np.ones((N,N)), np.identity(C))
-
-    # vectorize Y
-    y = Y.flatten()
-
-    # projected y
-    y_p = proj @ y
-    stats = {'R':R, 'X':X, 'Y':Y, 'vs':vs, 'proj':proj, 'y_p':y_p}
-    #y_p = y - (1 / N) * (np.transpose(Y) @ np.ones((N,N))).flatten('F')
-
-    # calculate \ve{ \Pi_P^\perp ( I_N \otimes J_C ) \Pi_P^\perp }^T t, where t is vector of dependent variable
-    # t = \ve{ y' y'^T - \Pi_P^\perp D \Pi_P^\perp }
-    #mt1 = (y_p.reshape(N, C).sum(axis=1)**2).sum() - vs.sum() * (N-1) / N
-
-    return( stats )
-
+#def HE_stats(Y, vs, fixed_covars=[], random_covars=[], reorder_random=True):
+#    # 
+#    N, C = Y.shape
+#    X = get_X(fixed_covars, N, C)
+#
+#    #
+#    R = None
+#    if len( random_covars.keys() ) == 1:
+#        # order by random covar
+#        R = list( random_covars.values() )[0]
+#        if reorder_random:
+#            _, R, [Y, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, vs], fixed_covars)
+#            random_covars[ list(random_covars.keys())[0] ] = R
+#            X = get_X(fixed_covars, N, C)
+#    else:
+#        R = []
+#        for key in np.sort( list(random_covars.keys()) ):
+#            R.append( random_covars[key] )
+#        R = np.concatenate( R, axis=1 )
+#
+#
+#    # projection matrix
+#    proj = np.eye(N * C) - X @ np.linalg.inv(X.T @ X) @ X.T
+#    #proj = np.identity(N * C) - (1 / N) * np.kron(np.ones((N,N)), np.identity(C))
+#
+#    # vectorize Y
+#    y = Y.flatten()
+#
+#    # projected y
+#    y_p = proj @ y
+#    stats = {'R':R, 'X':X, 'Y':Y, 'vs':vs, 'proj':proj, 'y_p':y_p}
+#    #y_p = y - (1 / N) * (np.transpose(Y) @ np.ones((N,N))).flatten('F')
+#
+#    # calculate \ve{ \Pi_P^\perp ( I_N \otimes J_C ) \Pi_P^\perp }^T t, where t is vector of dependent variable
+#    # t = \ve{ y' y'^T - \Pi_P^\perp D \Pi_P^\perp }
+#    #mt1 = (y_p.reshape(N, C).sum(axis=1)**2).sum() - vs.sum() * (N-1) / N
+#
+#    return( stats )
+#
 def he_ols(Y, X, vs, random_covars, model):
     '''
     Q: design matrix in HE OLS
@@ -1167,6 +1167,7 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
            
         out, opt = optim(full_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         
+        ngam = C*(C+1)//2
         r2 = out['x'][ngam:]
         V = np.zeros((C,C))
         V[np.tril_indices(C)] = out['x'][:ngam]
