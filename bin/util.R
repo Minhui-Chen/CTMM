@@ -43,7 +43,7 @@ check_optim <- function(out, hom2, ct_overall_var, fixed_var, random_var, cut){
 re_optim <- function(out, fun, par, args, method, nrep, hessian){
     for (i in 1:nrep){
         par_ <- par * rgamma(length(par), 2, scale=1/2)
-        out <- optim_wrap(par_, fun, args, method, hessian)
+        out_ <- optim_wrap(par_, fun, args, method, hessian)
 
         if (out$convergence != 0 & out_$convergence == 0) {
             out <- out_
