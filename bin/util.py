@@ -135,7 +135,7 @@ def fixedeffect_vars(beta, P, fixed_covars_d):
 
     beta_d = assign_beta(beta, P, fixed_covars_d)
 
-    fixed_vars_d = {}
+    fixed_vars_d = {'ct_beta': FixedeffectVariance_( beta_d['ct_beta'], P) }
     for key in fixed_covars_d.keys():
         fixed_vars_d[key] = FixedeffectVariance_( beta_d[key], fixed_covars_d[key] )
 
