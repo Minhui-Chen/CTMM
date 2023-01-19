@@ -1,4 +1,4 @@
-import os, sys, re, multiprocessing, time
+import os, sys, re, time
 import helper, mystats 
 import scipy
 import numpy as np, pandas as pd
@@ -36,8 +36,23 @@ def he_fun(M, Y, proj, random_covars_array_d={}):
     #vars = (((Y - M @ ests)**2).sum() / len(Y)) * np.linalg.inv( M.T @ M )
     return( theta )
 
-def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
+def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
     print('Hom ML')
+
+    def ml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par):
+        ong_ml_rf = 'bin/OP/ml.R'
+        ong_ml_r = STAP( open(ong_ml_rf).read(), 'ong_ml_r' )
+        if par is None:
+            par = robjects.NULL
+        else:
+            par = robjects.FloatVector(par)
+        out_ = ong_ml_r.screml_hom(y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
+                vs=robjects.FloatVector(vs), fixed=util.dict2Rlist(fixed_covars_d),
+                random=util.dict2Rlist(random_covars_d), method=method, par=par )
+        out = {}
+        for key, value in zip(out_.names, list(out_)):
+            out[key] = value
+        return (out)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
@@ -46,26 +61,7 @@ def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
     X = get_X(P, fixed_covars_d)
     n_par = 1 + len(random_covars_d.keys()) + X.shape[1]
 
-    def hom_ml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par):
-        ong_ml_rf = 'bin/OP/ml.R'
-        ong_ml_r = STAP( open(ong_ml_rf).read(), 'ong_ml_r' )
-        if par is None:
-            out_ = ong_ml_r.screml_hom(y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
-                    vs=robjects.FloatVector(vs), fixed=util.dict2Rlist(fixed_covars_d),
-                    random=util.dict2Rlist(random_covars_d) )
-        else:
-            out_ = ong_ml_r.screml_hom(y=robjects.FloatVector(y), P=r['as.matrix'](r['read.table'](P_f)),
-                    vs=robjects.FloatVector(vs), fixed=util.dict2Rlist(fixed_covars_d),
-                    random=util.dict2Rlist(random_covars_d), par=robjects.FloatVector(par) )
-        for key, value in zip(out_.names, list(out_)):
-            out[key] = value
-
-    manager = multiprocessing.Manager()
-    out = manager.dict()
-    p = multiprocessing.Process(target=hom_ml_subprocess,
-            args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
-    p.start()
-    p.join()
+    out = ml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par)
 
     hom2, beta, l, hess = out['hom2'][0], np.array(out['beta']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
@@ -115,13 +111,16 @@ def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
                     random=util.dict2Rlist(random_covars_d), par=robjects.FloatVector(par) )
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    manager = multiprocessing.Manager()
-    out = manager.dict()
-    p = multiprocessing.Process(target=hom_reml_subprocess,
-            args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
-    p.start()
-    p.join()
+    #manager = multiprocessing.Manager()
+    #out = manager.dict()
+    #p = multiprocessing.Process(target=hom_reml_subprocess,
+    #        args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
+    #p.start()
+    #p.join()
+    out = {}
+    out = hom_reml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par)
     
     hom2, beta, l, hess = out['hom2'][0], np.array(out['beta']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
@@ -241,13 +240,16 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
                     random=util.dict2Rlist(random_covars_d), par=robjects.FloatVector(par) )
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    manager = multiprocessing.Manager()
-    out = manager.dict()
-    p = multiprocessing.Process(target=iid_ml_subprocess,
-            args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
-    p.start()
-    p.join()
+    #manager = multiprocessing.Manager()
+    #out = manager.dict()
+    #p = multiprocessing.Process(target=iid_ml_subprocess,
+    #        args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
+    #p.start()
+    #p.join()
+    out = {}
+    out = iid_ml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par)
 
     hom2, beta, V, l, hess = out['hom2'][0], np.array(out['beta']), np.array(out['V']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
@@ -300,13 +302,16 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
                     random=util.dict2Rlist(random_covars_d), par=robjects.FloatVector(par) )
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    manager = multiprocessing.Manager()
-    out = manager.dict()
-    p = multiprocessing.Process(target=iid_reml_subprocess,
-            args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
-    p.start()
-    p.join()
+    #manager = multiprocessing.Manager()
+    #out = manager.dict()
+    #p = multiprocessing.Process(target=iid_reml_subprocess,
+    #        args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
+    #p.start()
+    #p.join()
+    out = {}
+    out = iid_reml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par)
     
     beta, hom2, V, l, hess = np.array(out['beta']), out['hom2'][0], np.array(out['V']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
@@ -435,13 +440,16 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
                     random=util.dict2Rlist(random_covars_d), par=robjects.FloatVector(par) )
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    manager = multiprocessing.Manager()
-    out = manager.dict()
-    p = multiprocessing.Process(target=free_ml_subprocess,
-            args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
-    p.start()
-    p.join()
+    #manager = multiprocessing.Manager()
+    #out = manager.dict()
+    #p = multiprocessing.Process(target=free_ml_subprocess,
+    #        args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
+    #p.start()
+    #p.join()
+    out = {}
+    out = free_ml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par)
 
     hom2, beta, V, l, hess = out['hom2'][0], np.array(out['beta']), np.array(out['V']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
@@ -499,13 +507,16 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, j
         numpy2ri.deactivate()
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    manager = multiprocessing.Manager()
-    out = manager.dict()
-    p = multiprocessing.Process(target=free_reml_subprocess,
-            args=(y, P, vs, fixed_covars_d, random_covars_d, out, par))
-    p.start()
-    p.join()
+    #manager = multiprocessing.Manager()
+    #out = manager.dict()
+    #p = multiprocessing.Process(target=free_reml_subprocess,
+    #        args=(y, P, vs, fixed_covars_d, random_covars_d, out, par))
+    #p.start()
+    #p.join()
+    out = {}
+    out = free_reml_subprocess(y, P, vs, fixed_covars_d, random_covars_d, out, par)
     
     hom2, V, beta, l, hess = out['hom2'][0], np.array(out['V']), np.array(out['beta']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
@@ -545,12 +556,14 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, j
             y_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, P_tmp = cuomo_ctng_test.he_jackknife_rmInd(
                     i, y, vs, fixed_covars_d, random_covars_d, P)
 
-            manager = multiprocessing.Manager()
-            out_tmp = manager.dict()
-            p = multiprocessing.Process(target=free_reml_subprocess,
-                    args=(y_tmp, P_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, out_tmp, par))
-            p.start()
-            p.join()
+            #manager = multiprocessing.Manager()
+            #out_tmp = manager.dict()
+            #p = multiprocessing.Process(target=free_reml_subprocess,
+            #        args=(y_tmp, P_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, out_tmp, par))
+            #p.start()
+            #p.join()
+            out_tmp = {}
+            out_tmp = free_reml_subprocess(y_tmp, P_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, out_tmp, par)
             
             hom2_tmp, V_tmp, beta_tmp = out_tmp['hom2'][0], np.array(out_tmp['V']), np.array(out_tmp['beta'])
             ct_beta_tmp = util.assign_beta(beta_tmp, P_tmp, fixed_covars_d_tmp)['ct_beta']
@@ -667,13 +680,16 @@ def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
                     random=util.dict2Rlist(random_covars_d), par=robjects.FloatVector(par) )
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    manager = multiprocessing.Manager()
-    out = manager.dict()
-    p = multiprocessing.Process(target=full_ml_subprocess,
-            args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
-    p.start()
-    p.join()
+    #manager = multiprocessing.Manager()
+    #out = manager.dict()
+    #p = multiprocessing.Process(target=full_ml_subprocess,
+    #        args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
+    #p.start()
+    #p.join()
+    out = {}
+    out = full_ml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par)
 
     beta, V, l, hess = np.array(out['beta']), np.array(out['V']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
@@ -709,13 +725,16 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None):
                     random=util.dict2Rlist(random_covars_d), par=robjects.FloatVector(par) )
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    manager = multiprocessing.Manager()
-    out = manager.dict()
-    p = multiprocessing.Process(target=full_reml_subprocess,
-            args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
-    p.start()
-    p.join()
+    #manager = multiprocessing.Manager()
+    #out = manager.dict()
+    #p = multiprocessing.Process(target=full_reml_subprocess,
+    #        args=(y, P_f, vs, fixed_covars_d, random_covars_d, out, par))
+    #p.start()
+    #p.join()
+    out = {}
+    out = full_reml_subprocess(y, P_f, vs, fixed_covars_d, random_covars_d, out, par)
     
     V, beta, l, hess = np.array(out['V']), np.array(out['beta']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
