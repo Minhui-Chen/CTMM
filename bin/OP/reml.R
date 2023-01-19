@@ -71,8 +71,7 @@ screml_hom <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessian
     }
     
     args <- list(y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
-	out <- optim( par=par, fn=screml_hom_loglike, args=args,
-		method=method, hessian=hessian)
+    out <- optim_wrap( par, screml_hom_loglike, args, method, hessian )
 
 	hom2 <- out$par[1]
     r2 <- out$par[2:length(out$par)]
@@ -95,9 +94,9 @@ screml_hom <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessian
     }
 
     # estimate hessian matrix
-    #hess = hessian(screml_hom_loglike, x=out$par, y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
+    hess = hessian(screml_hom_loglike, x=out$par, args=args)
 
-    return ( list(hom2=hom2, l=l, hess=out$hessian, beta=beta, fixedeffect_vars=fixed_vars,
+    return ( list(hom2=hom2, l=l, hess=hess, beta=beta, fixedeffect_vars=fixed_vars,
                   randomeffect_vars=random_vars, r2=r2, convergence=out$convergence) )
 }
 
@@ -134,8 +133,7 @@ screml_iid <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessian
     }
     
     args <- list(y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
-	out <- optim( par=par, fn=screml_iid_loglike, args=args,
-		method=method, hessian=hessian)
+    out <- optim_wrap( par, screml_iid_loglike, args, method, hessian )
 
 	hom2 <- out$par[1]
 	V <- diag(C) * out$par[2]
@@ -162,9 +160,9 @@ screml_iid <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessian
     }
 
     # estimate hessian
-    #hess = hessian(screml_iid_loglike, x=out$par, y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
+    hess = hessian(screml_iid_loglike, x=out$par, args=args)
 
-    return ( list(hom2=hom2, V=V, l=l, hess=out$hessian, beta=beta, fixedeffect_vars=fixed_vars, 
+    return ( list(hom2=hom2, V=V, l=l, hess=hess, beta=beta, fixedeffect_vars=fixed_vars, 
                   randomeffect_vars=random_vars, r2=r2, convergence=out$convergence) )
 }
 
@@ -197,8 +195,7 @@ screml_free <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessia
     }
 
     args <- list(y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
-	out<- optim( par=par, fn=screml_free_loglike, args=args,
-		method=method, hessian=hessian)
+    out <- optim_wrap( par, screml_free_loglike, args, method, hessian )
 
 	hom2 <- out$par[1]
 	V <- diag(out$par[1+1:C])
@@ -225,9 +222,9 @@ screml_free <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessia
     }
 
     # estimate hessian matrix
-    #hess = hessian(screml_free_loglike, x=out$par, y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
+    hess = hessian(screml_free_loglike, x=out$par, args=args)
 
-    return ( list(hom2=hom2, V=V, l=l, hess=out$hessian, beta=beta, fixedeffect_vars=fixed_vars,
+    return ( list(hom2=hom2, V=V, l=l, hess=hess, beta=beta, fixedeffect_vars=fixed_vars,
                  randomeffect_vars=random_vars, r2=r2, convergence=out$convergence ))
 }
 
@@ -262,8 +259,7 @@ screml_full <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessia
     }
 
     args <- list(y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
-	out <- optim( par=par, fn=screml_full_loglike, args=args,
-		method=method, hessian=hessian)
+    out <- optim_wrap( par, screml_full_loglike, args, method, hessian )
 
     V <- matrix( 0, C, C )
     V[lower.tri(V,diag=T)]  <- out$par[1:ngam]
@@ -294,9 +290,9 @@ screml_full <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessia
     }
 
     # estimate hessian matrix
-    #hess = hessian(screml_full_loglike, x=out$par, y=y, P=P, X=X, C=C, ngam=ngam, vs=vs, random_MMT=random_MMT)
+    hess = hessian(screml_full_loglike, x=out$par, args=args)
 
-    return ( list( V=V, l=l, hess=out$hessian, beta=beta, fixedeffect_vars=fixed_vars,
+    return ( list( V=V, l=l, hess=hess, beta=beta, fixedeffect_vars=fixed_vars,
                  randomeffect_vars=random_vars, r2=r2, convergence=out$convergence ) )
 }
 

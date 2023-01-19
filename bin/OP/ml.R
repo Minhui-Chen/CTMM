@@ -17,7 +17,7 @@ LL <- function(y, P, X, C, vs, beta, hom2, V, random_variances, random_MMT){
         dmvnorm(y, mean=X %*% beta, sigma = sig2s, log=TRUE) * (-1)
 
     } else {
-        if( any( sig2s < 0 ) ) return(1e12)
+        if( max(sig2s) / (min(sig2s)+1e-99) > 1e8 | min(sig2s)<0 ) return(1e12)
         (sum(log( sig2s )) + sum( (y - X %*% beta)^2 / sig2s ))/2   
     }
 }
@@ -39,8 +39,7 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
     }
 
     args <- list(y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
-	out <- optim( par=par, fn=screml_hom_loglike, args=args,
-		method = method, hessian=hessian)
+    out <- optim_wrap( par, screml_hom_loglike, args, method, hessian )
 
 	beta <- out$par[1:ncol(X)]
 	hom2 <- out$par[ncol(X)+1]
@@ -63,11 +62,11 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
     }
 
     # estimate hessian matrix
-    #hess = hessian(screml_hom_loglike, x=out$par, y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
+    hess = hessian(screml_hom_loglike, x=out$par, args=args)
 
     return( list(hom2=hom2, beta=beta, l=l, fixedeffect_vars=fixed_vars, 
                  randomeffect_vars=random_vars, r2=r2, convergence=out$convergence,
-                 hess=out$hessian) )
+                 hess=hess) )
 }
 
 screml_hom_loglike<- function( par, args ){
@@ -103,8 +102,7 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
     }
 
     args <- list(y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
-	out <- optim( par=par, fn=screml_iid_loglike, args=args,
-		method = method, hessian = hessian)
+    out <- optim_wrap( par, screml_iid_loglike, args, method, hessian )
 
 	beta  <- out$par[1:ncol(X)]
 	hom2 <- out$par[ncol(X)+1]
@@ -131,11 +129,11 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
 
     
     # estimate hessian
-    #hess = hessian(screml_iid_loglike, x=out$par, y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
+    hess = hessian(screml_iid_loglike, x=out$par, args=args)
 
     return ( list(hom2=hom2, beta=beta, V=V, l=l, fixedeffect_vars=fixed_vars, 
                   randomeffect_vars=random_vars, r2=r2, convergence=out$convergence,
-                  hess=out$hessian) )
+                  hess=hess) )
 }
 
 screml_iid_loglike<- function(par, y, P, X, C, vs, random_MMT){
@@ -171,8 +169,7 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
     }
 
     args <- list(y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
-	out <- optim( par=par, fn=screml_free_loglike, args=args,
-		method = method, hessian = hessian)
+    out <- optim_wrap( par, screml_free_loglike, args, method, hessian )
 
 	beta  <- out$par[1:ncol(X)]
 	hom2 <- out$par[ncol(X)+1]
@@ -198,11 +195,11 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
     }
 
     # estimate hessian matrix
-    #hess = hessian(screml_free_loglike, x=out$par, y=y, P=P, X=X, C=C, vs=vs, random_MMT=random_MMT)
+    hess = hessian(screml_free_loglike, x=out$par, args=args)
 
     return ( list(hom2=hom2, beta=beta, V=V, l=l, fixedeffect_vars=fixed_vars, 
                   randomeffect_vars=random_vars, r2=r2, convergence=out$convergence,
-                  hess=out$hessian) )
+                  hess=hess) )
 }
 
 screml_free_loglike<- function( par, args ){
@@ -241,8 +238,7 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
     }
 
     args <- list(y=y, P=P, X=X, C=C, ngam=ngam, vs=vs, random_MMT=random_MMT)
-	out <- optim( par=par, fn=screml_full_loglike, args=args,
-                 method=method, hessian=hessian )
+    out <- optim_wrap( par, screml_full_loglike, args, method, hessian )
     
 	beta <- out$par[1:ncol(X)]
     V <- matrix( 0, C, C )
@@ -271,11 +267,11 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
     }
 
     # estimate hessian matrix
-    #hess = hessian(screml_full_loglike, x=out$par, y=y, P=P, X=X, C=C, ngam=ngam, vs=vs, random_MMT=random_MMT)
+    hess = hessian(screml_full_loglike, x=out$par, args=args)
 
     return ( list(beta=beta, V=V, l=l, fixedeffect_vars=fixed_vars, 
                   randomeffect_vars=random_vars, r2=r2, convergence=out$convergence,
-                  hess=out$hessian) )
+                  hess=hess) )
 }
 
 screml_full_loglike <- function( par, args ){
