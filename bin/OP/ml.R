@@ -12,12 +12,12 @@ LL <- function(y, P, X, C, vs, beta, hom2, V, random_variances, random_MMT){
         }
 
         eval <- eigen(sig2s, symmetric=TRUE)$values
-        if( max(eval) / (min(eval)+1e-99) > 1e8 | min(eval)<0 ) return(1e12)
+        if( max(eval) / (min(eval)+1e-99) > 1e6 | min(eval)<0 ) return(1e12)
 
         dmvnorm(y, mean=X %*% beta, sigma = sig2s, log=TRUE) * (-1)
 
     } else {
-        if( max(sig2s) / (min(sig2s)+1e-99) > 1e8 | min(sig2s)<0 ) return(1e12)
+        if( max(sig2s) / (min(sig2s)+1e-99) > 1e6 | min(sig2s)<0 ) return(1e12)
         (sum(log( sig2s )) + sum( (y - X %*% beta)^2 / sig2s ))/2   
     }
 }
