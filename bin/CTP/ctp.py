@@ -85,7 +85,7 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, p
         random_covars_array_d[ list(random_covars_array_d.keys())[0] ] = R
 
     def hom_ml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out):
-        ctng_ml_rf = 'bin/ctng.ml.fast.R'
+        ctng_ml_rf = 'bin/CTP/ml.R'
         ctng_ml_r = STAP( open(ctng_ml_rf).read(), 'ctng_ml_r' )
         numpy2ri.activate()
         if par is None:
@@ -137,7 +137,7 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, p
     return(ml, wald_p)
 
 def hom_reml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out={}):
-    ctng_reml_rf = 'bin/ctng.reml.fast.R'
+    ctng_reml_rf = 'bin/CTP/reml.R'
     ctng_reml_r = STAP( open(ctng_reml_rf).read(), 'ctng_reml_r' )
     numpy2ri.activate()
     if par is None:
@@ -271,7 +271,7 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
 
 
     def free_ml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out):
-        ctng_ml_rf = 'bin/ctng.ml.fast.R'
+        ctng_ml_rf = 'bin/CTP/ml.R'
         ctng_ml_r = STAP( open(ctng_ml_rf).read(), 'ctng_ml_r' )
         numpy2ri.activate()
         if par is None:
@@ -331,7 +331,7 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
     return(ml, wald_p)
 
 def free_reml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out={}):
-    ctng_reml_rf = 'bin/ctng.reml.fast.R'
+    ctng_reml_rf = 'bin/CTP/reml.R'
     ctng_reml_r = STAP( open(ctng_reml_rf).read(), 'ctng_reml_r' )
 #    numpy2ri.activate()
 #    if par is None:
@@ -530,7 +530,7 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
         random_covars_array_d[ list(random_covars_array_d.keys())[0] ] = R
 
     def full_ml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out):
-        ctng_ml_rf = 'bin/ctng.ml.fast.R'
+        ctng_ml_rf = 'bin/CTP/ml.R'
         ctng_ml_r = STAP( open(ctng_ml_rf).read(), 'ctng_ml_r' )
         numpy2ri.activate()
         if par is None:
@@ -589,7 +589,7 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         random_covars_array_d[ list(random_covars_array_d.keys())[0] ] = R
 
     def full_reml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out):
-        ctng_reml_rf = 'bin/ctng.reml.fast.R'
+        ctng_reml_rf = 'bin/CTP/reml.R'
         ctng_reml_r = STAP( open(ctng_reml_rf).read(), 'ctng_reml_r' )
         numpy2ri.activate()
         if par is None:
@@ -813,8 +813,8 @@ def main():
 if __name__ == '__main__':
 
     # load R functions
-    ctng_ml_rf = 'bin/ctng.ml.fast.R'
-    ctng_reml_rf = 'bin/ctng.reml.fast.R'
+    ctng_ml_rf = 'bin/CTP/ml.R'
+    ctng_reml_rf = 'bin/CTP/reml.R'
 
     ctng_ml_r = STAP( open(ctng_ml_rf).read(), 'ctng_ml_r' )
     ctng_reml_r = STAP( open(ctng_reml_rf).read(), 'ctng_reml_r' )
