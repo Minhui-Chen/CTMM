@@ -7,7 +7,7 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr
 from rpy2.robjects.packages import STAP
 from rpy2.robjects.conversion import localconverter
-import util, screml, wald, cuomo_ctng_test
+import util, wald, cuomo_ctng_test
 
 def get_X(fixed_covars_d, N, C):
     X = np.kron( np.ones((N,1)), np.eye(C) )
