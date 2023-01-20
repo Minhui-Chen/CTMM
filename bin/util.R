@@ -10,11 +10,34 @@ make_X <- function(P, fixed){
     return(X)
 }
 
+make_ctp_X <- function(N, C, fixed) {
+    X <- kronecker(rep(1, N), diag(C))
+
+    if ( !is.null( fixed ) ) {
+        for ( covar in fixed ) {
+            X <- cbind( X, kronecker(covar, rep(1,C)) )
+        }
+    }
+    return( X )
+}
+
 make_MMT <- function( random ){
     random_MMT <- NULL
     if ( !is.null( random ) ) {
         random_MMT <- list()
         for (i in 1:length(random)) {
+            random_MMT[[i]] <- random[[i]] %*% t(random[[i]])
+        }
+    }
+    return( random_MMT )
+}
+
+make_ctp_MMT <- function( random ) {
+    random_MMT <- NULL
+    if ( !is.null( random ) ) {
+        random_MMT <- list()
+        for (i in 1:length(random)) {
+            random[[i]] <- kronecker( random[[i]], rep(1,C) )
             random_MMT[[i]] <- random[[i]] %*% t(random[[i]])
         }
     }
