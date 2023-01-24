@@ -138,6 +138,8 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
 }
 
 gls <- function(y, X, vs, hom2, V, random_MMT, r2){
+    N <- nrow( vs )
+    C <- ncol( vs )
 
     A <- matrix(1, C, C)*hom2 + V
     sig2s <- kronecker(diag(N), A) + diag( as.vector(t(vs)) )
@@ -410,6 +412,7 @@ screml_full_loglike <- function(par, args){
     fixed <- args[['fixed']]
     random_MMT <- args[['random_MMT']]
     C <- ncol( Y )
+	ngam <- C*(C+1)/2
 
     V <- matrix( 0, C, C )
     V[lower.tri(V,diag=T)]<- par[1:ngam]

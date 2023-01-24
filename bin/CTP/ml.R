@@ -73,7 +73,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
 
     y <- as.vector(t(Y))
 
-    X <- make_ctp_X(N, C, fxied)
+    X <- make_ctp_X(N, C, fixed)
     random_MMT <- make_ctp_MMT( random )
 
     if ( is.null(par) ) {
@@ -118,6 +118,7 @@ screml_hom_loglike<- function(par, args){
     X <- args[['X']]
     vs <- args[['vs']]
     random_MMT <- args[['random_MMT']]
+    C <- ncol(vs)
 
 	hom2 <- par[1]
 	beta <- par[1+1:ncol(X)] 
@@ -136,7 +137,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
 
     y <- as.vector(t(Y))
 
-    X <- make_ctp_X(N, C, fxied)
+    X <- make_ctp_X(N, C, fixed)
     random_MMT <- make_ctp_MMT( random )
 
     if ( is.null( par ) ) {
@@ -185,6 +186,7 @@ screml_iid_loglike<- function(par, args){
     X <- args[['X']]
     vs <- args[['vs']]
     random_MMT <- args[['random_MMT']]
+    C <- ncol(vs)
 
 	hom2 <- par[1]
 	V <- diag(C) * par[2]
@@ -202,7 +204,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
 
     y <- as.vector(t(Y))
 
-    X <- make_ctp_X(N, C, fxied)
+    X <- make_ctp_X(N, C, fixed)
     random_MMT <- make_ctp_MMT( random )
 
     if ( is.null( par ) ) {
@@ -251,6 +253,7 @@ screml_free_loglike<- function(par, args){
     X <- args[['X']]
     vs <- args[['vs']]
     random_MMT <- args[['random_MMT']]
+    C <- ncol(vs)
 
 	hom2 <- par[1]
 	V <- diag(par[1+1:C])
@@ -269,7 +272,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
 
     y <- as.vector(t(Y))
 
-    X <- make_ctp_X(N, C, fxied)
+    X <- make_ctp_X(N, C, fixed)
     random_MMT <- make_ctp_MMT( random )
 
     if ( is.null( par ) ) {
