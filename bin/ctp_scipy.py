@@ -138,7 +138,7 @@ def ML_LL(Y, X, N, C, vs, hom2, beta, V, r2=[], random_MMT=[]):
             AD = A + D_i
 
             w, v = linalg.eigh( AD )
-            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
                 return( 1e12 )
 
             det_AD = np.sum( np.log(w) )
@@ -160,7 +160,7 @@ def ML_LL(Y, X, N, C, vs, hom2, beta, V, r2=[], random_MMT=[]):
             Vy_k = Vy[i:j,i:j]
 
             w, v = linalg.eigh(Vy_k)
-            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
                 return( 1e12 )
 
             det_Vy_k = np.sum( np.log(w) )
@@ -189,7 +189,7 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
             AD = A + np.diag(vs[i,])
 
             w, v = linalg.eigh(AD)
-            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
                 return( 1e12 )
 
             AD_inv = v @ np.diag(1/w) @ v.T
@@ -203,7 +203,7 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
             yADy_sum += yADy
 
         w, v = linalg.eigh( AD_inv_sum )
-        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
             return( 1e12 )
         AD_inv_sum_det = np.sum( np.log(w) )
         AD_inv_sum_inv = v @ np.diag(1/w) @ v.T
@@ -221,7 +221,7 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
             AD = A + np.diag( vs[i,] )
 
             w, v = linalg.eigh( AD )
-            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
                 return( 1e12 )
             AD_inv = v @ np.diag(1/w) @ v.T
             AD_det =  np.sum( np.log(w) )
@@ -237,7 +237,7 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
             XADy_sum += XADy
 
         w, v = linalg.eigh( XADX_sum )
-        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
             return( 1e12 )
         XADX_sum_inv = v @ np.diag(1/w) @ v.T
         XADX_sum_det = np.sum( np.log(w) )
@@ -257,7 +257,7 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
                 Vy_k = Vy[i:j, i:j]
 
                 w, v = linalg.eigh( Vy_k )
-                if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+                if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
                     return( 1e12 )
                 Vy_inv.append( v @ np.diag(1/w) @ v.T )
                 Vy_det += np.sum( np.log(w) )
@@ -267,7 +267,7 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
             Vy_inv = linalg.block_diag( *Vy_inv )
         else:
             w, v = linalg.eigh( Vy )
-            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+            if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
                 return( 1e12 )
             Vy_det = np.sum( np.log(w) )
             Vy_inv = v @ np.diag(1/w) @ v.T
@@ -275,7 +275,7 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
         F = X.T @ Vy_inv
         B = F @ X
         w, v = linalg.eigh( B )
-        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
             return( 1e12 )
         B_inv = v @ np.diag(1/w) @ v.T
         B_det = np.sum( np.log(w) )
@@ -292,9 +292,6 @@ def hom_ML_loglike(par, Y, X, N, C, vs, random_MMT):
     r2 = par[(1+X.shape[1]):]
 
     return( ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT) )
-    #l = ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT)
-    #print( l )
-    #return( l )
 
 def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
         par=None, method=None, nrep=10):

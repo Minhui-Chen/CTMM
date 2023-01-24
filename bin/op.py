@@ -87,7 +87,7 @@ def check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars, cut=5):
     else:
         return False
 
-def re_optim(out, fun, par, args, method, nrep=10):
+def re_optim(out, opt, fun, par, args, method, nrep=10):
     rng = default_rng()
     print( out['fun'] )
     for i in range(nrep):
@@ -106,14 +106,14 @@ def ML_LL(y, P, X, vs, beta, hom2, V, r2=[], random_MMT=[]):
     if np.array_equal( Vy, np.diag( np.diag(Vy) ) ):
         # no covariance between individuals
         Vy = np.diag(Vy)
-        if np.any( Vy < 0 ) or ( (np.amax(Vy) / (np.amin(Vy)+1e-99))  > 1e8 ):
+        if np.any( Vy < 0 ) or ( (np.amax(Vy) / (np.amin(Vy)+1e-99))  > 1e6 ):
             return( 1e12 )
 
         l = np.sum( np.log(Vy) ) + np.sum( (y - X @ beta)**2 / Vy )
         l = l * 0.5
     else:
         w, v = linalg.eigh(Vy)
-        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ): 
+        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ): 
             return(1e12)
         l = stats.multivariate_normal.logpdf(y, mean=X @ beta, cov=Vy) * (-1)
     return( l )
@@ -124,7 +124,7 @@ def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
     if np.array_equal( Vy, np.diag( np.diag(Vy) ) ):
         # no covariance between individuals
         Vy = np.diag(Vy)
-        if np.any( Vy < 0 ) or ( (np.amax(Vy) / (np.amin(Vy)+1e-99))  > 1e8 ): 
+        if np.any( Vy < 0 ) or ( (np.amax(Vy) / (np.amin(Vy)+1e-99))  > 1e6 ): 
             return( 1e12 )
         
         Vy_inv = 1 / Vy
@@ -133,7 +133,7 @@ def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
         A = X.T * Vy_inv
         B = A @ X
         w, v = linalg.eigh(B)
-        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ): 
+        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ): 
             return(1e12)
 
         B_inv = v @ np.diag(1/w) @ v.T
@@ -144,7 +144,7 @@ def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
             Vy += var * MMT
 
         w, v = linalg.eigh( Vy )
-        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
             return(1e12)
 
         Vy_inv = v @ np.diag(1/w) @ v.T
@@ -154,7 +154,7 @@ def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
         A = X.T @ Vy_inv
         B = A @ X
         w, v = linalg.eigh(B)
-        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e8 ):
+        if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
             return(1e12)
 
         B_inv = v @ np.diag(1/w) @ v.T
@@ -544,7 +544,7 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, met
             out, C, X, P, fixed_covars, random_covars )
 
     if check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
-        out, opt = re_optim(out, free_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
+        out, opt = re_optim(out, opt, free_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
                 method=method, nrep=nrep)
         hom2, beta, r2, V, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract( 
                 out, C, X, P, fixed_covars, random_covars )
@@ -606,7 +606,7 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, m
                 out, C, X, P, fixed_covars, random_covars)
 
         if check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
-            out, opt = re_optim(out, free_REML_loglike, par, 
+            out, opt = re_optim(out, opt, free_REML_loglike, par, 
                     args=(y, P, X, C, vs, random_MMT), method=method, nrep=nrep)
             hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
                     out, C, X, P, fixed_covars, random_covars)
@@ -790,7 +790,7 @@ def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, met
             out, C, X, P, fixed_covars, random_covars )
 
     if check_optim(opt, 0, ct_overall_var, fixed_vars, random_vars):
-        out, opt = re_optim(out, full_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
+        out, opt = re_optim(out, opt, full_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
                 method=method, nrep=nrep)
         beta, r2, V, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract( 
                 out, C, X, P, fixed_covars, random_covars )
@@ -854,7 +854,7 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, m
             out, C, X, P, fixed_covars, random_covars)
 
     if check_optim(opt, 0, ct_overall_var, fixed_vars, random_vars):
-        out, opt = re_optim(out, full_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
+        out, opt = re_optim(out, opt, full_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
                 method=method, nrep=nrep)
         V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
                 out, C, X, P, fixed_covars, random_covars)
