@@ -65,41 +65,6 @@ def cal_Vy( P, vs, hom2, V, r2=[], random_MMT=[] ):
 
     return( Vy )
 
-def optim(fun, par, args, method):
-    if method is None:
-        out1 = optimize.minimize( fun, par, args=args, method='BFGS' )
-        out = optimize.minimize( fun, out1['x'], args=args, method='Nelder-Mead' )
-        opt = {'method1':'BFGS', 'success1':out1['success'], 'status1':out1['status'], 
-                'message1':out1['message'], 'l1':out1['fun'] * (-1),
-                'method':'Nelder-Mead', 'success':out['success'], 'status':out['status'], 
-                'message':out['message'], 'l':out['fun'] * (-1)}
-    else:
-        out = optimize.minimize( fun, par, args=args, method=method )
-        opt = {'method':method, 'success':out['success'], 'status':out['status'], 
-                'message':out['message'], 'l':out['fun'] * (-1)}
-    return( out, opt )
-
-def check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars, cut=5):
-    if ( (opt['l'] < -1e10) or (not opt['success']) or (hom2 > cut) or (ct_overall_var > cut) or 
-            np.any(np.array(list(fixed_vars.values())) > cut) or 
-            np.any(np.array(list(random_vars.values())) > cut) ):
-        return True
-    else:
-        return False
-
-def re_optim(out, opt, fun, par, args, method, nrep=10):
-    rng = default_rng()
-    print( out['fun'] )
-    for i in range(nrep):
-        par_ = np.array(par) * rng.gamma(2,1/2,len(par))
-        out_, opt_ = optim(fun, par_, args=args, method=method)
-        print( out_['fun'] )
-        if (not out['success']) and out_['success']:
-            out, opt = out_, opt_
-        elif (out['success'] == out_['success']) and (out['fun'] > out_['fun']):
-            out, opt = out_, opt_
-    return( out, opt )
-
 def ML_LL(y, P, X, vs, beta, hom2, V, r2=[], random_MMT=[]):
     Vy = cal_Vy( P, vs, hom2, V, r2, random_MMT )
 
@@ -194,7 +159,7 @@ def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, meth
 
     random_MMT = [R @ R.T for R in random_covars.values()]
 
-    out, opt = optim(hom_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
+    out, opt = util.optim(hom_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
     hom2, beta, r2 = out['x'][0], out['x'][1:(1+X.shape[1])], out['x'][(1+X.shape[1]):]
     l = out['fun'] * (-1)
@@ -242,7 +207,7 @@ def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, me
 
     random_MMT = [R @ R.T for R in random_covars.values()]
 
-    out, opt = optim(hom_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
+    out, opt = util.optim(hom_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
     hom2, r2 = out['x'][0], out['x'][1:]
     l = out['fun'] * (-1)
@@ -352,7 +317,7 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, meth
 
     random_MMT = [R @ R.T for R in random_covars.values()]
 
-    out, opt = optim(iid_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
+    out, opt = util.optim(iid_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
     hom2, beta, r2 = out['x'][0], out['x'][2:(2+X.shape[1])], out['x'][(2+X.shape[1]):]
     V = np.eye(C) * out['x'][1]
@@ -406,7 +371,7 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, me
 
     random_MMT = [R @ R.T for R in random_covars.values()]
 
-    out, opt = optim(iid_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
+    out, opt = util.optim(iid_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
     hom2, r2 = out['x'][0], out['x'][2:]
     V = np.eye(C) * out['x'][1]
@@ -538,13 +503,13 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, met
 
     random_MMT = [R @ R.T for R in random_covars.values()]
 
-    out, opt = optim(free_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
+    out, opt = util.optim(free_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
     hom2, beta, r2, V, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract( 
             out, C, X, P, fixed_covars, random_covars )
 
-    if check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
-        out, opt = re_optim(out, opt, free_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
+    if util.check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
+        out, opt = util.re_optim(out, opt, free_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
                 method=method, nrep=nrep)
         hom2, beta, r2, V, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract( 
                 out, C, X, P, fixed_covars, random_covars )
@@ -588,7 +553,7 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, m
 
         random_MMT = [R @ R.T for R in random_covars.values()]
 
-        out, opt = optim(free_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
+        out, opt = util.optim(free_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
         def extract(out, C, X, P, fixed_covars, random_covars):
             hom2, r2 = out['x'][0], out['x'][(C+1):]
@@ -605,8 +570,8 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, m
         hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
                 out, C, X, P, fixed_covars, random_covars)
 
-        if check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
-            out, opt = re_optim(out, opt, free_REML_loglike, par, 
+        if util.check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
+            out, opt = util.re_optim(out, opt, free_REML_loglike, par, 
                     args=(y, P, X, C, vs, random_MMT), method=method, nrep=nrep)
             hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
                     out, C, X, P, fixed_covars, random_covars)
@@ -784,13 +749,13 @@ def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, met
 
     random_MMT = [R @ R.T for R in random_covars.values()]
 
-    out, opt = optim(full_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
+    out, opt = util.optim(full_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
     beta, r2, V, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract( 
             out, C, X, P, fixed_covars, random_covars )
 
-    if check_optim(opt, 0, ct_overall_var, fixed_vars, random_vars):
-        out, opt = re_optim(out, opt, full_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
+    if util.check_optim(opt, 0, ct_overall_var, fixed_vars, random_vars):
+        out, opt = util.re_optim(out, opt, full_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
                 method=method, nrep=nrep)
         beta, r2, V, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract( 
                 out, C, X, P, fixed_covars, random_covars )
@@ -848,13 +813,13 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, m
 
     random_MMT = [R @ R.T for R in random_covars.values()]
 
-    out, opt = optim(full_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
+    out, opt = util.optim(full_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
     V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
             out, C, X, P, fixed_covars, random_covars)
 
-    if check_optim(opt, 0, ct_overall_var, fixed_vars, random_vars):
-        out, opt = re_optim(out, opt, full_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
+    if util.check_optim(opt, 0, ct_overall_var, fixed_vars, random_vars):
+        out, opt = util.re_optim(out, opt, full_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
                 method=method, nrep=nrep)
         V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
                 out, C, X, P, fixed_covars, random_covars)
