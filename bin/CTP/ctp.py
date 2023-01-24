@@ -7,6 +7,7 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr
 from rpy2.robjects.packages import STAP
 from rpy2.robjects.conversion import localconverter
+sys.path.append('bin')
 import util, wald, cuomo_ctng_test
 
 def get_X(fixed_covars_d, N, C):
@@ -84,7 +85,7 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, p
         Y, P, vs = tmp
         random_covars_array_d[ list(random_covars_array_d.keys())[0] ] = R
 
-    def hom_ml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out):
+    def ml(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep):
         ctng_ml_rf = 'bin/CTP/ml.R'
         ctng_ml_r = STAP( open(ctng_ml_rf).read(), 'ctng_ml_r' )
         numpy2ri.activate()
@@ -98,11 +99,12 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, p
                     random=util.dict2Rlist(random_covars_array_d), par=robjects.FloatVector(par), 
                     nrep=nrep)
         numpy2ri.deactivate()
+        out = {}
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    out = subprocess_run(hom_ml_subprocess, 
-            args=(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep))
+    out = ml(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep)
     
     hom2, beta, hess = out['hom2'][0], np.array(out['beta']), np.array(out['hess'])
     convergence, l = out['convergence'][0], out['l'][0]
@@ -136,29 +138,29 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, p
     print( time.time() - start, flush=True )
     return(ml, wald_p)
 
-def hom_reml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out={}):
-    ctng_reml_rf = 'bin/CTP/reml.R'
-    ctng_reml_r = STAP( open(ctng_reml_rf).read(), 'ctng_reml_r' )
-    numpy2ri.activate()
-    if par is None:
-        out_ = ctng_reml_r.screml_hom(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
-                vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars_array_d),
-                random=util.dict2Rlist(random_covars_array_d), nrep=nrep )
-    else:
-        out_ = ctng_reml_r.screml_hom(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
-                vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars_array_d),
-                random=util.dict2Rlist(random_covars_array_d), par=robjects.FloatVector(par),
-                nrep=nrep)
-    numpy2ri.deactivate()
-    for key, value in zip(out_.names, list(out_)):
-        out[key] = value
-
-    return out
-
 def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, par=None, nrep=10, 
         jack_knife=False):
     print('Hom REML', flush=True)
     start = time.time()
+
+    def reml(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out={}):
+        ctng_reml_rf = 'bin/CTP/reml.R'
+        ctng_reml_r = STAP( open(ctng_reml_rf).read(), 'ctng_reml_r' )
+        numpy2ri.activate()
+        if par is None:
+            out_ = ctng_reml_r.screml_hom(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
+                    vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars_array_d),
+                    random=util.dict2Rlist(random_covars_array_d), nrep=nrep )
+        else:
+            out_ = ctng_reml_r.screml_hom(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
+                    vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars_array_d),
+                    random=util.dict2Rlist(random_covars_array_d), par=robjects.FloatVector(par),
+                    nrep=nrep)
+        numpy2ri.deactivate()
+        for key, value in zip(out_.names, list(out_)):
+            out[key] = value
+
+        return out
 
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
@@ -182,8 +184,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         random_covars_array_d[ list(random_covars_array_d.keys())[0] ] = R
 
     # 
-    out = subprocess_run(hom_reml_subprocess, 
-            args=(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep))
+    out = reml(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep)
 
     print(out)
     beta, hom2, hess = np.array(out['beta']), out['hom2'][0], np.array(out['hess'])
@@ -216,19 +217,12 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
                 n=N, P=n_par+X.shape[1])
     else:
-        args = []
+        jacks = {'ct_beta':[], 'hom2':[]}
         for i in range(N):
             Y_tmp, vs_tmp, fixed_covars_array_d_tmp, random_covars_array_d_tmp, P_tmp = cuomo_ctng_test.he_jackknife_rmInd(
                     i, Y, vs, fixed_covars_array_d, random_covars_array_d, P)
-            args.append( (Y_tmp, P_tmp, vs_tmp, fixed_covars_array_d_tmp, random_covars_array_d_tmp, par, nrep) )
+            out_tmp = reml(Y_tmp, P_tmp, vs_tmp, fixed_covars_array_d_tmp, random_covars_array_d_tmp, par, nrep)
 
-        pool = multiprocessing.Pool( processes=4 )
-        pool_out = pool.starmap(hom_reml_subprocess, args)
-        pool.close()
-        pool.join()
-
-        jacks = {'ct_beta':[], 'hom2':[]}
-        for out_tmp in pool_out:
             beta_tmp, hom2_tmp = np.array(out_tmp['beta']), out_tmp['hom2'][0]
             ct_beta_tmp = util.fixedeffect_vars( beta_tmp, P_tmp, fixed_covars_array_d_tmp )[0]['ct_beta']
             jacks['ct_beta'].append( ct_beta_tmp )
@@ -270,7 +264,7 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
         random_covars_array_d[ list(random_covars_array_d.keys())[0] ] = R
 
 
-    def free_ml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out):
+    def ml(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out={}):
         ctng_ml_rf = 'bin/CTP/ml.R'
         ctng_ml_r = STAP( open(ctng_ml_rf).read(), 'ctng_ml_r' )
         numpy2ri.activate()
@@ -286,9 +280,9 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
         numpy2ri.deactivate()
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    out = subprocess_run(free_ml_subprocess, 
-            args=(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep))
+    out = ml(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep)
 
     hom2, beta, V, hess = out['hom2'][0], np.array(out['beta']), np.array(out['V']), np.array(out['hess'])
     convergence, l = out['convergence'][0], out['l'][0]
@@ -330,76 +324,29 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
     print( time.time() - start, flush=True )
     return(ml, wald_p)
 
-def free_reml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out={}):
-    ctng_reml_rf = 'bin/CTP/reml.R'
-    ctng_reml_r = STAP( open(ctng_reml_rf).read(), 'ctng_reml_r' )
-#    numpy2ri.activate()
-#    if par is None:
-#        out_ = ctng_reml_r.screml_free(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
-#                vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars_array_d),
-#                random=util.dict2Rlist(random_covars_array_d), nrep=nrep )
-#    else:
-#        out_ = ctng_reml_r.screml_free(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
-#                vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars_array_d),
-#                random=util.dict2Rlist(random_covars_array_d), par=robjects.FloatVector(par),
-#                nrep=nrep)
-#    numpy2ri.deactivate()
-#    for key, value in zip(out_.names, list(out_)):
-#        out[key] = value
-
-    tmp_f = helper.generate_tmpfn()
-    tmp = open(tmp_f, 'w')
-
-    Y_f, P_f, vs_f = tmp_f+'.Y', tmp_f+'.P', tmp_f+'.vs'
-    np.savetxt(Y_f, Y, delimiter='\t')
-    np.savetxt(P_f, P, delimiter='\t')
-    np.savetxt(vs_f, ctnu, delimiter='\t')
-    tmp.write(f'Y <- as.matrix(read.table("{Y_f}"))\n')
-    tmp.write(f'P <- as.matrix(read.table("{P_f}"))\n')
-    tmp.write(f'vs <- as.matrix(read.table("{vs_f}"))\n')
-
-    for key in np.sort( list(fixed_covars_array_d.keys()) ):
-        fixed_f = tmp_f+'.fixed.'+key
-        np.savetxt(fixed_f, fixed_covars_array_d[key], delimiter='\t')
-        if len( fixed_covars_array_d[key].shape ) == 1:
-            tmp.write(f'fixed_{key} <- as.matrix(scan("{fixed_f}"))\n')
-        else:
-            tmp.write(f'fixed_{key} <- as.matrix(read.table("{fixed_f}"))\n')
-    if len(fixed_covars_array_d.keys()) > 0:
-        tmp.write('fixed <- list()\n')
-        for i, key in enumerate( np.sort(list(fixed_covars_array_d.keys())) ):
-            tmp.write(f'fixed[[{i+1}]] <- fixed_{key}\n')
-    else:
-        tmp.write('fixed <- NULL\n')
-
-    for key in np.sort( list(random_covars_array_d.keys()) ):
-        random_f = tmp_f+'.random.'+key
-        np.savetxt(random_f, random_covars_array_d[key], delimiter='\t')
-        tmp.write(f'random_{key} <- as.matrix(read.table("{random_f}"))\n')
-    if len(random_covars_array_d.keys()) > 0:
-        tmp.write('random <- list()\n')
-        for i, key in enumerate( np.sort( list(random_covars_array_d.keys()) ) ):
-            tmp.write(f'random[[{i+1}]] <- random_{key}\n')
-    else:
-        tmp.write('random <- NULL\n')
-    
-    tmp.write(f'out <- screml_free(Y, P, vs, fixed, random, nrep={nrep})\n')
-    out_f = tmp_f+'.out'
-    tmp.write(f'save(out, file="{out_f}")')
-    tmp.close()
-
-    os.system(f'Rscript {ctng_reml_rf} {tmp_f}')
-    r.load(out_f)
-    out_ = r.out
-    for key, value in zip(out_.names, list(out_)):
-        out[key] = value
-
-    return out
-
 def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, par=None, nrep=10,
         jack_knife=False):
     print('Free REML', flush=True)
     start = time.time()
+
+    def reml(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out={}):
+        ctng_reml_rf = 'bin/CTP/reml.R'
+        ctng_reml_r = STAP( open(ctng_reml_rf).read(), 'ctng_reml_r' )
+        numpy2ri.activate()
+        if par is None:
+            out_ = ctng_reml_r.screml_free(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
+                    vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars_array_d),
+                    random=util.dict2Rlist(random_covars_array_d), nrep=nrep )
+        else:
+            out_ = ctng_reml_r.screml_free(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
+                    vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars_array_d),
+                    random=util.dict2Rlist(random_covars_array_d), par=robjects.FloatVector(par),
+                    nrep=nrep)
+        numpy2ri.deactivate()
+        for key, value in zip(out_.names, list(out_)):
+            out[key] = value
+
+        return out
 
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
@@ -421,10 +368,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         Y, P, vs = tmp
         random_covars_array_d[ list(random_covars_array_d.keys())[0] ] = R
 
-    # 
-    #out = subprocess_run(free_reml_subprocess, 
-    #   args=(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep))
-    out = free_reml_subprocess(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep)
+    out = reml(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep)
 
     hom2, beta, V, hess = out['hom2'][0], np.array(out['beta']), np.array(out['V']), np.array(out['hess'])
     convergence, l = out['convergence'][0], out['l'][0]
@@ -465,25 +409,11 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
                 n=N, P=n_par+X.shape[1])
     else:
-#        args = []
-#        for i in range(N):
-#            Y_tmp, vs_tmp, fixed_covars_array_d_tmp, random_covars_array_d_tmp, P_tmp = cuomo_ctng_test.he_jackknife_rmInd(
-#                    i, Y, vs, fixed_covars_array_d, random_covars_array_d, P)
-#            args.append( (Y_tmp, P_tmp, vs_tmp, fixed_covars_array_d_tmp, random_covars_array_d_tmp, par, nrep) )
-#
-#        pool = multiprocessing.Pool( processes=4 )
-#        pool_out = pool.starmap(free_reml_subprocess, args)
-#        pool.close()
-#        pool.join()
-
         jacks = { 'ct_beta':[], 'hom2':[], 'V':[] }
-#        for out_tmp in pool_out:
         for i in range(N):
             Y_tmp, vs_tmp, fixed_covars_array_d_tmp, random_covars_array_d_tmp, P_tmp = cuomo_ctng_test.he_jackknife_rmInd(
                     i, Y, vs, fixed_covars_array_d, random_covars_array_d, P)
-            #out_tmp = subprocess_run(free_reml_subprocess,
-            #        args=(Y_tmp, P_tmp, vs_tmp, fixed_covars_array_d_tmp, random_covars_array_d_tmp, par, nrep) )
-            out_tmp = free_reml_subprocess(Y_tmp, P_tmp, vs_tmp, fixed_covars_array_d_tmp, 
+            out_tmp = reml(Y_tmp, P_tmp, vs_tmp, fixed_covars_array_d_tmp, 
                     random_covars_array_d_tmp, par, nrep)
             beta_tmp, hom2_tmp, V_tmp = np.array(out_tmp['beta']), out_tmp['hom2'][0], np.array(out_tmp['V'])
             ct_beta_tmp = util.fixedeffect_vars( beta_tmp, P_tmp, fixed_covars_array_d_tmp )[0]['ct_beta']
@@ -493,11 +423,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
 
         var_hom2 = (len(jacks['hom2']) - 1.0) * np.var(jacks['hom2'])
         var_V = (len(jacks['V']) - 1.0) * np.cov( np.array(jacks['V']).T, bias=True )
-        #wald_p['var_V'] = var_V  # tmp
-        #wald_p['jacks_V'] = np.array( jacks['V'] ) # tmp
         var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov( np.array(jacks['ct_beta']).T, bias=True )
-        #wald_p['var_ct_beta'] = var_ct_beta  # tmp
-        #wald_p['jacks_ct_beta'] = np.array( jacks['ct_beta'] ) # tmp
 
         wald_p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         wald_p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
@@ -529,7 +455,7 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
         Y, P, vs = tmp
         random_covars_array_d[ list(random_covars_array_d.keys())[0] ] = R
 
-    def full_ml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out):
+    def ml(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out={}):
         ctng_ml_rf = 'bin/CTP/ml.R'
         ctng_ml_r = STAP( open(ctng_ml_rf).read(), 'ctng_ml_r' )
         numpy2ri.activate()
@@ -545,9 +471,9 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
         numpy2ri.deactivate()
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
 
-    out = subprocess_run(full_ml_subprocess, 
-            args=(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep))
+    out = ml(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep)
 
     beta, V, hess = np.array(out['beta']), np.array(out['V']), np.array(out['hess'])
     convergence, l = out['convergence'][0], out['l'][0]
@@ -588,7 +514,7 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         Y, P, vs = tmp
         random_covars_array_d[ list(random_covars_array_d.keys())[0] ] = R
 
-    def full_reml_subprocess(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out):
+    def reml(Y, P, ctnu, fixed_covars_array_d, random_covars_array_d, par, nrep, out={}):
         ctng_reml_rf = 'bin/CTP/reml.R'
         ctng_reml_r = STAP( open(ctng_reml_rf).read(), 'ctng_reml_r' )
         numpy2ri.activate()
@@ -604,9 +530,9 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         numpy2ri.deactivate()
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
+        return( out )
     
-    out = subprocess_run(full_reml_subprocess, 
-            args=(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep))
+    out = reml(Y, P, vs, fixed_covars_array_d, random_covars_array_d, par, nrep)
 
     beta, V, hess = np.array(out['beta']), np.array(out['V']), np.array(out['hess'])
     convergence, l = out['convergence'][0], out['l'][0]
