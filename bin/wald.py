@@ -26,10 +26,14 @@ def asymptotic_dispersion_matrix(X, Z, V):
     D : ndarray
         dispersion matrix
     '''
-    eval, evec = np.linalg.eig(V)
-    if min(eval) < 0 or (max(eval) / (min(eval) + 1e-99)) > 1e8:
-        sys.exit(f'Singular V in asymptotic_dispersion_matrix: {max(eval)} {min(eval)}\n')
-    V_inv = evec @ np.diag(1/eval) @ evec.T
+    if check_singular(V):
+        #print(V)
+        sys.exit('Singular V in asymptotic dispersion matrix!\n')
+    #eval, evec = np.linalg.eig(V)
+    #if min(eval) < 0 or (max(eval) / (min(eval) + 1e-99)) > 1e8:
+        #sys.exit(f'Singular V in asymptotic_dispersion_matrix: {max(eval)} {min(eval)}\n')
+    #V_inv = evec @ np.diag(1/eval) @ evec.T
+    V_inv = np.linalg.inv(V)
     # information matrix elements
     minus_E_l_beta_beta = X.T @ V_inv @ X
     #print(V_inv[V_inv < 0 ])
