@@ -239,8 +239,11 @@ def ct_randomeffect_variance( V, P ):
     return( ct_overall_var, ct_specific_var )
 
 def cal_variance(beta, P, fixed_covars, r2, random_covars, order=False):
+    '''
+    order: whether order(ed) keys of random effects
+    '''
     # calcualte variance of fixed and random effects, and convert to dict
-    beta, fixed_vars = fixedeffect_vars( beta, P, fixed_covars )
+    beta, fixed_vars = fixedeffect_vars( beta, P, fixed_covars ) # fixed effects are always ordered
     random_vars = RandomeffectVariance( r2, list(random_covars.values()) )[0]
     random_vars, r2 = assign_randomeffect_vars(random_vars, r2, random_covars, order=order)
     return( beta, fixed_vars, r2, random_vars )
