@@ -277,23 +277,32 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
         
     return( L )
 
-def r_optim(Y, P, ctnu, fixed_covars, random_covars, par, nrep, method, model):
-    rf = 'bin/CTP/ml.R' if method == 'ML' else 'bin/CTP/reml.R'
+def r_optim(Y, P, ctnu, fixed_covars, random_covars, par, nrep, ml, model, method):
+    rf = 'bin/CTP/ml.R' if ml.upper() == 'ML' else 'bin/CTP/reml.R'
     r_optim = STAP( open(rf).read(), 'r_optim' )
     par = robjects.NULL if par is None else robjects.FloatVector(par)
+    method = 'BFGS' if method is None else method
     numpy2ri.activate()
     if model == 'hom':
         out_ = r_optim.screml_hom(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
-                random=util.dict2Rlist(random_covars, order=False), par=par, nrep=nrep)
+                random=util.dict2Rlist(random_covars, order=False), 
+                par=par, nrep=nrep, method=method)
+    elif model == 'iid':
+        out_ = r_optim.screml_iid(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
+                vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
+                random=util.dict2Rlist(random_covars, order=False), 
+                par=par, nrep=nrep, method=method)
     elif model == 'free':
         out_ = r_optim.screml_free(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
-                random=util.dict2Rlist(random_covars, order=False), par=par, nrep=nrep)
+                random=util.dict2Rlist(random_covars, order=False), 
+                par=par, nrep=nrep, method=method)
     elif model == 'full':
         out_ = r_optim.screml_full(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
-                random=util.dict2Rlist(random_covars, order=False), par=par, nrep=nrep)
+                random=util.dict2Rlist(random_covars, order=False), 
+                par=par, nrep=nrep, method=method)
     numpy2ri.deactivate()
     out = {}
     for key, value in zip(out_.names, list(out_)):
@@ -348,13 +357,13 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
            
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, ctnu, fixed_covars, random_covars, par, nrep, 'ml', 'hom')
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'hom', method)
 
         hom2, beta = out['hom2'][0], np.array(out['beta'])
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
     else:
         if par is None:
             beta = np.linalg.inv( X.T @ X) @ (X.T @ Y.flatten())
@@ -400,7 +409,7 @@ def hom_REML_loglike(par, Y, X, N, C, vs, random_MMT):
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
 def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
-        par=None, method=None, nrep=10, jack_knife=False):
+        par=None, method=None, nrep=10, jack_knife=False, optim_by_r=False):
     print('Hom REML', flush=True)
     start = time.time()
     
@@ -457,13 +466,13 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
 
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'hom')
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'hom', method)
 
         hom2, beta = out['hom2'][0], np.array(out['beta'])
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
 
         A = np.ones((C,C)) * hom2
         random_MMT = []
@@ -507,10 +516,10 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
             if optim_by_r:
-                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 'reml', 'hom')
+                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 'reml', 'hom', method)
                 hom2_jk, beta_jk = out_jk['hom2'][0], np.array(out_jk['beta'])
                 random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-                beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+                beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
             else:
                 hom2_jk, _, beta_jk, _, _, _, _ = reml_f(
                         Y_jk, vs_jk, P_jk, fixed_covars_jk, random_covars_jk, method)
@@ -601,7 +610,7 @@ def iid_ML_loglike(par, Y, X, N, C, vs, random_MMT):
     return( ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT) )
 
 def iid_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
-        par=None, method=None, nrep=10):
+        par=None, method=None, nrep=10, optim_by_r=False):
     print('IID ML', flush=True) 
     start = time.time()
 
@@ -640,14 +649,14 @@ def iid_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
        
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, ctnu, fixed_covars, random_covars, par, nrep, 'ml', 'iid')
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'iid', method)
 
         hom2, V, beta = out['hom2'][0], np.array(out['V']), np.array(out['beta'])
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
     else:
         if par is None:
             beta = np.linalg.inv( X.T @ X) @ (X.T @ Y.flatten())
@@ -695,7 +704,7 @@ def iid_REML_loglike(par, Y, X, N, C, vs, random_MMT):
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
 def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
-        par=None, method=None, nrep=10, jack_knife=False):
+        par=None, method=None, nrep=10, jack_knife=False, optim_by_r=False):
     print('IID REML', flush=True)
     start = time.time()
 
@@ -752,13 +761,13 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
 
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'iid')
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'iid', method)
 
         hom2, V, beta = out['hom2'][0], np.array(out['V']), np.array(out['beta'])
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
         A = np.ones((C,C)) * hom2 + V
@@ -804,7 +813,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
             if optim_by_r:
-                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 'reml', 'iid')
+                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 'reml', 'iid', method)
                 hom2_jk, V_jk, beta_jk = out_jk['hom2'][0], np.array(out_jk['V']), np.array(out_jk['beta'])
             else:
                 X_jk = get_X(fixed_covars_jk, N-1, C)
@@ -905,7 +914,7 @@ def free_ML_loglike(par, Y, X, N, C, vs, random_MMT):
     return( ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT) )
 
 def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
-        par=None, method=None, nrep=10):
+        par=None, method=None, nrep=10, optim_by_r=False):
     print('Free ML', flush=True)
     start = time.time()
 
@@ -944,14 +953,14 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
        
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, ctnu, fixed_covars, random_covars, par, nrep, 'ml', 'free')
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'free', method)
 
         hom2, V, beta = out['hom2'][0], np.array(out['V']), np.array(out['beta'])
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
     else:
         if par is None:
             beta = np.linalg.inv( X.T @ X) @ (X.T @ Y.flatten())
@@ -969,7 +978,8 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
                     out, X, P, fixed_covars, random_covars)
 
     # wald
-    A = np.ones((C,C))*hom2+V
+    A = np.ones((C,C)) * hom2 + V
+    Vy = cal_Vy( A, vs, r2, random_MMT )
     Z = [np.repeat(np.eye(N), C, axis=0)]
     for i in range(C):
         m = np.zeros(C)
@@ -1005,7 +1015,7 @@ def free_REML_loglike(par, Y, X, N, C, vs, random_MMT):
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
 def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
-        par=None, method=None, nrep=10, jack_knife=False):
+        par=None, method=None, nrep=10, jack_knife=False, optim_by_r=False):
     print('Free REML', flush=True)
     start = time.time()
 
@@ -1062,13 +1072,13 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
 
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'free')
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'free', method)
 
         hom2, V, beta = out['hom2'][0], np.array(out['V']), np.array(out['beta'])
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
         A = np.ones((C,C)) * hom2 + V
@@ -1122,7 +1132,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
             if optim_by_r:
-                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 'reml', 'free')
+                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 'reml', 'free', method)
                 hom2_jk, V_jk, beta_jk = out_jk['hom2'][0], np.array(out_jk['V']), np.array(out_jk['beta'])
             else:
                 X_jk = get_X(fixed_covars_jk, N-1, C)
@@ -1235,7 +1245,7 @@ def full_ML_loglike(par, Y, X, N, C, vs, random_MMT):
     return( ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT) )
 
 def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
-        par=None, method=None, nrep=10):
+        par=None, method=None, nrep=10, optim_by_r=False):
     print('Full ML', flush=True)
     start = time.time()
 
@@ -1276,14 +1286,14 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
        
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, ctnu, fixed_covars, random_covars, par, nrep, 'ml', 'free')
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'free', method)
 
         V, beta = np.array(out['V']), np.array(out['beta'])
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
     else:
         if par is None:
             beta = np.linalg.inv( X.T @ X) @ (X.T @ Y.flatten())
@@ -1320,7 +1330,7 @@ def full_REML_loglike(par, Y, X, N, C, vs, random_MMT):
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
 def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
-        par=None, method=None, nrep=10):
+        par=None, method=None, nrep=10, optim_by_r=False):
     print('Full REML', flush=True)
     start = time.time()
 
@@ -1379,13 +1389,13 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
 
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'free')
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'free', method)
 
         V, beta = np.array(out['V']), np.array(out['beta'])
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
         A = V
@@ -1468,6 +1478,9 @@ def main():
     params = snakemake.params
     input = snakemake.input
     output = snakemake.output
+    optim_by_r = False if 'optim_by_r' not in params.keys() else params.optim_by_r
+    method = None if 'method' not in params.keys() else params.method
+
 
     #
     batch = params.batch
@@ -1510,15 +1523,19 @@ def main():
         ## ML
         if snakemake.params.ML:
             if not snakemake.params.HE_as_initial:
-                hom_ml, hom_ml_wald = hom_ML(y_f, P_f, nu_f)
-                iid_ml, iid_ml_wald = iid_ML(y_f, P_f, nu_f)
-                free_ml, free_ml_wald = free_ML(y_f, P_f, nu_f)
-                full_ml = full_ML(y_f, P_f, nu_f)
+                hom_ml, hom_ml_wald = hom_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                iid_ml, iid_ml_wald = iid_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                free_ml, free_ml_wald = free_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                full_ml = full_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
             else:
-                hom_ml, hom_ml_wald = hom_ML(y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, ML=True) )
-                iid_ml, iid_ml_wald = iid_ML(y_f, P_f, nu_f, par=util.generate_HE_initial(iid_he, ML=True) )
-                free_ml, free_ml_wald = free_ML(y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, ML=True) )
-                full_ml = full_ML(y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, ML=True) )
+                hom_ml, hom_ml_wald = hom_ML(y_f, P_f, nu_f, method=method, 
+                        par=util.generate_HE_initial(hom_he, ML=True), optim_by_r=optim_by_r )
+                iid_ml, iid_ml_wald = iid_ML(y_f, P_f, nu_f, method=method, 
+                        par=util.generate_HE_initial(iid_he, ML=True), optim_by_r=optim_by_r )
+                free_ml, free_ml_wald = free_ML(y_f, P_f, nu_f, method=method, 
+                        par=util.generate_HE_initial(free_he, ML=True), optim_by_r=optim_by_r )
+                full_ml = full_ML(y_f, P_f, nu_f, method=method, 
+                        par=util.generate_HE_initial(full_he, ML=True), optim_by_r=optim_by_r )
 
             out['ml'] = {'hom': hom_ml, 'iid': iid_ml, 'free': free_ml, 'full': full_ml,
                     'wald':{'hom':hom_ml_wald, 'iid':iid_ml_wald, 'free':free_ml_wald} }
@@ -1543,24 +1560,28 @@ def main():
             if not snakemake.params.HE_as_initial:
                 if snakemake.params.Free_reml_only:
                     if 'Free_reml_jk' in snakemake.params.keys():
-                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, nrep=5, 
-                                jack_knife=snakemake.params.Free_reml_jk)
+                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method,  
+                                jack_knife=snakemake.params.Free_reml_jk, optim_by_r=optim_by_r)
                     else:
-                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f)
+                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
                 else:
-                    hom_reml, hom_reml_wald = hom_REML(y_f, P_f, nu_f)
-                    iid_reml, iid_reml_wald = iid_REML(y_f, P_f, nu_f)
+                    hom_reml, hom_reml_wald = hom_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                    iid_reml, iid_reml_wald = iid_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
                     if 'Free_reml_jk' in snakemake.params.keys():
-                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, nrep=5, 
-                                jack_knife=snakemake.params.Free_reml_jk)
+                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method,  
+                                jack_knife=snakemake.params.Free_reml_jk, optim_by_r=optim_by_r)
                     else:
-                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f)
-                    full_reml = full_REML(y_f, P_f, nu_f)
+                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                    full_reml = full_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
             else:
-                hom_reml, hom_reml_wald = hom_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, REML=True))
-                iid_reml, iid_reml_wald = iid_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(iid_he, REML=True))
-                free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(free_he,REML=True))
-                full_reml = full_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, REML=True))
+                hom_reml, hom_reml_wald = hom_REML(y_f, P_f, nu_f, method=method, 
+                        par=util.generate_HE_initial(hom_he, REML=True), optim_by_r=optim_by_r)
+                iid_reml, iid_reml_wald = iid_REML(y_f, P_f, nu_f, method=method, 
+                        par=util.generate_HE_initial(iid_he, REML=True), optim_by_r=optim_by_r)
+                free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method, 
+                        par=util.generate_HE_initial(free_he,REML=True), optim_by_r=optim_by_r)
+                full_reml = full_REML(y_f, P_f, nu_f, method=method, 
+                        par=util.generate_HE_initial(full_he, REML=True), optim_by_r=optim_by_r)
 
             if snakemake.params.Free_reml_only:
                 out['reml'] = {'free':free_reml, 'wald':{'free':free_reml_wald} }
