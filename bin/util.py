@@ -220,11 +220,12 @@ def RandomeffectVariance( Vs, Xs ):
     vars = [RandomeffectVariance_(V,X) for V,X in zip(Vs, Xs)]
     return( vars, Vs )
 
-def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d):
+def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d, order=True):
     randomeffect_vars_d = {}
     r2_d = {}
-    if len(random_covars_d.keys()) != 0:
-        for key, v1, v2 in zip( np.sort( list(random_covars_d.keys()) ), randomeffect_vars_l, r2_l ):
+    keys = np.sort( list(random_covars_d.keys()) ) if order else list(random_covars_d.keys())
+    if len(keys) != 0:
+        for key, v1, v2 in zip( keys, randomeffect_vars_l, r2_l ):
             randomeffect_vars_d[key] = v1
             r2_d[key] = v2
 
@@ -237,12 +238,11 @@ def ct_randomeffect_variance( V, P ):
 
     return( ct_overall_var, ct_specific_var )
 
-def cal_variance(beta, P, fixed_covars, r2, random_covars):
+def cal_variance(beta, P, fixed_covars, r2, random_covars, order=False):
     # calcualte variance of fixed and random effects, and convert to dict
     beta, fixed_vars = fixedeffect_vars( beta, P, fixed_covars )
-    random_vars = dict(zip( random_covars.keys(),
-        RandomeffectVariance( r2, list(random_covars.values()) )[0] ) )
-    r2 = dict( zip(random_covars.keys(), r2) )
+    random_vars = RandomeffectVariance( r2, list(random_covars.values()) )[0]
+    random_vars, r2 = assign_randomeffect_vars(random_vars, r2, random_covars, order=order)
     return( beta, fixed_vars, r2, random_vars )
 
 def quantnorm(Y, axis=0):
