@@ -401,7 +401,7 @@ def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
     return( he, p )
 
 def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
-    print('Free ML')
+    print('Free ML', method)
 
     def ml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par):
         ong_ml_rf = 'bin/OP/ml.R'
@@ -629,7 +629,7 @@ def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fa
     return( he, p )
 
 def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
-    print('Full ML')
+    print('Full ML', method)
 
     def ml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par):
         ong_ml_rf = 'bin/OP/ml.R'
@@ -770,6 +770,7 @@ def main():
     params = snakemake.params
     input = snakemake.input
     output = snakemake.output
+    optim_method = 'BFGS-Nelder'
 
     #
     batch = params.batch
@@ -807,9 +808,9 @@ def main():
         ## ML
         if snakemake.params.ML:
             if not snakemake.params.HE_as_initial:
-                hom_ml, hom_ml_p = hom_ML(y_f, P_f, nu_f)
-                free_ml, free_ml_p = free_ML(y_f, P_f, nu_f)
-                full_ml = full_ML(y_f, P_f, nu_f)
+                hom_ml, hom_ml_p = hom_ML(y_f, P_f, nu_f, method=optim_method)
+                free_ml, free_ml_p = free_ML(y_f, P_f, nu_f, method=optim_method)
+                full_ml = full_ML(y_f, P_f, nu_f, method=optim_method)
             else:
                 hom_ml, hom_ml_p = hom_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, ML=True) )
                 free_ml, free_ml_p = free_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, ML=True) )
@@ -833,16 +834,17 @@ def main():
 
             if not snakemake.params.HE_as_initial:
                 if 'Free_reml_jk' in snakemake.params.keys():
-                    free_reml, free_reml_p = free_REML(y_f, P_f, nu_f, jack_knife=snakemake.params.Free_reml_jk)
+                    free_reml, free_reml_p = free_REML(y_f, P_f, nu_f, method=optim_method,
+                            jack_knife=snakemake.params.Free_reml_jk)
                 else:
-                    free_reml, free_reml_p = free_REML(y_f, P_f, nu_f)
+                    free_reml, free_reml_p = free_REML(y_f, P_f, nu_f, method=optim_method)
 
                 if snakemake.params.Free_reml_only:
                     hom_reml, hom_reml_p = free_reml, free_reml_p
                     full_reml = free_reml
                 else:
-                    hom_reml, hom_reml_p = hom_REML(y_f, P_f, nu_f)
-                    full_reml = full_REML(y_f, P_f, nu_f)
+                    hom_reml, hom_reml_p = hom_REML(y_f, P_f, nu_f, method=optim_method)
+                    full_reml = full_REML(y_f, P_f, nu_f, method=optim_method)
             else:
                 hom_reml, hom_reml_p = hom_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, REML=True) )
                 free_reml, free_reml_p = free_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, REML=True))
