@@ -137,8 +137,15 @@ def hom_ML_loglike(par, y, P, X, C, vs, random_MMT):
 
     return( ML_LL(y, P, X, vs, beta, hom2, V, r2, random_MMT) )
 
-def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None):
+def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10):
     print('Hom ML')
+
+    def extract( out, C, X, P, fixed_covars, random_covars ):
+        hom2, beta, r2 = out['x'][0], out['x'][1:(1+X.shape[1])], out['x'][(1+X.shape[1]):]
+        l = out['fun'] * (-1)
+        # calcualte variance of fixed and random effects, and convert to dict
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+        return( hom2, beta, r2, l, fixed_vars, random_vars )
 
     # par
     fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
@@ -161,13 +168,15 @@ def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, meth
 
     out, opt = util.optim(hom_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
-    hom2, beta, r2 = out['x'][0], out['x'][1:(1+X.shape[1])], out['x'][(1+X.shape[1]):]
-    l = out['fun'] * (-1)
-    Vy = cal_Vy( P, vs, hom2, np.zeros((C,C)), r2, random_MMT )
-    # calcualte variance of fixed and random effects, and convert to dict
-    beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+    hom2, beta, r2, l, fixed_vars, random_vars = extract( out, C, X, P, fixed_covars, random_covars )
+
+    if util.check_optim(opt, hom2, 0, fixed_vars, random_vars):
+        out, opt = util.re_optim(out, opt, hom_ML_loglike, par, args=(y, P, X, C, vs, random_MMT),
+                method=method, nrep=nrep)
+        hom2, beta, r2, l, fixed_vars, random_vars = extract( out, C, X, P, fixed_covars, random_covars )
 
     # wald
+    Vy = cal_Vy( P, vs, hom2, np.zeros((C,C)), r2, random_MMT )
     Z = [np.eye(N)] + list(random_covars.values())
     D = wald.asymptotic_dispersion_matrix(X, Z, Vy)
     ml = {'hom2':hom2, 'beta':beta, 'l':l, 'D':D, 'fixedeffect_vars':fixed_vars,
@@ -185,8 +194,17 @@ def hom_REML_loglike(par, y, P, X, C, vs, random_MMT):
     r2 = par[1:]
     return( REML_LL(y, P, X, C, vs, hom2, V, r2, random_MMT) )
 
-def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None):
+def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10):
     print('Hom REML')
+
+    def extract(out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT):
+        hom2, r2 = out['x'][0], out['x'][1:]
+        l = out['fun'] * (-1)
+        Vy = cal_Vy( P, vs, hom2, np.zeros((C,C)), r2, random_MMT )
+        beta = util.glse( Vy, X, y )
+        # calcualte variance of fixed and random effects, and convert to dict
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+        return(hom2, r2, beta, l, fixed_vars, random_vars, Vy)
 
     # par
     fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
@@ -209,12 +227,14 @@ def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, me
 
     out, opt = util.optim(hom_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
-    hom2, r2 = out['x'][0], out['x'][1:]
-    l = out['fun'] * (-1)
-    Vy = cal_Vy( P, vs, hom2, np.zeros((C,C)), r2, random_MMT )
-    beta = util.glse( Vy, X, y )
-    # calcualte variance of fixed and random effects, and convert to dict
-    beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+    hom2, r2, beta, l, fixed_vars, random_vars, Vy = extract(
+            out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT)
+
+    if util.check_optim(opt, hom2, 0, fixed_vars, random_vars):
+        out, opt = util.re_optim(out, opt, hom_REML_loglike, par,
+                 args=(y, P, X, C, vs, random_MMT), method=method, nrep=nrep)
+        hom2, r2, beta, l, fixed_vars, random_vars, Vy = extract(
+                out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
     # wald
     Z = [np.eye(N)] + list(random_covars.values())
@@ -298,6 +318,15 @@ def iid_ML_loglike(par, y, P, X, C, vs, random_MMT):
 def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None):
     print('IID ML')
 
+    def extract( out, C, X, P, fixed_covars, random_covars ):
+        hom2, beta, r2 = out['x'][0], out['x'][2:(2+X.shape[1])], out['x'][(2+X.shape[1]):]
+        V = np.eye(C) * out['x'][1]
+        l = out['fun'] * (-1)
+        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+        # calcualte variance of fixed and random effects, and convert to dict
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+        return( hom2, beta, r2, V, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars )
+
     # par
     fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
     n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
@@ -319,15 +348,17 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, meth
 
     out, opt = util.optim(iid_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
-    hom2, beta, r2 = out['x'][0], out['x'][2:(2+X.shape[1])], out['x'][(2+X.shape[1]):]
-    V = np.eye(C) * out['x'][1]
-    l = out['fun'] * (-1)
-    Vy = cal_Vy( P, vs, hom2, V, r2, random_MMT )
-    ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
-    # calcualte variance of fixed and random effects, and convert to dict
-    beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+    hom2, beta, r2, V, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract(
+            out, C, X, P, fixed_covars, random_covars )
+
+    if util.check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
+        out, opt = util.re_optim(out, opt, iid_ML_loglike, par, args=(y, P, X, C, vs, random_MMT), 
+                method=method, nrep=nrep)
+        hom2, beta, r2, V, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract( 
+                out, C, X, P, fixed_covars, random_covars )
 
     # wald
+    Vy = cal_Vy( P, vs, hom2, V, r2, random_MMT )
     Z = [np.identity(len(y)), scipy.linalg.khatri_rao(np.eye(N), P.T).T]
     Z = Z + list( random_covars.values() )
     D = wald.asymptotic_dispersion_matrix(X, Z, Vy)
@@ -352,6 +383,18 @@ def iid_REML_loglike(par, y, P, X, C, vs, random_MMT):
 def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None):
     print('IID REML')
 
+    def extract(out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT):
+        hom2, r2 = out['x'][0], out['x'][2:]
+        V = np.eye(C) * out['x'][1]
+        l = out['fun'] * (-1)
+        Vy = cal_Vy( P, vs, hom2, V, r2, random_MMT )
+        beta = util.glse( Vy, X, y )
+        # calcualte variance of fixed and random effects, and convert to dict
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+        return(hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, 
+                ct_overall_var, ct_specific_var)
+
     # par
     fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
     n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
@@ -373,14 +416,14 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, me
 
     out, opt = util.optim(iid_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
 
-    hom2, r2 = out['x'][0], out['x'][2:]
-    V = np.eye(C) * out['x'][1]
-    l = out['fun'] * (-1)
-    Vy = cal_Vy( P, vs, hom2, V, r2, random_MMT )
-    beta = util.glse( Vy, X, y )
-    # calcualte variance of fixed and random effects, and convert to dict
-    beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
-    ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+    hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
+            out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT)
+
+    if util.check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
+        out, opt = util.re_optim(out, opt, iid_REML_loglike, par, 
+                args=(y, P, X, C, vs, random_MMT), method=method, nrep=nrep)
+        hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
+                out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
     # wald
     Z = [np.eye(N), scipy.linalg.khatri_rao(np.eye(N), P.T).T]
@@ -548,14 +591,7 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, m
     print('Free REML')
 
     def reml_f(y, P, vs, fixed_covars, random_covars, par, method):
-        N, C = P.shape
-        X = get_X(P, fixed_covars)
-
-        random_MMT = [R @ R.T for R in random_covars.values()]
-
-        out, opt = util.optim(free_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
-
-        def extract(out, C, X, P, fixed_covars, random_covars):
+        def extract(out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT):
             hom2, r2 = out['x'][0], out['x'][(C+1):]
             V = np.diag( out['x'][1:(C+1)] )
             l = out['fun'] * (-1)
@@ -567,14 +603,21 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, m
             return(hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, 
                     ct_overall_var, ct_specific_var)
 
+        N, C = P.shape
+        X = get_X(P, fixed_covars)
+
+        random_MMT = [R @ R.T for R in random_covars.values()]
+
+        out, opt = util.optim(free_REML_loglike, par, args=(y, P, X, C, vs, random_MMT), method=method)
+
         hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
-                out, C, X, P, fixed_covars, random_covars)
+                out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
         if util.check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
             out, opt = util.re_optim(out, opt, free_REML_loglike, par, 
                     args=(y, P, X, C, vs, random_MMT), method=method, nrep=nrep)
             hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var = extract(
-                    out, C, X, P, fixed_covars, random_covars)
+                    out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
         return(hom2, V, r2, beta, l, fixed_vars, random_vars, Vy,
                 ct_overall_var, ct_specific_var, opt)
