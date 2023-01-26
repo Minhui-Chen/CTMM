@@ -74,13 +74,14 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
     y <- as.vector(t(Y))
 
     X <- make_ctp_X(N, C, fixed)
-    random_MMT <- make_ctp_MMT( random )
+    random_MMT <- make_ctp_MMT( random, C )
 
     if ( is.null(par) ) {
         beta   <- solve(t(X)%*%X) %*% ( t(X) %*% y ) 
         hom2 <- var(y - X %*% beta) / (length(random)+1)
         par <- c( hom2, beta, rep(hom2,length(random)) )
     }
+    print( par )
     
     args <- list( y=y, X=X, vs=vs, random_MMT=random_MMT )
     out <- optim_wrap( par, screml_hom_loglike, args, method, FALSE)
@@ -138,7 +139,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
     y <- as.vector(t(Y))
 
     X <- make_ctp_X(N, C, fixed)
-    random_MMT <- make_ctp_MMT( random )
+    random_MMT <- make_ctp_MMT( random, C )
 
     if ( is.null( par ) ) {
         beta   <- solve(t(X)%*%X) %*% ( t(X) %*% y ) 
@@ -205,7 +206,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
     y <- as.vector(t(Y))
 
     X <- make_ctp_X(N, C, fixed)
-    random_MMT <- make_ctp_MMT( random )
+    random_MMT <- make_ctp_MMT( random, C )
 
     if ( is.null( par ) ) {
         beta   <- solve(t(X)%*%X) %*% ( t(X) %*% y )
@@ -273,7 +274,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
     y <- as.vector(t(Y))
 
     X <- make_ctp_X(N, C, fixed)
-    random_MMT <- make_ctp_MMT( random )
+    random_MMT <- make_ctp_MMT( random, C )
 
     if ( is.null( par ) ) {
         beta   <- solve(t(X)%*%X) %*% ( t(X) %*% y ) 

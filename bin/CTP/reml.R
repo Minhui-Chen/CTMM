@@ -166,7 +166,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
     y <- as.vector(t(Y))
 
     X <- make_ctp_X(N, C, fixed)
-    random_MMT <- make_ctp_MMT( random )
+    random_MMT <- make_ctp_MMT( random, C )
 
     if ( is.null( par ) ) {
         hom2 <- var(y) / (length(random)+1)
@@ -228,7 +228,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
     y <- as.vector(t(Y))
 
     X <- make_ctp_X(N, C, fixed)
-    random_MMT <- make_ctp_MMT( random )
+    random_MMT <- make_ctp_MMT( random, C )
 
     if ( is.null( par ) ) {
         hom2 <- var(y) / (length(random)+2)
@@ -295,7 +295,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
     y <- as.vector(t(Y))
 
     X <- make_ctp_X(N, C, fixed)
-    random_MMT <- make_ctp_MMT( random )
+    random_MMT <- make_ctp_MMT( random, C )
 
     if ( is.null( par ) ) {
         hom2 <- var(y) / (length(random)+2)
@@ -360,7 +360,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
 	ngam   <- C*(C+1)/2
 
     X <- make_ctp_X(N, C, fixed)
-    random_MMT <- make_ctp_MMT( random )
+    random_MMT <- make_ctp_MMT( random, C )
 
     if ( is.null( par ) ) {
         v1 <- var(y) / (length(random)+1)
