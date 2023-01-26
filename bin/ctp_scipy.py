@@ -1286,7 +1286,7 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
        
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'free', method)
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'full', method)
 
         V, beta = np.array(out['V']), np.array(out['beta'])
         l = out['l'][0]
@@ -1389,7 +1389,7 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
 
     # optim
     if optim_by_r:
-        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'free', method)
+        out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'full', method)
 
         V, beta = np.array(out['V']), np.array(out['beta'])
         l = out['l'][0]
