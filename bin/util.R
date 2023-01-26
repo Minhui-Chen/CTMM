@@ -32,7 +32,7 @@ make_MMT <- function( random ){
     return( random_MMT )
 }
 
-make_ctp_MMT <- function( random ) {
+make_ctp_MMT <- function( random, C ) {
     random_MMT <- NULL
     if ( !is.null( random ) ) {
         random_MMT <- list()
