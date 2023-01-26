@@ -18,7 +18,17 @@ def get_X(fixed_covars_d, N, C):
         X = np.concatenate( ( X, np.repeat(m, C, axis=0)), axis=1 )
     return(X)
 
+def get_MMT(random_covars, C):
+    random_MMT = []
+    for key in np.sort( list(random_covars.keys()) ):
+        R = random_covars[key]
+        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+        random_MMT.append( m )
+    return( random_MMT )
+
 def cal_Vy(A, vs, r2=[], random_MMT=[]):
+    if isinstance(r2, dict):
+        r2 = list(r2.values())
     N, C = vs.shape
     Vy = np.kron(np.eye(N), A) + np.diag( vs.flatten() )
     for var, MMT in zip(r2, random_MMT):
@@ -100,7 +110,8 @@ def he_ols(Y, X, vs, random_covars, model):
                 Q.append( np.hstack( np.hsplit(proj, N) @ (L+L.T) ) )
 
     random_MMT = []
-    for R in random_covars.values():
+    for key in np.sort( list(random_covars.keys()) ):
+        R = random_covars[key]
         m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
         random_MMT.append( m )
         Q.append( proj @ m )
@@ -333,13 +344,12 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         return( hom2, beta, r2, l, fixed_vars, random_vars )
 
     # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     N, C = Y.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars, N, C)
     n_par = 1 + n_random + X.shape[1]
 
@@ -350,11 +360,6 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         random_covars[ list(random_covars.keys())[0] ] = R
         X = get_X(fixed_covars, N, C)
 
-    random_MMT = []
-    for R in random_covars.values():
-        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-        random_MMT.append( m )
-           
     # optim
     if optim_by_r:
         out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'hom', method)
@@ -363,7 +368,7 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
     else:
         if par is None:
             beta = np.linalg.inv( X.T @ X) @ (X.T @ Y.flatten())
@@ -429,12 +434,9 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         N, C = Y.shape
         X = get_X(fixed_covars, N, C)
 
-        random_MMT = []
-        for R in random_covars.values():
-            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-            random_MMT.append( m )
+        random_MMT = get_MMT(random_covars, C)
            
-        out, opt = optim(hom_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
+        out, opt = util.optim(hom_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
        
         hom2, r2, beta, l, fixed_vars, random_vars, Vy = extract(out, X, P, fixed_covars, random_covars, random_MMT)
 
@@ -447,13 +449,12 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         return(hom2, r2, beta, l, fixed_vars, random_vars, Vy, opt)
 
     # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars, N, C)
     n_par = 1 + n_random
 
@@ -472,14 +473,9 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
 
         A = np.ones((C,C)) * hom2
-        random_MMT = []
-        for R in random_covars.values():
-            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-            random_MMT.append( m )
-           
         Vy = cal_Vy( A, vs, r2, random_MMT )
     else:
         if par is None:
@@ -516,10 +512,11 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
             if optim_by_r:
-                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 'reml', 'hom', method)
+                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 
+                        'reml', 'hom', method)
                 hom2_jk, beta_jk = out_jk['hom2'][0], np.array(out_jk['beta'])
                 random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-                beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+                beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
             else:
                 hom2_jk, _, beta_jk, _, _, _, _ = reml_f(
                         Y_jk, vs_jk, P_jk, fixed_covars_jk, random_covars_jk, method)
@@ -542,14 +539,13 @@ def hom_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
     start = time.time()
 
     # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     D = np.diag(vs.flatten())
     N, C = Y.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars, N, C)
     n_par = 1 + n_random
 
@@ -625,13 +621,12 @@ def iid_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         return( hom2, V, beta, r2, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars )
 
     # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars_d, N, C)
     n_par = 2 + n_random + X.shape[1]
 
@@ -642,11 +637,6 @@ def iid_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         random_covars[ list(random_covars.keys())[0] ] = R
         X = get_X(fixed_covars, N, C)
 
-    random_MMT = []
-    for R in random_covars.values():
-        m = m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-        random_MMT.append( m )
-       
     # optim
     if optim_by_r:
         out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'iid', method)
@@ -656,14 +646,14 @@ def iid_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
     else:
         if par is None:
             beta = np.linalg.inv( X.T @ X) @ (X.T @ Y.flatten())
             hom2 = np.var(Y.flatten() - X @ beta) / ( n_random + 2 )
             par = [hom2, hom2] + list(beta) + [hom2] * n_random
 
-        out, opt = optim(iid_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
+        out, opt = util.optim(iid_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         hom2, V, beta, r2, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract(
                 out, X, P, fixed_covars, random_covars)
 
@@ -723,12 +713,9 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
 
     def reml_f(Y, X, N, C, vs, P, fixed_covars, random_covars, method):
         ''' wrapper for iid reml '''
-        random_MMT = []
-        for R in random_covars.values():
-            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-            random_MMT.append( m )
+        random_MMT = get_MMT(random_covars, C)
            
-        out, opt = optim(iid_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
+        out, opt = util.optim(iid_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         hom2, V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy = extract(
                 out, X, P, fixed_covars, random_covars, random_MMT)
 
@@ -742,13 +729,12 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
                 Vy, ct_overall_var, ct_specific_var, opt)
 
     # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars_d, N, C)
     n_par = 2 + n_random
 
@@ -767,15 +753,10 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
         A = np.ones((C,C)) * hom2 + V
-        random_MMT = []
-        for R in random_covars.values():
-            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-            random_MMT.append( m )
-           
         Vy = cal_Vy( A, vs, r2, random_MMT )
     else:
         if par is None:
@@ -813,7 +794,8 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
             if optim_by_r:
-                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 'reml', 'iid', method)
+                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 
+                        'reml', 'iid', method)
                 hom2_jk, V_jk, beta_jk = out_jk['hom2'][0], np.array(out_jk['V']), np.array(out_jk['beta'])
             else:
                 X_jk = get_X(fixed_covars_jk, N-1, C)
@@ -840,18 +822,6 @@ def iid_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
     print('IID HE', flush=True )
     start = time.time()
 
-    # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
-    Y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    vs = np.loadtxt(ctnu_f)
-    D = np.diag(vs.flatten())
-    N, C = Y.shape
-    X = get_X(fixed_covars, N, C)
-    n_par = 2 + n_random
-
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
         y = Y.flatten()
@@ -870,6 +840,17 @@ def iid_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
         return(hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var)
+
+    # par
+    Y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    vs = np.loadtxt(ctnu_f)
+    D = np.diag(vs.flatten())
+    N, C = Y.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
+    X = get_X(fixed_covars, N, C)
+    n_par = 2 + n_random
 
     hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
             Y, vs, P, fixed_covars, random_covars)
@@ -929,13 +910,12 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         return( hom2, V, beta, r2, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars )
 
     # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars_d, N, C)
     n_par = 1 + C + n_random + X.shape[1]
 
@@ -946,11 +926,6 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         random_covars[ list(random_covars.keys())[0] ] = R
         X = get_X(fixed_covars, N, C)
 
-    random_MMT = []
-    for R in random_covars.values():
-        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-        random_MMT.append( m )
-       
     # optim
     if optim_by_r:
         out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'free', method)
@@ -960,14 +935,14 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
     else:
         if par is None:
             beta = np.linalg.inv( X.T @ X) @ (X.T @ Y.flatten())
             hom2 = np.var(Y.flatten() - X @ beta) / ( n_random + 2 )
             par = [hom2]*(C+1) + list(beta) + [hom2] * n_random
 
-        out, opt = optim(free_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
+        out, opt = util.optim(free_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         hom2, V, beta, r2, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract(
                 out, X, P, fixed_covars, random_covars)
         
@@ -1034,12 +1009,9 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
 
     def reml_f(Y, X, N, C, vs, P, fixed_covars, random_covars, method):
         ''' wrapper for iid reml '''
-        random_MMT = []
-        for R in random_covars.values():
-            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-            random_MMT.append( m )
+        random_MMT = get_MMT(random_covars, C)
            
-        out, opt = optim(free_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
+        out, opt = util.optim(free_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         hom2, V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy = extract(
                 out, X, P, fixed_covars, random_covars, random_MMT)
 
@@ -1053,13 +1025,12 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
                 ct_overall_var, ct_specific_var, opt)
 
     # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars_d, N, C)
     n_par = 1 + C + n_random
 
@@ -1078,15 +1049,10 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
         A = np.ones((C,C)) * hom2 + V
-        random_MMT = []
-        for R in random_covars.values():
-            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-            random_MMT.append( m )
-           
         Vy = cal_Vy( A, vs, r2, random_MMT )
     else:
         if par is None:
@@ -1160,25 +1126,6 @@ def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
     print('Free HE', flush=True )
     start = time.time()
 
-    # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
-    Y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    vs = np.loadtxt(ctnu_f)
-    D = np.diag(vs.flatten())
-    N, C = Y.shape
-    X = get_X(fixed_covars, N, C)
-    if not n_equation:
-        n_equation = N
-    elif n_equation == 'ind':
-        n_equation = N
-    elif n_equation == 'indXct':
-        n_equation = N*C
-
-    n_par = 1 + C + n_random
-
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
         y = Y.flatten()
@@ -1197,6 +1144,24 @@ def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
         return(hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var)
+
+    # par
+    Y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    vs = np.loadtxt(ctnu_f)
+    D = np.diag(vs.flatten())
+    N, C = Y.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
+    X = get_X(fixed_covars, N, C)
+    if not n_equation:
+        n_equation = N
+    elif n_equation == 'ind':
+        n_equation = N
+    elif n_equation == 'indXct':
+        n_equation = N*C
+
+    n_par = 1 + C + n_random
 
     hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
             Y, vs, P, fixed_covars, random_covars)
@@ -1263,13 +1228,12 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         return( V, beta, r2, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars )
 
     # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars_d, N, C)
 
     if n_random == 1:
@@ -1279,11 +1243,6 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         random_covars[ list(random_covars.keys())[0] ] = R
         X = get_X(fixed_covars, N, C)
 
-    random_MMT = []
-    for R in random_covars.values():
-        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-        random_MMT.append( m )
-       
     # optim
     if optim_by_r:
         out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'ml', 'full', method)
@@ -1293,14 +1252,14 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
     else:
         if par is None:
             beta = np.linalg.inv( X.T @ X) @ (X.T @ Y.flatten())
             V = np.eye(C)[np.tril_indices(C)] * np.var(Y.flatten() - X @ beta) / ( n_random + 1 )
             par = list(V) + list(beta) + [V[0]] * n_random
 
-        out, opt = optim(full_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
+        out, opt = util.optim(full_ML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         V, beta, r2, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars = extract(
                 out, X, P, fixed_covars, random_covars)
         
@@ -1352,12 +1311,9 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
 
     def reml_f(Y, X, N, C, vs, P, fixed_covars, random_covars, method):
         ''' wrapper for iid reml '''
-        random_MMT = []
-        for R in random_covars.values():
-            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-            random_MMT.append( m )
+        random_MMT = get_MMT(random_covars, C)
            
-        out, opt = optim(full_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
+        out, opt = util.optim(full_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy = extract(
                 out, X, P, fixed_covars, random_covars, random_MMT)
 
@@ -1370,13 +1326,12 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         return(V, r2, beta, l, fixed_vars, random_vars, Vy, ct_overall_var, ct_specific_var, opt)
 
     # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
     ngam = C*(C+1)//2
     X = get_X(fixed_covars_d, N, C)
 
@@ -1395,15 +1350,10 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars, order=False)
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
         A = V
-        random_MMT = []
-        for R in random_covars.values():
-            m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-            random_MMT.append( m )
-           
         Vy = cal_Vy( A, vs, r2, random_MMT )
     else:
         if par is None:
@@ -1428,16 +1378,6 @@ def full_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}):
     print('Full HE', flush=True )
     start = time.time()
 
-    # par
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
-    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
-
-    Y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    vs = np.loadtxt(ctnu_f)
-    D = np.diag(vs.flatten())
-    N, C = Y.shape
-
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
         ngam = C * (C+1) // 2
@@ -1459,6 +1399,15 @@ def full_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}):
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
         return(V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var)
+
+    # par
+    Y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    vs = np.loadtxt(ctnu_f)
+    D = np.diag(vs.flatten())
+    N, C = Y.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
 
     V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
             Y, vs, P, fixed_covars, random_covars)
