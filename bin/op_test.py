@@ -20,17 +20,17 @@ def get_X(P, fixed_covars_d):
         X = np.concatenate( (X, m_), axis=1)
     return(X)
 
-def he_fun(M, Y, proj, random_covars_array_d={}):
+def he_fun(M, Y, proj, random_covars={}):
     M_ = M
-    for key in np.sort( list(random_covars_array_d.keys()) ):
-        Q = random_covars_array_d[key]
+    for key in np.sort( list(random_covars.keys()) ):
+        Q = random_covars[key]
         m = (proj @ Q @ Q.T @ proj).flatten('F').reshape((-1,1))
         M = np.concatenate( ( M, m ), axis=1 )
 
     theta_ = np.linalg.inv( M.T @ M ) @ M.T @ Y
     theta = {'var':theta_[:M_.shape[1]], 'r2':{}}
     theta_ = theta_[M_.shape[1]:]
-    for key in np.sort( list(random_covars_array_d.keys()) ):
+    for key in np.sort( list(random_covars.keys()) ):
         theta['r2'][key] = theta_[0]
         theta_ = theta_[1:]
     #vars = (((Y - M @ ests)**2).sum() / len(Y)) * np.linalg.inv( M.T @ M )
@@ -53,6 +53,10 @@ def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS',
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
         return (out)
+
+    # par
+    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
@@ -107,6 +111,10 @@ def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS
             out[key] = value
         return( out )
 
+    # par
+    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d)
+
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
@@ -148,19 +156,7 @@ def hom_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
     print('Hom HE')
     start = time.time()
 
-    y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    N, C = P.shape
-    vs = np.loadtxt(nu_f)
-    D = np.diag(vs)
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + len(random_covars_d.keys())
-
-    random_covars_array_d = {}
-    for key in random_covars_d.keys():
-        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
-
-    def hom_HE_(X, y, P, D, random_covars_array_d):
+    def hom_HE_(X, y, P, D, random_covars):
         N = len(y)
         proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
 
@@ -171,13 +167,13 @@ def hom_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
         M = proj.flatten('F').reshape((-1,1))
 
         # estimate variances for random effects
-        theta = he_fun( M, t, proj, random_covars_array_d )
+        theta = he_fun( M, t, proj, random_covars )
         hom2 = theta['var'][0]
 
         # 
         sig2s = hom2 * np.eye(N) + D
-        for key in np.sort( list(random_covars_array_d.keys()) ):
-            Q = random_covars_array_d[key]
+        for key in np.sort( list(random_covars.keys()) ):
+            Q = random_covars[key]
             sig2s += ( Q @ Q.T ) * theta['r2'][key]
 
         beta = util.glse( sig2s, X, y )
@@ -185,7 +181,19 @@ def hom_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
         theta['beta'] = beta_d
         return( theta )
 
-    theta = hom_HE_(X, y, P, D, random_covars_array_d)
+    y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    N, C = P.shape
+    vs = np.loadtxt(nu_f)
+    D = np.diag(vs)
+    X = get_X(P, fixed_covars_d)
+    n_par = 1 + len(random_covars_d.keys())
+
+    random_covars = {}
+    for key in random_covars_d.keys():
+        random_covars[key] = np.loadtxt( random_covars_d[key] )
+
+    theta = hom_HE_(X, y, P, D, random_covars)
     hom2 = theta['var'][0]
     ct_beta = theta['beta']['ct_beta']
     he = {'hom2':hom2, 'r2':theta['r2'], 'beta':theta['beta']}
@@ -194,11 +202,11 @@ def hom_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
     if jack_knife:
         jacks = []
         for i in range(N):
-            random_covars_array_d_ = {}
-            for key in random_covars_array_d.keys():
-                random_covars_array_d_[key] = np.delete(random_covars_array_d[key], i, axis=0)
+            random_covars_jk = {}
+            for key in random_covars.keys():
+                random_covars_jk[key] = np.delete(random_covars[key], i, axis=0)
             jacks.append( hom_HE_( np.delete(X,i,axis=0), np.delete(y,i), np.delete(P,i,axis=0),
-                np.diag(np.delete(vs,i)), random_covars_array_d_ ) )
+                np.diag(np.delete(vs,i)), random_covars_jk ) )
         jacks_hom2 = [x['var'][0] for x in jacks]
         var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
         jacks_beta = [x['beta']['ct_beta']  for x in jacks]
@@ -229,6 +237,10 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS',
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
         return( out )
+
+    # par
+    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
@@ -286,6 +298,10 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS
             out[key] = value
         return( out )
 
+    # par
+    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d)
+
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
@@ -330,18 +346,6 @@ def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
     print('IID HE')
     start = time.time()
 
-    y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    N, C = P.shape
-    vs = np.loadtxt(nu_f)
-    D = np.diag(vs)
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + 1 + len(random_covars_d.keys())
-
-    random_covars_array_d = {}
-    for key in random_covars_d.keys():
-        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
-
     def iid_HE_(X, y, P, D, random_covars_array_d):
         N = len(y)
         proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
@@ -368,6 +372,18 @@ def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
         beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
         theta['beta'] = beta_d
         return( theta )
+
+    y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    N, C = P.shape
+    vs = np.loadtxt(nu_f)
+    D = np.diag(vs)
+    X = get_X(P, fixed_covars_d)
+    n_par = 1 + 1 + len(random_covars_d.keys())
+
+    random_covars_array_d = {}
+    for key in random_covars_d.keys():
+        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
 
     theta = iid_HE_(X, y, P, D, random_covars_array_d)
     hom2 = theta['var'][0]
@@ -417,6 +433,10 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS'
         for key, value in zip(out_.names, list(out_)):
             out[key] = value
         return( out )
+
+    # par
+    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
@@ -479,6 +499,10 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
             out[key] = value
         return( out )
 
+    # par
+    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d)
+
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
@@ -526,12 +550,6 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
             y_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, P_tmp = cuomo_ctng_test.he_jackknife_rmInd(
                     i, y, vs, fixed_covars_d, random_covars_d, P)
 
-            #manager = multiprocessing.Manager()
-            #out_tmp = manager.dict()
-            #p = multiprocessing.Process(target=free_reml_subprocess,
-            #        args=(y_tmp, P_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, out_tmp, par))
-            #p.start()
-            #p.join()
             out_tmp = reml(y_tmp, P_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, method, par)
             
             hom2_tmp, V_tmp, beta_tmp = out_tmp['hom2'][0], np.array(out_tmp['V']), np.array(out_tmp['beta'])
@@ -553,18 +571,6 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
 def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
     print('Free HE')
     start = time.time()
-
-    y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    N, C = P.shape
-    vs = np.loadtxt(nu_f)
-    D = np.diag(vs)
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + C + len(random_covars_d.keys()) # hom2, V, random covars
-
-    random_covars_array_d = {}
-    for key in random_covars_d.keys():
-        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
 
     def free_HE_(X, y, P, D, random_covars_array_d):
         N = len(y)
@@ -594,6 +600,18 @@ def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fa
         beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
         theta['beta'] = beta_d
         return( theta )
+
+    y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    N, C = P.shape
+    vs = np.loadtxt(nu_f)
+    D = np.diag(vs)
+    X = get_X(P, fixed_covars_d)
+    n_par = 1 + C + len(random_covars_d.keys()) # hom2, V, random covars
+
+    random_covars_array_d = {}
+    for key in random_covars_d.keys():
+        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
 
     theta = free_HE_(X, y, P, D, random_covars_array_d)
     hom2 = theta['var'][0]
@@ -646,6 +664,10 @@ def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS'
             out[key] = value
         return( out )
 
+    # par
+    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d)
+
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
@@ -685,6 +707,10 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
             out[key] = value
         return( out )
 
+    # par
+    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d)
+
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
@@ -710,17 +736,6 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
 def full_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}):
     print('Full HE')
     start = time.time()
-
-    y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    N, C = P.shape
-    vs = np.loadtxt(nu_f)
-    D = np.diag(vs)
-    X = get_X(P, fixed_covars_d)
-
-    random_covars_array_d = {}
-    for key in random_covars_d.keys():
-        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
 
     def full_HE_(X, y, P, D, random_covars_array_d):
         N = len(y)
@@ -754,6 +769,17 @@ def full_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}):
         beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
         theta['beta'] = beta_d
         return( theta )
+
+    y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    N, C = P.shape
+    vs = np.loadtxt(nu_f)
+    D = np.diag(vs)
+    X = get_X(P, fixed_covars_d)
+
+    random_covars_array_d = {}
+    for key in random_covars_d.keys():
+        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
 
     theta = full_HE_(X, y, P, D, random_covars_array_d)
     V = np.zeros((C,C))

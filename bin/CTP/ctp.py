@@ -69,7 +69,7 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, p
         return( out )
 
     # par 
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
+    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)[:2]
     n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
 
     Y = np.loadtxt(y_f)
@@ -237,7 +237,7 @@ def iid_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, p
         return( out )
 
     # par 
-    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)
+    fixed_covars, random_covars = util.read_covars(fixed_covars_d, random_covars_d)[:2]
     n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
 
     Y = np.loadtxt(y_f)
