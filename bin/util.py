@@ -8,9 +8,8 @@ from scipy import stats, linalg, optimize
 from numpy.random import default_rng
 import wald
 
-def read_covars(fixed_covars={}, random_covars={}):
-    covars = [fixed_covars, random_covars]
-    for i in range(len(covars)):
+def read_covars(fixed_covars={}, random_covars={}, C=None):
+    def read(covars):
         tmp = {}
         for key in covars[i].keys():
             f = covars[i][key]
@@ -18,8 +17,19 @@ def read_covars(fixed_covars={}, random_covars={}):
                 tmp[key] = np.loadtxt( f )
             else:
                 tmp[key] = f
-        covars[i] = tmp
-    return( covars )
+        return( tmp )
+
+    fixed_covars = read(fixed_covars)
+    random_covars = read(random_covars)
+    n_fixed, n_random = len( fixed_covars.keys() ), len( random_covars.keys() )
+    random_keys = list( np.sort( list(random_covars.keys()) ) )
+    Rs = [random_covars[key] for key in random_keys]
+    if C:
+        random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 ) for R in Rs]
+    else:
+        random_MMT = [R @ R.T for R in Rs]
+
+    return( fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT )
 
 def optim(fun, par, args, method):
     if method is None:
@@ -154,6 +164,8 @@ def FixedeffectVariance_( beta, x ):
     #xd = x - np.mean(x, axis=0)
     #s = ( xd.T @ xd ) / x.shape[0]
     s = np.cov( x, rowvar=False )
+    if len(s.shape) == 0:
+        s = s.reshape(1,1)
     return( beta @ s @ beta )
 
 def FixedeffectVariance( beta, xs ):
@@ -214,10 +226,19 @@ def RandomeffectVariance_( V, X ):
     return( np.trace( V @ (X.T @ X) ) / X.shape[0] )
 
 def RandomeffectVariance( Vs, Xs ):
-    if len( np.array( Vs ).shape ) == 1:
-        Vs = [V * np.eye(X.shape[1]) for V, X in zip(Vs, Xs)]
+    if isinstance( Xs, list ):
+        if len( np.array( Vs ).shape ) == 1:
+            Vs = [V * np.eye(X.shape[1]) for V, X in zip(Vs, Xs)]
 
-    vars = [RandomeffectVariance_(V,X) for V,X in zip(Vs, Xs)]
+        vars = [RandomeffectVariance_(V,X) for V,X in zip(Vs, Xs)]
+    elif isinstance( Xs, dict ):
+        vars = {}
+        for key in Xs.keys():
+            V, X = Vs[key], Xs[key]
+            if isinstance(V, float):
+                V = V  * np.eye(X.shape[1])
+                Vs[key] = V
+            vars[key] = RandomeffectVariance_(V,X)
     return( vars, Vs )
 
 def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d, order=True):
@@ -238,14 +259,12 @@ def ct_randomeffect_variance( V, P ):
 
     return( ct_overall_var, ct_specific_var )
 
-def cal_variance(beta, P, fixed_covars, r2, random_covars, order=False):
-    '''
-    order: whether order(ed) keys of random effects
-    '''
+def cal_variance(beta, P, fixed_covars, r2, random_covars):
     # calcualte variance of fixed and random effects, and convert to dict
     beta, fixed_vars = fixedeffect_vars( beta, P, fixed_covars ) # fixed effects are always ordered
-    random_vars = RandomeffectVariance( r2, list(random_covars.values()) )[0]
-    random_vars, r2 = assign_randomeffect_vars(random_vars, r2, random_covars, order=order)
+    if isinstance(r2, list):
+        r2 = dict(zip( np.sort(list(random_covars.keys())), r2 ))
+    random_vars = RandomeffectVariance( r2, random_covars )[0]
     return( beta, fixed_vars, r2, random_vars )
 
 def quantnorm(Y, axis=0):
