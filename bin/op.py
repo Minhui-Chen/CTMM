@@ -115,9 +115,6 @@ def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
         B_det = np.sum( np.log(w) )
         M = np.diag(Vy_inv) - A.T @ B_inv @ A
     else:
-        for var, MMT in zip(r2, random_MMT):
-            Vy += var * MMT
-
         w, v = linalg.eigh( Vy )
         if np.any(w < 0) or ( (np.amax(w) / (np.amin(w)+1e-99)) > 1e6 ):
             return(1e12)
