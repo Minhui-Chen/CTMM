@@ -240,10 +240,10 @@ def RandomeffectVariance( Vs, Xs ):
             vars[key] = RandomeffectVariance_(V,X)
     return( vars )
 
-def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d, order=True):
+def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d):
     randomeffect_vars_d = {}
     r2_d = {}
-    keys = np.sort( list(random_covars_d.keys()) ) if order else list(random_covars_d.keys())
+    keys = np.sort( list(random_covars_d.keys()) )
     if len(keys) != 0:
         for key, v1, v2 in zip( keys, randomeffect_vars_l, r2_l ):
             randomeffect_vars_d[key] = v1
