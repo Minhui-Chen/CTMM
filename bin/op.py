@@ -53,7 +53,7 @@ def he_ols(y, P, vs, fixed_covars, random_covars, model):
             for j in range(i):
                 Q.append( 2*(proj @ np.diag( P[:,i] * P[:,j] ) @ proj).flatten('F') )
     
-    for key in np.sort( random_covars.keys() ):
+    for key in np.sort( list(random_covars.keys()) ):
         R = random_covars[key]
         m = proj @ R
         m = (m @ m.T).flatten('F')
@@ -68,6 +68,8 @@ def cal_Vy( P, vs, hom2, V, r2=[], random_MMT=[] ):
     Vy = hom2 + np.diag( P @ V @ P.T ) + vs
 
     Vy = np.diag( Vy )
+    if isinstance(r2, dict):
+        r2 = [r2[key] for key in np.sort(list(r2.keys()))]
     for var, MMT in zip(r2, random_MMT):
         Vy += var * MMT
 
@@ -132,7 +134,7 @@ def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
 
         B_inv = v @ np.diag(1/w) @ v.T
         B_det = np.sum( np.log(w) )
-        M = Vy_inv - A @ B_inv @ A
+        M = Vy_inv - A.T @ B_inv @ A
 
     l = 0.5 * (l + B_det + y @ M @y)
     return( l )

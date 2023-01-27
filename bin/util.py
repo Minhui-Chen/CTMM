@@ -11,8 +11,8 @@ import wald
 def read_covars(fixed_covars={}, random_covars={}, C=None):
     def read(covars):
         tmp = {}
-        for key in covars[i].keys():
-            f = covars[i][key]
+        for key in covars.keys():
+            f = covars[key]
             if isinstance( f, str ):
                 tmp[key] = np.loadtxt( f )
             else:
@@ -237,9 +237,8 @@ def RandomeffectVariance( Vs, Xs ):
             V, X = Vs[key], Xs[key]
             if isinstance(V, float):
                 V = V  * np.eye(X.shape[1])
-                Vs[key] = V
             vars[key] = RandomeffectVariance_(V,X)
-    return( vars, Vs )
+    return( vars )
 
 def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d, order=True):
     randomeffect_vars_d = {}
@@ -262,9 +261,9 @@ def ct_randomeffect_variance( V, P ):
 def cal_variance(beta, P, fixed_covars, r2, random_covars):
     # calcualte variance of fixed and random effects, and convert to dict
     beta, fixed_vars = fixedeffect_vars( beta, P, fixed_covars ) # fixed effects are always ordered
-    if isinstance(r2, list):
+    if isinstance(r2, list) or isinstance(r2, np.ndarray):
         r2 = dict(zip( np.sort(list(random_covars.keys())), r2 ))
-    random_vars = RandomeffectVariance( r2, random_covars )[0]
+    random_vars = RandomeffectVariance( r2, random_covars )
     return( beta, fixed_vars, r2, random_vars )
 
 def quantnorm(Y, axis=0):
