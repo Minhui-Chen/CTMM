@@ -137,7 +137,7 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
                   hess=hess) )
 }
 
-screml_iid_loglike<- function(par, y, P, X, C, vs, random_MMT){
+screml_iid_loglike<- function(par, args){
     y <- args[['y']]
     P <- args[['P']]
     X <- args[['X']]

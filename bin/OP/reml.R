@@ -264,7 +264,7 @@ screml_full <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessia
     V <- matrix( 0, C, C )
     V[lower.tri(V,diag=T)]  <- out$par[1:ngam]
     V <- V + t(V)
-    r2 <- out$par[(C+2):length(out$par)]
+    r2 <- out$par[(ngam+1):length(out$par)]
     hom2 <- 0
     beta <- gls(y, P, X, vs, hom2, V, random, r2)
     l <- out$value * (-1)
