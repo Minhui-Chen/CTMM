@@ -456,7 +456,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars, N, C)
-    n_par = 1 + n_random
+    n_par = 1 + n_random + X.shape[1]
 
     if n_random == 1:
         # order by random covar
@@ -505,7 +505,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         # wald test beta1 = beta2 = beta3
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], 
                 np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
-                n=N, P=n_par+X.shape[1])
+                n=N, P=n_par)
     else:
         jacks = {'ct_beta':[], 'hom2':[]}
         for i in range(N):
@@ -529,7 +529,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         # wald test beta1 = beta2 = beta3
-        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
     print( time.time() - start, flush=True )
     return(reml, p)
@@ -547,7 +547,7 @@ def hom_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
     fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars, N, C)
-    n_par = 1 + n_random
+    n_par = 1 + n_random + X.shape[1]
 
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
@@ -591,7 +591,7 @@ def hom_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
         
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         # wald test beta1 = beta2 = beta3
-        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
 
     print( time.time() - start )
@@ -736,7 +736,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars_d, N, C)
-    n_par = 2 + n_random
+    n_par = 2 + n_random + X.shape[1]
 
     if n_random == 1:
         # order by random covar
@@ -787,7 +787,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         # wald test beta1 = beta2 = beta3
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], 
                 np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
-                n=N, P=n_par+X.shape[1])
+                n=N, P=n_par)
     else:
         jacks = { 'ct_beta':[], 'hom2':[], 'het':[] }
         for i in range(N):
@@ -813,7 +813,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         p['V'] = wald.wald_test(V[0,0], 0, var_het, N-n_par)
         # wald test beta1 = beta2 = beta3
-        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
     print( time.time() - start, flush=True )
     return(reml, p)
@@ -850,7 +850,7 @@ def iid_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
     fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars, N, C)
-    n_par = 2 + n_random
+    n_par = 2 + n_random + X.shape[1]
 
     hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
             Y, vs, P, fixed_covars, random_covars)
@@ -881,7 +881,7 @@ def iid_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
 
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         p['V'] = wald.wald_test(V[0,0], 0, var_het, N-n_par)
-        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
     print( time.time() - start )
     return(he, p)
@@ -1032,7 +1032,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
     fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars_d, N, C)
-    n_par = 1 + C + n_random
+    n_par = 1 + C + n_random + X.shape[1]
 
     if n_random == 1:
         # order by random covar
@@ -1091,7 +1091,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         # wald test beta1 = beta2 = beta3
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], 
                 np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
-                n=N, P=n_par+X.shape[1])
+                n=N, P=n_par)
     else:
         jacks = { 'ct_beta':[], 'hom2':[], 'V':[] }
         for i in range(N):
@@ -1117,12 +1117,12 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
         #p['V_iid'] = util.wald_ct_beta(np.diag(V), var_V, n=N, P=n_par)
         # wald test beta1 = beta2 = beta3
-        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
     print( time.time() - start, flush=True )
     return(reml, p)
 
-def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, jack_knife=False, n_equation=None):
+def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
     print('Free HE', flush=True )
     start = time.time()
 
@@ -1154,14 +1154,7 @@ def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
     fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars, N, C)
-    if not n_equation:
-        n_equation = N
-    elif n_equation == 'ind':
-        n_equation = N
-    elif n_equation == 'indXct':
-        n_equation = N*C
-
-    n_par = 1 + C + n_random
+    n_par = 1 + C + n_random + X.shape[1]
 
     hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
             Y, vs, P, fixed_covars, random_covars)
@@ -1190,10 +1183,10 @@ def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
         var_V = (len(jacks['V']) - 1.0) * np.cov( np.array(jacks['V']).T, bias=True )
         var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov( np.array(jacks['ct_beta']).T, bias=True )
 
-        p['hom2'] = wald.wald_test(hom2, 0, var_hom2, n_equation-n_par)
-        p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=n_equation, P=n_par)
+        p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
+        p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
         #p['V_iid'] = util.wald_ct_beta(np.diag(V), var_V, n=n_equation, P=n_par)
-        p['ct_beta'] = util.wald_ct_beta( beta['ct_beta'], var_ct_beta, n=n_equation, P=n_par+X.shape[1] )
+        p['ct_beta'] = util.wald_ct_beta( beta['ct_beta'], var_ct_beta, n=N, P=n_par )
 
     print( time.time() - start , flush=True )
     return(he, p)
