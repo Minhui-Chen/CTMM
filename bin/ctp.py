@@ -448,6 +448,14 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
 
         return(hom2, r2, beta, l, fixed_vars, random_vars, Vy, opt)
 
+    def extract_R(out):
+        hom2, beta = out['hom2'][0], np.array(out['beta'])
+        l = out['l'][0]
+        opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
+        random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+        return( hom2, beta, r2, fixed_vars, random_vars, l, opt)
+
     # par
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
@@ -468,12 +476,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     # optim
     if optim_by_r:
         out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'hom', method)
-
-        hom2, beta = out['hom2'][0], np.array(out['beta'])
-        l = out['l'][0]
-        opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
-        random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+        hom2, beta, r2, fixed_vars, random_vars, l, opt = extract_R( out )
 
         A = np.ones((C,C)) * hom2
         Vy = cal_Vy( A, vs, r2, random_MMT )
@@ -514,9 +517,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             if optim_by_r:
                 out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 
                         'reml', 'hom', method)
-                hom2_jk, beta_jk = out_jk['hom2'][0], np.array(out_jk['beta'])
-                random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-                beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+                hom2_jk, beta_jk = extract_R( out_jk )[:2]
             else:
                 hom2_jk, _, beta_jk, _, _, _, _ = reml_f(
                         Y_jk, vs_jk, P_jk, fixed_covars_jk, random_covars_jk, method)
@@ -538,17 +539,6 @@ def hom_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
     print('Hom HE', flush=True )
     start = time.time()
 
-    # par
-    Y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    vs = np.loadtxt(ctnu_f)
-    D = np.diag(vs.flatten())
-    N, C = Y.shape
-    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
-            fixed_covars_d, random_covars_d, C)
-    X = get_X(fixed_covars, N, C)
-    n_par = 1 + n_random + X.shape[1]
-
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
         y = Y.flatten()
@@ -565,6 +555,17 @@ def hom_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, j
         beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
 
         return(hom2, r2, beta, fixed_vars, random_vars)
+
+    # par
+    Y = np.loadtxt(y_f)
+    P = np.loadtxt(P_f)
+    vs = np.loadtxt(ctnu_f)
+    D = np.diag(vs.flatten())
+    N, C = Y.shape
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+            fixed_covars_d, random_covars_d, C)
+    X = get_X(fixed_covars, N, C)
+    n_par = 1 + n_random + X.shape[1]
 
     #
     hom2, r2, beta, fixed_vars, random_vars = he_f(Y, vs, P, fixed_covars, random_covars)
@@ -728,6 +729,16 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         return(hom2, V, r2, beta, l, fixed_vars, random_vars, 
                 Vy, ct_overall_var, ct_specific_var, opt)
 
+    def extract_R(out):
+        hom2, V, beta = out['hom2'][0], np.array(out['V']), np.array(out['beta'])
+        l = out['l'][0]
+        opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
+        random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+
+        return( hom2, V, beta, r2, ct_overall_var, ct_specific_var, fixed_vars, random_vars, l, opt)
+
     # par
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
@@ -748,13 +759,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     # optim
     if optim_by_r:
         out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'iid', method)
-
-        hom2, V, beta = out['hom2'][0], np.array(out['V']), np.array(out['beta'])
-        l = out['l'][0]
-        opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
-        random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
-        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+        hom2, V, beta, r2, ct_overall_var, ct_specific_var, fixed_vars, random_vars, l, opt = extract_R(out)
 
         A = np.ones((C,C)) * hom2 + V
         Vy = cal_Vy( A, vs, r2, random_MMT )
@@ -796,7 +801,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
             if optim_by_r:
                 out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 
                         'reml', 'iid', method)
-                hom2_jk, V_jk, beta_jk = out_jk['hom2'][0], np.array(out_jk['V']), np.array(out_jk['beta'])
+                hom2_jk, V_jk, beta_jk = extract_R(out_jk)[:3]
             else:
                 X_jk = get_X(fixed_covars_jk, N-1, C)
                 hom2_jk, V_jk, _, beta_jk, _, _, _, _, _, _ = reml_f(
@@ -1024,6 +1029,16 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         return(hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, 
                 ct_overall_var, ct_specific_var, opt)
 
+    def extract_R(out):
+        hom2, V, beta = out['hom2'][0], np.array(out['V']), np.array(out['beta'])
+        l = out['l'][0]
+        opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
+        random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
+        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
+        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+
+        return( hom2, V, beta, r2, ct_overall_var, ct_specific_var, fixed_vars, random_vars, l, opt)
+
     # par
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
@@ -1044,13 +1059,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
     # optim
     if optim_by_r:
         out = r_optim(Y, P, vs, fixed_covars, random_covars, par, nrep, 'reml', 'free', method)
-
-        hom2, V, beta = out['hom2'][0], np.array(out['V']), np.array(out['beta'])
-        l = out['l'][0]
-        opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
-        random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
-        beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
-        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+        hom2, V, beta, r2, ct_overall_var, ct_specific_var, fixed_vars, random_vars, l, opt = extract_R(out)
 
         A = np.ones((C,C)) * hom2 + V
         Vy = cal_Vy( A, vs, r2, random_MMT )
@@ -1098,8 +1107,9 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
             if optim_by_r:
-                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 'reml', 'free', method)
-                hom2_jk, V_jk, beta_jk = out_jk['hom2'][0], np.array(out_jk['V']), np.array(out_jk['beta'])
+                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 
+                        'reml', 'free', method)
+                hom2_jk, V_jk, beta_jk = extract_R(out_jk)[:3]
             else:
                 X_jk = get_X(fixed_covars_jk, N-1, C)
                 hom2_jk, V_jk, _, beta_jk, _, _, _, _, _, _ = reml_f(
