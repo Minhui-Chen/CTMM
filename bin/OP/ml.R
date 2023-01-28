@@ -124,7 +124,7 @@ y, P, vs, fixed=NULL, random=NULL, nrep=10, method='BFGS', hessian=TRUE, overVar
         l <- out$value * (-1)
 
         ct_overall_var <- RandomeffectVariance_( V, P )
-        fixed_vars <- FixedeffectVariance( beta_, c(list(P), fixed) )
+        fixed_vars <- FixedeffectVariance( beta, c(list(P), fixed) )
         random_vars <- RandomeffectVariance( r2, random )[[2]]
     }
 
