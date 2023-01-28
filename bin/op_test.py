@@ -55,31 +55,31 @@ def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS',
         return (out)
 
     # par
-    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
     N, C = P.shape
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + len(random_covars_d.keys()) + X.shape[1]
+    X = get_X(P, fixed_covars)
+    n_par = 1 + n_random + X.shape[1]
 
-    out = ml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par)
+    out = ml(y, P_f, vs, fixed_covars, random_covars, method, par)
 
     hom2, beta, l, hess = out['hom2'][0], np.array(out['beta']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
-    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars_d)
-    beta_d = util.assign_beta(beta, P, fixed_covars_d)
+    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars)
+    beta_d = util.assign_beta(beta, P, fixed_covars)
     randomeffect_vars_d, r2_d = util.assign_randomeffect_vars( np.array(out['randomeffect_vars']),
-            np.array(out['r2']), random_covars_d )
+            np.array(out['r2']), random_covars )
 
     # wald
     Vy = np.diag(hom2 + vs)
     Z = [np.identity(len(y))]
     if len(r2_d.keys()) > 0:
         for key in np.sort( list(r2_d.keys()) ):
-            M_ = np.loadtxt( random_covars_d[key] )
+            M_ = random_covars[key]
             Vy = Vy + r2_d[key] * M_ @ M_.T
             Z.append( M_ )
     D = wald.asymptotic_dispersion_matrix(X, Z, Vy)
@@ -112,31 +112,31 @@ def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS
         return( out )
 
     # par
-    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
     N, C = P.shape
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + len(random_covars_d.keys())
+    X = get_X(P, fixed_covars)
+    n_par = 1 + n_random
 
-    out = reml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par)
+    out = reml(y, P_f, vs, fixed_covars, random_covars, method, par)
     
     hom2, beta, l, hess = out['hom2'][0], np.array(out['beta']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
-    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars_d)
-    beta_d = util.assign_beta(beta, P, fixed_covars_d)
+    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars)
+    beta_d = util.assign_beta(beta, P, fixed_covars)
     randomeffect_vars_d, r2_d  = util.assign_randomeffect_vars(np.array(out['randomeffect_vars']),
-            np.array(out['r2']), random_covars_d)
+            np.array(out['r2']), random_covars)
 
     # wald
     Vy = np.diag(hom2 + vs)
     Z = [np.identity(len(y))]
     if len(r2_d.keys()) > 0:
         for key in np.sort( list(r2_d.keys()) ):
-            M_ = np.loadtxt( random_covars_d[key] )
+            M_ = random_covars[key]
             Vy = Vy + r2_d[key] * M_ @ M_.T
             Z.append( M_ )
     D = wald.reml_asymptotic_dispersion_matrix(X, Z, Vy)
@@ -239,32 +239,32 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS',
         return( out )
 
     # par
-    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
     N, C = P.shape
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + 1 + len(random_covars_d.keys()) + X.shape[1]
+    X = get_X(P, fixed_covars)
+    n_par = 1 + 1 + n_random + X.shape[1]
 
-    out = ml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par)
+    out = ml(y, P_f, vs, fixed_covars, random_covars, method, par)
 
     hom2, beta, V, l, hess = out['hom2'][0], np.array(out['beta']), np.array(out['V']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
     ct_random_var, ct_specific_random_var = util.ct_randomeffect_variance( V, P )
-    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars_d)
-    beta_d = util.assign_beta(beta, P, fixed_covars_d)
+    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars)
+    beta_d = util.assign_beta(beta, P, fixed_covars)
     randomeffect_vars_d, r2_d = util.assign_randomeffect_vars( np.array(out['randomeffect_vars']),
-            np.array(out['r2']), random_covars_d)
+            np.array(out['r2']), random_covars)
 
     # wald
     Vy = np.diag(hom2 + np.diag(P @ V @ P.T) + vs)
     Z = [np.identity(len(y)), scipy.linalg.khatri_rao(np.identity(len(y)), P.T).T]
     if len(r2_d.keys()) > 0:
         for key in np.sort( list(r2_d.keys()) ):
-            M_ = np.loadtxt( random_covars_d[key] )
+            M_ = random_covars[key]
             Vy = Vy + r2_d[key] * M_ @ M_.T
             Z.append( M_ )
     D = wald.asymptotic_dispersion_matrix(X, Z, Vy)
@@ -299,32 +299,32 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS
         return( out )
 
     # par
-    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
     N, C = P.shape
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + 1 + len(random_covars_d.keys())
+    X = get_X(P, fixed_covars)
+    n_par = 1 + 1 + n_random
 
-    out = reml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par)
+    out = reml(y, P_f, vs, fixed_covars, random_covars, method, par)
     
     beta, hom2, V, l, hess = np.array(out['beta']), out['hom2'][0], np.array(out['V']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
-    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars_d)
-    beta_d = util.assign_beta(beta, P, fixed_covars_d)
+    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars)
+    beta_d = util.assign_beta(beta, P, fixed_covars)
     ct_random_var, ct_specific_random_var = util.ct_randomeffect_variance( V, P )
     randomeffect_vars_d, r2_d  = util.assign_randomeffect_vars(np.array(out['randomeffect_vars']),
-            np.array(out['r2']), random_covars_d)
+            np.array(out['r2']), random_covars)
 
     # wald
     Vy = np.diag(hom2 + np.diag(P @ V @ P.T) + vs)
     Z = [np.identity(len(y)), scipy.linalg.khatri_rao(np.identity(len(y)), P.T).T]
     if len(r2_d.keys()) > 0:
         for key in np.sort( list(r2_d.keys()) ):
-            M_ = np.loadtxt( random_covars_d[key] )
+            M_ = random_covars[key]
             Vy = Vy + r2_d[key] * M_ @ M_.T
             Z.append( M_ )
     D = wald.reml_asymptotic_dispersion_matrix(X, Z, Vy)
@@ -381,11 +381,11 @@ def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
     X = get_X(P, fixed_covars_d)
     n_par = 1 + 1 + len(random_covars_d.keys())
 
-    random_covars_array_d = {}
+    random_covars = {}
     for key in random_covars_d.keys():
-        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
+        random_covars[key] = np.loadtxt( random_covars_d[key] )
 
-    theta = iid_HE_(X, y, P, D, random_covars_array_d)
+    theta = iid_HE_(X, y, P, D, random_covars)
     hom2 = theta['var'][0]
     het = theta['var'][1]
     ct_beta = theta['beta']['ct_beta']
@@ -395,11 +395,11 @@ def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
     if jack_knife:
         jacks = []
         for i in range(N):
-            random_covars_array_d_ = {}
-            for key in random_covars_array_d.keys():
-                random_covars_array_d_[key] = np.delete(random_covars_array_d[key], i, axis=0)
+            random_covars_jk = {}
+            for key in random_covars.keys():
+                random_covars_jk[key] = np.delete(random_covars[key], i, axis=0)
             jacks.append( iid_HE_( np.delete(X,i,axis=0), np.delete(y,i), np.delete(P,i,axis=0),
-                np.diag(np.delete(vs,i)), random_covars_array_d_ ) )
+                np.diag(np.delete(vs,i)), random_covars_jk ) )
         jacks_hom2 = [x['var'][0] for x in jacks]
         var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
         jacks_het = [x['var'][1] for x in jacks]
@@ -435,32 +435,32 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS'
         return( out )
 
     # par
-    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
     N, C = P.shape
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + C + X.shape[1] + len(random_covars_d.keys())
+    X = get_X(P, fixed_covars)
+    n_par = 1 + C + X.shape[1] + n_random
 
-    out = ml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par)
+    out = ml(y, P_f, vs, fixed_covars, random_covars, method, par)
 
     hom2, beta, V, l, hess = out['hom2'][0], np.array(out['beta']), np.array(out['V']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
-    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars_d)
-    beta_d = util.assign_beta(beta, P, fixed_covars_d)
+    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars)
+    beta_d = util.assign_beta(beta, P, fixed_covars)
     ct_random_var, ct_specific_random_var = util.ct_randomeffect_variance( V, P )
     randomeffect_vars_d, r2_d = util.assign_randomeffect_vars( np.array(out['randomeffect_vars']),
-            np.array(out['r2']), random_covars_d)
+            np.array(out['r2']), random_covars)
 
     # wald
     Vy = np.diag(hom2 + np.diag(P @ V @ P.T) + vs)
     Z = [np.identity(len(y))] + [np.diag(P[:,i]) for i in range(C)]
     if len(r2_d.keys()) > 0:
         for key in np.sort( list(r2_d.keys()) ):
-            M_ = np.loadtxt( random_covars_d[key] )
+            M_ = random_covars[key]
             Vy = Vy + r2_d[key] * M_ @ M_.T
             Z.append( M_ )
     D = wald.asymptotic_dispersion_matrix(X, Z, Vy)
@@ -500,32 +500,32 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
         return( out )
 
     # par
-    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
     N, C = P.shape
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + C + len(random_covars_d.keys()) 
+    X = get_X(P, fixed_covars)
+    n_par = 1 + C + n_random 
 
-    out = reml(y, P, vs, fixed_covars_d, random_covars_d, method, par)
+    out = reml(y, P, vs, fixed_covars, random_covars, method, par)
     
     hom2, V, beta, l, hess = out['hom2'][0], np.array(out['V']), np.array(out['beta']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
-    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars_d)
-    beta_d = util.assign_beta(beta, P, fixed_covars_d)
+    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars)
+    beta_d = util.assign_beta(beta, P, fixed_covars)
     ct_random_var, ct_specific_random_var = util.ct_randomeffect_variance( V, P )
     randomeffect_vars_d, r2_d  = util.assign_randomeffect_vars(np.array(out['randomeffect_vars']),
-            np.array(out['r2']), random_covars_d)
+            np.array(out['r2']), random_covars)
 
     # wald
     Vy = np.diag(hom2 + np.diag(P @ V @ P.T) + vs)
     Z = [np.identity(len(y))] + [np.diag(P[:,i]) for i in range(C)]
     if len(r2_d.keys()) > 0:
         for key in np.sort( list(r2_d.keys()) ):
-            M_ = np.loadtxt( random_covars_d[key] )
+            M_ = random_covars[key]
             Vy = Vy + r2_d[key] * M_ @ M_.T
             Z.append( M_ )
     D = wald.reml_asymptotic_dispersion_matrix(X, Z, Vy)
@@ -548,7 +548,7 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
         jacks = {'ct_beta':[], 'hom2':[], 'V':[]}
         for i in range(N):
             y_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, P_tmp = cuomo_ctng_test.he_jackknife_rmInd(
-                    i, y, vs, fixed_covars_d, random_covars_d, P)
+                    i, y, vs, fixed_covars, random_covars, P)
 
             out_tmp = reml(y_tmp, P_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, method, par)
             
@@ -609,11 +609,11 @@ def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fa
     X = get_X(P, fixed_covars_d)
     n_par = 1 + C + len(random_covars_d.keys()) # hom2, V, random covars
 
-    random_covars_array_d = {}
+    random_covars = {}
     for key in random_covars_d.keys():
-        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
+        random_covars[key] = np.loadtxt( random_covars_d[key] )
 
-    theta = free_HE_(X, y, P, D, random_covars_array_d)
+    theta = free_HE_(X, y, P, D, random_covars)
     hom2 = theta['var'][0]
     V = np.diag(theta['var'][1:])
     ct_beta = theta['beta']['ct_beta']
@@ -623,11 +623,11 @@ def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fa
     if jack_knife:
         jacks = []
         for i in range(N):
-            random_covars_array_d_ = {}
-            for key in random_covars_array_d.keys():
-                random_covars_array_d_[key] = np.delete(random_covars_array_d[key], i, axis=0)
+            random_covars_jk = {}
+            for key in random_covars.keys():
+                random_covars_jk[key] = np.delete(random_covars[key], i, axis=0)
             jacks.append( free_HE_( np.delete(X,i,axis=0), np.delete(y,i), np.delete(P,i,axis=0),
-                np.diag(np.delete(vs,i)), random_covars_array_d_ ) )
+                np.diag(np.delete(vs,i)), random_covars_jk ) )
         jacks_hom2 = [x['var'][0] for x in jacks]
         var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
         jacks_V = [x['var'][1:] for x in jacks]
@@ -665,7 +665,7 @@ def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS'
         return( out )
 
     # par
-    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
@@ -674,15 +674,15 @@ def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS'
     N, C = P.shape
     X = get_X(P, fixed_covars_d)
 
-    out = ml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par)
+    out = ml(y, P_f, vs, fixed_covars, random_covars, method, par)
 
     beta, V, l, hess = np.array(out['beta']), np.array(out['V']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
     ct_random_var, ct_specific_random_var = util.ct_randomeffect_variance( V, P )
-    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars_d)
-    beta_d = util.assign_beta(beta, P, fixed_covars_d)
+    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars)
+    beta_d = util.assign_beta(beta, P, fixed_covars)
     randomeffect_vars_d, r2_d = util.assign_randomeffect_vars( np.array(out['randomeffect_vars']),
-            np.array(out['r2']), random_covars_d)
+            np.array(out['r2']), random_covars)
 
     ml = {'beta':beta_d, 'V':V, 'l':l, 'ct_random_var':ct_random_var, 'ct_specific_random_var':ct_specific_random_var,
             'fixedeffect_vars':fixedeffect_vars_d, 'randomeffect_vars':randomeffect_vars_d,
@@ -708,24 +708,24 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
         return( out )
 
     # par
-    fixed_covars_d, random_covars_d, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
+    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
             fixed_covars_d, random_covars_d)
 
     y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(nu_f)
     N, C = P.shape
-    X = get_X(P, fixed_covars_d)
+    X = get_X(P, fixed_covars)
 
-    out = reml(y, P_f, vs, fixed_covars_d, random_covars_d, method, par)
+    out = reml(y, P_f, vs, fixed_covars, random_covars, method, par)
     
     V, beta, l, hess = np.array(out['V']), np.array(out['beta']), out['l'][0], np.array(out['hess'])
     convergence = out['convergence'][0]
-    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars_d)
-    beta_d = util.assign_beta(beta, P, fixed_covars_d)
+    fixedeffect_vars_d = util.assign_fixedeffect_vars( np.array(out['fixedeffect_vars']), fixed_covars)
+    beta_d = util.assign_beta(beta, P, fixed_covars)
     ct_random_var, ct_specific_random_var = util.ct_randomeffect_variance( V, P )
     randomeffect_vars_d, r2_d  = util.assign_randomeffect_vars(np.array(out['randomeffect_vars']),
-            np.array(out['r2']), random_covars_d)
+            np.array(out['r2']), random_covars)
 
     reml = {'V':V, 'beta':beta_d, 'l':l, 'ct_random_var':ct_random_var, 
             'ct_specific_random_var':ct_specific_random_var,
@@ -777,11 +777,11 @@ def full_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}):
     D = np.diag(vs)
     X = get_X(P, fixed_covars_d)
 
-    random_covars_array_d = {}
+    random_covars = {}
     for key in random_covars_d.keys():
-        random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
+        random_covars[key] = np.loadtxt( random_covars_d[key] )
 
-    theta = full_HE_(X, y, P, D, random_covars_array_d)
+    theta = full_HE_(X, y, P, D, random_covars)
     V = np.zeros((C,C))
     V[np.triu_indices(C,k=1)] = theta['var'][C:]
     V = V + V.T + np.diag(theta['var'][:C])
