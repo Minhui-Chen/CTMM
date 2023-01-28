@@ -7,7 +7,7 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr
 from rpy2.robjects.packages import STAP
 from rpy2.robjects.conversion import localconverter
-import wald, util
+import wald, util, op
 
 def get_X(P, fixed_covars_d):
     X = P
@@ -20,22 +20,22 @@ def get_X(P, fixed_covars_d):
         X = np.concatenate( (X, m_), axis=1)
     return(X)
 
-def he_fun(M, Y, proj, random_covars={}):
-    M_ = M
-    for key in np.sort( list(random_covars.keys()) ):
-        Q = random_covars[key]
-        m = (proj @ Q @ Q.T @ proj).flatten('F').reshape((-1,1))
-        M = np.concatenate( ( M, m ), axis=1 )
-
-    theta_ = np.linalg.inv( M.T @ M ) @ M.T @ Y
-    theta = {'var':theta_[:M_.shape[1]], 'r2':{}}
-    theta_ = theta_[M_.shape[1]:]
-    for key in np.sort( list(random_covars.keys()) ):
-        theta['r2'][key] = theta_[0]
-        theta_ = theta_[1:]
-    #vars = (((Y - M @ ests)**2).sum() / len(Y)) * np.linalg.inv( M.T @ M )
-    return( theta )
-
+#def he_fun(M, Y, proj, random_covars={}):
+#    M_ = M
+#    for key in np.sort( list(random_covars.keys()) ):
+#        Q = random_covars[key]
+#        m = (proj @ Q @ Q.T @ proj).flatten('F').reshape((-1,1))
+#        M = np.concatenate( ( M, m ), axis=1 )
+#
+#    theta_ = np.linalg.inv( M.T @ M ) @ M.T @ Y
+#    theta = {'var':theta_[:M_.shape[1]], 'r2':{}}
+#    theta_ = theta_[M_.shape[1]:]
+#    for key in np.sort( list(random_covars.keys()) ):
+#        theta['r2'][key] = theta_[0]
+#        theta_ = theta_[1:]
+#    #vars = (((Y - M @ ests)**2).sum() / len(Y)) * np.linalg.inv( M.T @ M )
+#    return( theta )
+#
 def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
     print('Hom ML')
 
@@ -152,74 +152,74 @@ def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS
             n=N, P=n_par)
     return(reml, wald_p)
 
-def hom_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
-    print('Hom HE')
-    start = time.time()
-
-    def hom_HE_(X, y, P, D, random_covars):
-        N = len(y)
-        proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
-
-        # project out fixed effects
-        y_p = proj @ y
-        t = ( np.outer(y_p, y_p) - proj @ D @ proj ).flatten('F')
-
-        M = proj.flatten('F').reshape((-1,1))
-
-        # estimate variances for random effects
-        theta = he_fun( M, t, proj, random_covars )
-        hom2 = theta['var'][0]
-
-        # 
-        sig2s = hom2 * np.eye(N) + D
-        for key in np.sort( list(random_covars.keys()) ):
-            Q = random_covars[key]
-            sig2s += ( Q @ Q.T ) * theta['r2'][key]
-
-        beta = util.glse( sig2s, X, y )
-        beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
-        theta['beta'] = beta_d
-        return( theta )
-
-    y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    N, C = P.shape
-    vs = np.loadtxt(nu_f)
-    D = np.diag(vs)
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + len(random_covars_d.keys()) + X.shape[1]
-
-    random_covars = {}
-    for key in random_covars_d.keys():
-        random_covars[key] = np.loadtxt( random_covars_d[key] )
-
-    theta = hom_HE_(X, y, P, D, random_covars)
-    hom2 = theta['var'][0]
-    ct_beta = theta['beta']['ct_beta']
-    he = {'hom2':hom2, 'r2':theta['r2'], 'beta':theta['beta']}
-
-    # jackknife
-    if jack_knife:
-        jacks = []
-        for i in range(N):
-            random_covars_jk = {}
-            for key in random_covars.keys():
-                random_covars_jk[key] = np.delete(random_covars[key], i, axis=0)
-            jacks.append( hom_HE_( np.delete(X,i,axis=0), np.delete(y,i), np.delete(P,i,axis=0),
-                np.diag(np.delete(vs,i)), random_covars_jk ) )
-        jacks_hom2 = [x['var'][0] for x in jacks]
-        var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
-        jacks_beta = [x['beta']['ct_beta']  for x in jacks]
-        var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
-
-        p = {'hom2': wald.wald_test(hom2, 0, var_hom2, N-n_par)}
-        p['ct_beta'] = util.wald_ct_beta( ct_beta, var_beta, n=N, P=n_par )
-    else:
-        p = {'hom2':1, 'ct_beta':1}
-
-    print( time.time() - start )
-    return( he, p )
-
+#def hom_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
+#    print('Hom HE')
+#    start = time.time()
+#
+#    def hom_HE_(X, y, P, D, random_covars):
+#        N = len(y)
+#        proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
+#
+#        # project out fixed effects
+#        y_p = proj @ y
+#        t = ( np.outer(y_p, y_p) - proj @ D @ proj ).flatten('F')
+#
+#        M = proj.flatten('F').reshape((-1,1))
+#
+#        # estimate variances for random effects
+#        theta = he_fun( M, t, proj, random_covars )
+#        hom2 = theta['var'][0]
+#
+#        # 
+#        sig2s = hom2 * np.eye(N) + D
+#        for key in np.sort( list(random_covars.keys()) ):
+#            Q = random_covars[key]
+#            sig2s += ( Q @ Q.T ) * theta['r2'][key]
+#
+#        beta = util.glse( sig2s, X, y )
+#        beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
+#        theta['beta'] = beta_d
+#        return( theta )
+#
+#    y = np.loadtxt(y_f)
+#    P = np.loadtxt(P_f)
+#    N, C = P.shape
+#    vs = np.loadtxt(nu_f)
+#    D = np.diag(vs)
+#    X = get_X(P, fixed_covars_d)
+#    n_par = 1 + len(random_covars_d.keys()) + X.shape[1]
+#
+#    random_covars = {}
+#    for key in random_covars_d.keys():
+#        random_covars[key] = np.loadtxt( random_covars_d[key] )
+#
+#    theta = hom_HE_(X, y, P, D, random_covars)
+#    hom2 = theta['var'][0]
+#    ct_beta = theta['beta']['ct_beta']
+#    he = {'hom2':hom2, 'r2':theta['r2'], 'beta':theta['beta']}
+#
+#    # jackknife
+#    if jack_knife:
+#        jacks = []
+#        for i in range(N):
+#            random_covars_jk = {}
+#            for key in random_covars.keys():
+#                random_covars_jk[key] = np.delete(random_covars[key], i, axis=0)
+#            jacks.append( hom_HE_( np.delete(X,i,axis=0), np.delete(y,i), np.delete(P,i,axis=0),
+#                np.diag(np.delete(vs,i)), random_covars_jk ) )
+#        jacks_hom2 = [x['var'][0] for x in jacks]
+#        var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
+#        jacks_beta = [x['beta']['ct_beta']  for x in jacks]
+#        var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
+#
+#        p = {'hom2': wald.wald_test(hom2, 0, var_hom2, N-n_par)}
+#        p['ct_beta'] = util.wald_ct_beta( ct_beta, var_beta, n=N, P=n_par )
+#    else:
+#        p = {'hom2':1, 'ct_beta':1}
+#
+#    print( time.time() - start )
+#    return( he, p )
+#
 def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
     print('IID ML')
 
@@ -342,80 +342,80 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS
             n=N, P=n_par)
     return(reml, wald_p)
 
-def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
-    print('IID HE')
-    start = time.time()
-
-    def iid_HE_(X, y, P, D, random_covars_array_d):
-        N = len(y)
-        proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
-
-        # project out fixed effects
-        y_p = proj @ y
-        t = ( np.outer(y_p, y_p) - proj @ D @ proj ).flatten('F')
-
-        M = np.array( [proj.flatten('F'),
-            ( proj @ np.diag(np.diag(P @ P.T)) @ proj).flatten('F')] ).T
-
-        # estimate variances for random effects
-        theta = he_fun( M, t, proj, random_covars_array_d )
-        hom2 = theta['var'][0]
-        het = theta['var'][1]
-
-        # 
-        sig2s = hom2 * np.eye(N) + het * np.diag(np.diag(P @ P.T)) + D
-        for key in np.sort( list(random_covars_array_d.keys()) ):
-            Q = random_covars_array_d[key]
-            sig2s += ( Q @ Q.T ) * theta['r2'][key]
-
-        beta = util.glse( sig2s, X, y )
-        beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
-        theta['beta'] = beta_d
-        return( theta )
-
-    y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    N, C = P.shape
-    vs = np.loadtxt(nu_f)
-    D = np.diag(vs)
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + 1 + len(random_covars_d.keys()) + X.shape[1]
-
-    random_covars = {}
-    for key in random_covars_d.keys():
-        random_covars[key] = np.loadtxt( random_covars_d[key] )
-
-    theta = iid_HE_(X, y, P, D, random_covars)
-    hom2 = theta['var'][0]
-    het = theta['var'][1]
-    ct_beta = theta['beta']['ct_beta']
-    he = {'hom2':hom2, 'V':het * np.eye(C), 'r2':theta['r2'], 'beta':theta['beta']}
-
-    # jackknife
-    if jack_knife:
-        jacks = []
-        for i in range(N):
-            random_covars_jk = {}
-            for key in random_covars.keys():
-                random_covars_jk[key] = np.delete(random_covars[key], i, axis=0)
-            jacks.append( iid_HE_( np.delete(X,i,axis=0), np.delete(y,i), np.delete(P,i,axis=0),
-                np.diag(np.delete(vs,i)), random_covars_jk ) )
-        jacks_hom2 = [x['var'][0] for x in jacks]
-        var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
-        jacks_het = [x['var'][1] for x in jacks]
-        var_het = (len(jacks) - 1.0) * np.var(jacks_het)
-        jacks_beta = [x['beta']['ct_beta']  for x in jacks]
-        var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
-
-        p = {'hom2': wald.wald_test(hom2, 0, var_hom2, N-n_par), 
-                'V': wald.wald_test(het, 0, var_het, N-n_par)}
-        p['ct_beta'] = util.wald_ct_beta( ct_beta, var_beta, n=N, P=n_par )
-    else:
-        p = {'hom2':1, 'V':1, 'ct_beta':1}
-
-    print( time.time() - start )
-    return( he, p )
-
+#def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
+#    print('IID HE')
+#    start = time.time()
+#
+#    def iid_HE_(X, y, P, D, random_covars_array_d):
+#        N = len(y)
+#        proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
+#
+#        # project out fixed effects
+#        y_p = proj @ y
+#        t = ( np.outer(y_p, y_p) - proj @ D @ proj ).flatten('F')
+#
+#        M = np.array( [proj.flatten('F'),
+#            ( proj @ np.diag(np.diag(P @ P.T)) @ proj).flatten('F')] ).T
+#
+#        # estimate variances for random effects
+#        theta = he_fun( M, t, proj, random_covars_array_d )
+#        hom2 = theta['var'][0]
+#        het = theta['var'][1]
+#
+#        # 
+#        sig2s = hom2 * np.eye(N) + het * np.diag(np.diag(P @ P.T)) + D
+#        for key in np.sort( list(random_covars_array_d.keys()) ):
+#            Q = random_covars_array_d[key]
+#            sig2s += ( Q @ Q.T ) * theta['r2'][key]
+#
+#        beta = util.glse( sig2s, X, y )
+#        beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
+#        theta['beta'] = beta_d
+#        return( theta )
+#
+#    y = np.loadtxt(y_f)
+#    P = np.loadtxt(P_f)
+#    N, C = P.shape
+#    vs = np.loadtxt(nu_f)
+#    D = np.diag(vs)
+#    X = get_X(P, fixed_covars_d)
+#    n_par = 1 + 1 + len(random_covars_d.keys()) + X.shape[1]
+#
+#    random_covars = {}
+#    for key in random_covars_d.keys():
+#        random_covars[key] = np.loadtxt( random_covars_d[key] )
+#
+#    theta = iid_HE_(X, y, P, D, random_covars)
+#    hom2 = theta['var'][0]
+#    het = theta['var'][1]
+#    ct_beta = theta['beta']['ct_beta']
+#    he = {'hom2':hom2, 'V':het * np.eye(C), 'r2':theta['r2'], 'beta':theta['beta']}
+#
+#    # jackknife
+#    if jack_knife:
+#        jacks = []
+#        for i in range(N):
+#            random_covars_jk = {}
+#            for key in random_covars.keys():
+#                random_covars_jk[key] = np.delete(random_covars[key], i, axis=0)
+#            jacks.append( iid_HE_( np.delete(X,i,axis=0), np.delete(y,i), np.delete(P,i,axis=0),
+#                np.diag(np.delete(vs,i)), random_covars_jk ) )
+#        jacks_hom2 = [x['var'][0] for x in jacks]
+#        var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
+#        jacks_het = [x['var'][1] for x in jacks]
+#        var_het = (len(jacks) - 1.0) * np.var(jacks_het)
+#        jacks_beta = [x['beta']['ct_beta']  for x in jacks]
+#        var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
+#
+#        p = {'hom2': wald.wald_test(hom2, 0, var_hom2, N-n_par), 
+#                'V': wald.wald_test(het, 0, var_het, N-n_par)}
+#        p['ct_beta'] = util.wald_ct_beta( ct_beta, var_beta, n=N, P=n_par )
+#    else:
+#        p = {'hom2':1, 'V':1, 'ct_beta':1}
+#
+#    print( time.time() - start )
+#    return( he, p )
+#
 def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
     print('Free ML', method)
 
@@ -568,84 +568,84 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
 
     return(reml, wald_p)
 
-def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
-    print('Free HE')
-    start = time.time()
-
-    def free_HE_(X, y, P, D, random_covars_array_d):
-        N = len(y)
-        proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
-
-        # project out fixed effects
-        y_p = proj @ y
-        t = ( np.outer(y_p, y_p) - proj @ D @ proj ).flatten('F')
-
-        M = [proj.flatten('F')]
-        for i in range(C):
-            M.append( (proj @ np.diag( P[:,i]**2 ) @ proj).flatten('F') )
-        M = np.array( M ).T
-
-        # estimate variances for random effects
-        theta = he_fun( M, t, proj, random_covars_array_d )
-        hom2 = theta['var'][0]
-        V = np.diag(theta['var'][1:])
-
-        # 
-        sig2s = hom2 * np.eye(N) + np.diag(np.diag(P @ V @ P.T)) + D
-        for key in np.sort( list(random_covars_array_d.keys()) ):
-            Q = random_covars_array_d[key]
-            sig2s += ( Q @ Q.T ) * theta['r2'][key]
-
-        beta = util.glse( sig2s, X, y )
-        beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
-        theta['beta'] = beta_d
-        return( theta )
-
-    y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    N, C = P.shape
-    vs = np.loadtxt(nu_f)
-    D = np.diag(vs)
-    X = get_X(P, fixed_covars_d)
-    n_par = 1 + C + len(random_covars_d.keys()) + X.shape[1]
-
-    random_covars = {}
-    for key in random_covars_d.keys():
-        random_covars[key] = np.loadtxt( random_covars_d[key] )
-
-    theta = free_HE_(X, y, P, D, random_covars)
-    hom2 = theta['var'][0]
-    V = np.diag(theta['var'][1:])
-    ct_beta = theta['beta']['ct_beta']
-    he = {'hom2': hom2, 'V': V, 'r2':theta['r2'], 'beta': theta['beta']}
-
-    # jackknife
-    if jack_knife:
-        jacks = []
-        for i in range(N):
-            random_covars_jk = {}
-            for key in random_covars.keys():
-                random_covars_jk[key] = np.delete(random_covars[key], i, axis=0)
-            jacks.append( free_HE_( np.delete(X,i,axis=0), np.delete(y,i), np.delete(P,i,axis=0),
-                np.diag(np.delete(vs,i)), random_covars_jk ) )
-        jacks_hom2 = [x['var'][0] for x in jacks]
-        var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
-        jacks_V = [x['var'][1:] for x in jacks]
-        var_V = (len(jacks) - 1.0) * np.cov(np.array(jacks_V).T, bias=True)
-        jacks_beta = [x['beta']['ct_beta']  for x in jacks]
-        var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
-
-        p = {'hom2': wald.wald_test(hom2, 0, var_hom2, N-n_par), 
-                'V': wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par),
-                'V_iid': util.wald_ct_beta(np.diag(V), var_V, n=N, P=n_par)}
-        p['Vi'] = [wald.wald_test(V[i,i], 0, var_V[i,i], N-n_par) for i in range(C)]
-        p['ct_beta'] = util.wald_ct_beta( ct_beta, var_beta, n=N, P=n_par )
-    else:
-        p = {'hom2':1, 'V':1, 'Vi':np.ones(C), 'ct_beta':1}
-
-    print( time.time() - start )
-    return( he, p )
-
+#def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
+#    print('Free HE')
+#    start = time.time()
+#
+#    def free_HE_(X, y, P, D, random_covars_array_d):
+#        N = len(y)
+#        proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
+#
+#        # project out fixed effects
+#        y_p = proj @ y
+#        t = ( np.outer(y_p, y_p) - proj @ D @ proj ).flatten('F')
+#
+#        M = [proj.flatten('F')]
+#        for i in range(C):
+#            M.append( (proj @ np.diag( P[:,i]**2 ) @ proj).flatten('F') )
+#        M = np.array( M ).T
+#
+#        # estimate variances for random effects
+#        theta = he_fun( M, t, proj, random_covars_array_d )
+#        hom2 = theta['var'][0]
+#        V = np.diag(theta['var'][1:])
+#
+#        # 
+#        sig2s = hom2 * np.eye(N) + np.diag(np.diag(P @ V @ P.T)) + D
+#        for key in np.sort( list(random_covars_array_d.keys()) ):
+#            Q = random_covars_array_d[key]
+#            sig2s += ( Q @ Q.T ) * theta['r2'][key]
+#
+#        beta = util.glse( sig2s, X, y )
+#        beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
+#        theta['beta'] = beta_d
+#        return( theta )
+#
+#    y = np.loadtxt(y_f)
+#    P = np.loadtxt(P_f)
+#    N, C = P.shape
+#    vs = np.loadtxt(nu_f)
+#    D = np.diag(vs)
+#    X = get_X(P, fixed_covars_d)
+#    n_par = 1 + C + len(random_covars_d.keys()) + X.shape[1]
+#
+#    random_covars = {}
+#    for key in random_covars_d.keys():
+#        random_covars[key] = np.loadtxt( random_covars_d[key] )
+#
+#    theta = free_HE_(X, y, P, D, random_covars)
+#    hom2 = theta['var'][0]
+#    V = np.diag(theta['var'][1:])
+#    ct_beta = theta['beta']['ct_beta']
+#    he = {'hom2': hom2, 'V': V, 'r2':theta['r2'], 'beta': theta['beta']}
+#
+#    # jackknife
+#    if jack_knife:
+#        jacks = []
+#        for i in range(N):
+#            random_covars_jk = {}
+#            for key in random_covars.keys():
+#                random_covars_jk[key] = np.delete(random_covars[key], i, axis=0)
+#            jacks.append( free_HE_( np.delete(X,i,axis=0), np.delete(y,i), np.delete(P,i,axis=0),
+#                np.diag(np.delete(vs,i)), random_covars_jk ) )
+#        jacks_hom2 = [x['var'][0] for x in jacks]
+#        var_hom2 = (len(jacks) - 1.0) * np.var(jacks_hom2)
+#        jacks_V = [x['var'][1:] for x in jacks]
+#        var_V = (len(jacks) - 1.0) * np.cov(np.array(jacks_V).T, bias=True)
+#        jacks_beta = [x['beta']['ct_beta']  for x in jacks]
+#        var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
+#
+#        p = {'hom2': wald.wald_test(hom2, 0, var_hom2, N-n_par), 
+#                'V': wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par),
+#                'V_iid': util.wald_ct_beta(np.diag(V), var_V, n=N, P=n_par)}
+#        p['Vi'] = [wald.wald_test(V[i,i], 0, var_V[i,i], N-n_par) for i in range(C)]
+#        p['ct_beta'] = util.wald_ct_beta( ct_beta, var_beta, n=N, P=n_par )
+#    else:
+#        p = {'hom2':1, 'V':1, 'Vi':np.ones(C), 'ct_beta':1}
+#
+#    print( time.time() - start )
+#    return( he, p )
+#
 def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
     print('Full ML', method)
 
@@ -733,64 +733,64 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
             'fixedeffect_vars':fixedeffect_vars_d, 'nu':np.mean(vs), 'hess':hess, 'convergence':convergence}
     return(reml)
 
-def full_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}):
-    print('Full HE')
-    start = time.time()
-
-    def full_HE_(X, y, P, D, random_covars_array_d):
-        N = len(y)
-        proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
-
-        # project out fixed effects
-        y_p = proj @ y
-        t = ( np.outer(y_p, y_p) - proj @ D @ proj ).flatten('F')
-
-        M = []
-        for i in range(C):
-            M.append( (proj @ np.diag( P[:,i]**2 ) @ proj).flatten('F') )
-        for i in range(C-1):
-            for j in range(i+1,C):
-                M.append( 2*(proj @ np.diag( P[:,i] * P[:,j] ) @ proj).flatten('F') )
-        M = np.array( M ).T
-
-        # estimate variances for random effects
-        theta = he_fun( M, t, proj, random_covars_array_d )
-        V = np.zeros((C,C))
-        V[np.triu_indices(C,k=1)] = theta['var'][C:]
-        V = V + V.T + np.diag(theta['var'][:C])
-
-        # 
-        sig2s = np.diag(np.diag(P @ V @ P.T)) + D
-        for key in np.sort( list(random_covars_array_d.keys()) ):
-            Q = random_covars_array_d[key]
-            sig2s += ( Q @ Q.T ) * theta['r2'][key]
-
-        beta = util.glse( sig2s, X, y )
-        beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
-        theta['beta'] = beta_d
-        return( theta )
-
-    y = np.loadtxt(y_f)
-    P = np.loadtxt(P_f)
-    N, C = P.shape
-    vs = np.loadtxt(nu_f)
-    D = np.diag(vs)
-    X = get_X(P, fixed_covars_d)
-
-    random_covars = {}
-    for key in random_covars_d.keys():
-        random_covars[key] = np.loadtxt( random_covars_d[key] )
-
-    theta = full_HE_(X, y, P, D, random_covars)
-    V = np.zeros((C,C))
-    V[np.triu_indices(C,k=1)] = theta['var'][C:]
-    V = V + V.T + np.diag(theta['var'][:C])
-    ct_beta = theta['beta']['ct_beta']
-    he = {'V': V, 'r2':theta['r2'], 'beta': theta['beta']}
-
-    print( time.time() - start )
-    return( he )
-
+#def full_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}):
+#    print('Full HE')
+#    start = time.time()
+#
+#    def full_HE_(X, y, P, D, random_covars_array_d):
+#        N = len(y)
+#        proj = np.eye( N ) - X @ np.linalg.inv(X.T @ X) @ X.T
+#
+#        # project out fixed effects
+#        y_p = proj @ y
+#        t = ( np.outer(y_p, y_p) - proj @ D @ proj ).flatten('F')
+#
+#        M = []
+#        for i in range(C):
+#            M.append( (proj @ np.diag( P[:,i]**2 ) @ proj).flatten('F') )
+#        for i in range(C-1):
+#            for j in range(i+1,C):
+#                M.append( 2*(proj @ np.diag( P[:,i] * P[:,j] ) @ proj).flatten('F') )
+#        M = np.array( M ).T
+#
+#        # estimate variances for random effects
+#        theta = he_fun( M, t, proj, random_covars_array_d )
+#        V = np.zeros((C,C))
+#        V[np.triu_indices(C,k=1)] = theta['var'][C:]
+#        V = V + V.T + np.diag(theta['var'][:C])
+#
+#        # 
+#        sig2s = np.diag(np.diag(P @ V @ P.T)) + D
+#        for key in np.sort( list(random_covars_array_d.keys()) ):
+#            Q = random_covars_array_d[key]
+#            sig2s += ( Q @ Q.T ) * theta['r2'][key]
+#
+#        beta = util.glse( sig2s, X, y )
+#        beta_d, fixedeffect_vars_d = util.fixedeffect_vars( beta, P, fixed_covars_d )
+#        theta['beta'] = beta_d
+#        return( theta )
+#
+#    y = np.loadtxt(y_f)
+#    P = np.loadtxt(P_f)
+#    N, C = P.shape
+#    vs = np.loadtxt(nu_f)
+#    D = np.diag(vs)
+#    X = get_X(P, fixed_covars_d)
+#
+#    random_covars = {}
+#    for key in random_covars_d.keys():
+#        random_covars[key] = np.loadtxt( random_covars_d[key] )
+#
+#    theta = full_HE_(X, y, P, D, random_covars)
+#    V = np.zeros((C,C))
+#    V[np.triu_indices(C,k=1)] = theta['var'][C:]
+#    V = V + V.T + np.diag(theta['var'][:C])
+#    ct_beta = theta['beta']['ct_beta']
+#    he = {'V': V, 'r2':theta['r2'], 'beta': theta['beta']}
+#
+#    print( time.time() - start )
+#    return( he )
+#
 def main():
     # par
     params = snakemake.params
@@ -824,9 +824,9 @@ def main():
             snakemake.params.HE = True
 
         if snakemake.params.HE:
-            hom_he, hom_he_p = hom_HE(y_f, P_f, nu_f, jack_knife=True)
-            free_he, free_he_p = free_HE(y_f, P_f, nu_f, jack_knife=True)
-            full_he = full_HE(y_f, P_f, nu_f)
+            hom_he, hom_he_p = op.hom_HE(y_f, P_f, nu_f, jack_knife=True)
+            free_he, free_he_p = op.free_HE(y_f, P_f, nu_f, jack_knife=True)
+            full_he = op.full_HE(y_f, P_f, nu_f)
 
             out['he'] = {'hom': hom_he, 'free': free_he, 'full': full_he,
                     'wald':{'hom':hom_he_p, 'free':free_he_p}}
