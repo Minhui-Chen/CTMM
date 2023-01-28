@@ -318,7 +318,7 @@ def iid_ML_loglike(par, y, P, X, C, vs, random_MMT):
 
     return( ML_LL(y, P, X, vs, beta, hom2, V, r2, random_MMT) )
 
-def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None):
+def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10):
     print('IID ML')
 
     def extract( out, C, X, P, fixed_covars, random_covars ):
@@ -381,7 +381,7 @@ def iid_REML_loglike(par, y, P, X, C, vs, random_MMT):
     r2 = par[2:]
     return( REML_LL(y, P, X, C, vs, hom2, V, r2, random_MMT) )
 
-def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None):
+def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10):
     print('IID REML')
 
     def extract(out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT):
