@@ -297,22 +297,22 @@ def r_optim(Y, P, ctnu, fixed_covars, random_covars, par, nrep, ml, model, metho
     if model == 'hom':
         out_ = r_optim.screml_hom(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
-                random=util.dict2Rlist(random_covars, order=False), 
+                random=util.dict2Rlist(random_covars), 
                 par=par, nrep=nrep, method=method)
     elif model == 'iid':
         out_ = r_optim.screml_iid(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
-                random=util.dict2Rlist(random_covars, order=False), 
+                random=util.dict2Rlist(random_covars), 
                 par=par, nrep=nrep, method=method)
     elif model == 'free':
         out_ = r_optim.screml_free(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
-                random=util.dict2Rlist(random_covars, order=False), 
+                random=util.dict2Rlist(random_covars), 
                 par=par, nrep=nrep, method=method)
     elif model == 'full':
         out_ = r_optim.screml_full(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
-                random=util.dict2Rlist(random_covars, order=False), 
+                random=util.dict2Rlist(random_covars), 
                 par=par, nrep=nrep, method=method)
     numpy2ri.deactivate()
     out = {}
