@@ -7,7 +7,7 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr
 from rpy2.robjects.packages import STAP
 from rpy2.robjects.conversion import localconverter
-import wald, util, cuomo_ctng_test
+import wald, util
 
 def get_X(P, fixed_covars_d):
     X = P
@@ -547,7 +547,7 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
     else:
         jacks = {'ct_beta':[], 'hom2':[], 'V':[]}
         for i in range(N):
-            y_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, P_tmp = cuomo_ctng_test.he_jackknife_rmInd(
+            y_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, P_tmp = util.jk_rmInd(
                     i, y, vs, fixed_covars, random_covars, P)
 
             out_tmp = reml(y_tmp, P_tmp, vs_tmp, fixed_covars_d_tmp, random_covars_d_tmp, method, par)
