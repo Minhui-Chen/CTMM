@@ -157,7 +157,7 @@ rule op_test:
         HE = True,
     resources:
         mem_per_cpu = '5000',
-    script: 'bin/op_test.py'
+    script: 'bin/op_R.py'
 
 rule op_aggReplications:
     input:
@@ -214,7 +214,7 @@ rule op_test_remlJK:
         HE = False,
     resources:
         mem_per_cpu = '10gb',
-    script: 'bin/op_test.py'
+    script: 'bin/op_R.py'
 
 use rule op_aggReplications as op_remlJK_aggReplications with:
     input:
@@ -270,11 +270,13 @@ rule ctp_test:
         ML = True,
         REML = True,
         HE = True,
+        optim_by_r = True,
     resources:
         mem_per_cpu = '5gb',
         time = '48:00:00',
     priority: 1
-    script: 'bin/ctp_test.py'
+    script: 'bin/ctp_scipy.py'
+    #script: 'bin/CTP/ctp.py'
 
 use rule op_aggReplications as ctp_aggReplications with:
     input:
@@ -296,10 +298,12 @@ rule ctp_test_scipy:
         ML = True,
         REML = True,
         HE = True,
+        optim_by_r = False,
     resources:
+        mem_per_cpu = '5gb',
         time = '48:00:00',
     priority: 1
-    script: 'bin/ctp.py'
+    script: 'bin/ctp_scipy.py'
 
 use rule op_aggReplications as ctp_scipy_aggReplications with:
     input:
@@ -313,7 +317,7 @@ use rule op_compare_optim_RvsPython as ctp_compare_optim_RvsPython with:
         r = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
         p = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.scipy.npy',
     output:
-        png = touch(f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/optim.RvsPython.txt'),
+        png = f'analysis/ctp/{{model}}/{op_paramspace.wildcard_pattern}/optim.RvsPython.png',
 
 rule ctp_test_remlJK:
     input:
@@ -748,7 +752,7 @@ rule cuomo_op_test:
         time = '48:00:00',
         mem = '8gb',
     priority: -1
-    script: "bin/cuomo_op_test.py"
+    script: "bin/cuomo/op_test.py"
 
 #def cuomo_op_test_agg(wildcards):
 #    checkpoint_output = checkpoints.cuomo_split2batches.get(**wildcards).output[0]
