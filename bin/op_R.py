@@ -83,7 +83,7 @@ def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS',
             Vy = Vy + r2_d[key] * M_ @ M_.T
             Z.append( M_ )
     D = wald.asymptotic_dispersion_matrix(X, Z, Vy)
-    ml = {'hom2':hom2, 'beta':beta_d, 'l':l, 'D':D, 'fixedeffect_vars':fixedeffect_vars_d,
+    res = {'hom2':hom2, 'beta':beta_d, 'l':l, 'D':D, 'fixedeffect_vars':fixedeffect_vars_d,
             'randomeffect_vars':randomeffect_vars_d, 'r2':r2_d, 'nu':np.mean(vs), 'hess':hess, 
             'convergence':convergence}
 
@@ -91,7 +91,7 @@ def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS',
     wald_p['hom2'] = wald.wald_test(hom2, 0, D[X.shape[1],X.shape[1]], N-n_par)
     wald_p['beta'] = [wald.wald_test(beta[i], 0, D[i,i], N-n_par, two_sided=True) for i in range(X.shape[1])]
     wald_p['ct_beta'] = util.wald_ct_beta(beta[:C], D[:C,:C], n=N, P=n_par)
-    return(ml, wald_p)
+    return(res, wald_p)
 
 def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
     print('Hom REML')
@@ -141,16 +141,15 @@ def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS
             Z.append( M_ )
     D = wald.reml_asymptotic_dispersion_matrix(X, Z, Vy)
 
-    reml = {'hom2':hom2, 'beta':beta_d, 'l':l, 'D':D, 'fixedeffect_vars':fixedeffect_vars_d,
+    res = {'hom2':hom2, 'beta':beta_d, 'l':l, 'D':D, 'fixedeffect_vars':fixedeffect_vars_d,
             'randomeffect_vars':randomeffect_vars_d, 'r2':r2_d, 'nu':np.mean(vs), 'hess':hess, 
             'convergence':convergence}
     wald_p = {}
     wald_p['hom2'] = wald.wald_test(hom2, 0, D[0,0], N-n_par)
     # wald test beta1 = beta2 = beta3
-    X = get_X(P, fixed_covars_d)
     wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
             n=N, P=n_par)
-    return(reml, wald_p)
+    return(res, wald_p)
 
 #def hom_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
 #    print('Hom HE')
@@ -268,7 +267,7 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS',
             Vy = Vy + r2_d[key] * M_ @ M_.T
             Z.append( M_ )
     D = wald.asymptotic_dispersion_matrix(X, Z, Vy)
-    ml = {'hom2':hom2, 'beta':beta_d, 'V':V, 'l':l, 'D':D,
+    res = {'hom2':hom2, 'beta':beta_d, 'V':V, 'l':l, 'D':D,
             'ct_random_var':ct_random_var, 'ct_specific_random_var':ct_specific_random_var,
             'fixedeffect_vars':fixedeffect_vars_d, 'randomeffect_vars':randomeffect_vars_d, 'r2':r2_d,
             'nu':np.mean(vs), 'hess':hess, 'convergence':convergence}
@@ -278,7 +277,7 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS',
     wald_p['V'] = wald.wald_test(V[0,0], 0, D[X.shape[1]+1,X.shape[1]+1], N-n_par)
     wald_p['beta'] = [wald.wald_test(beta[i], 0, D[i,i], N-n_par, two_sided=True) for i in range(X.shape[1])]
     wald_p['ct_beta'] = util.wald_ct_beta(beta[:C], D[:C,:C], n=N, P=n_par)
-    return(ml, wald_p)
+    return(res, wald_p)
 
 def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
     print('IID REML')
@@ -329,7 +328,7 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS
             Z.append( M_ )
     D = wald.reml_asymptotic_dispersion_matrix(X, Z, Vy)
 
-    reml = {'hom2':hom2, 'V':V, 'beta':beta_d, 'l':l, 'D':D, 'ct_random_var':ct_random_var,
+    res = {'hom2':hom2, 'V':V, 'beta':beta_d, 'l':l, 'D':D, 'ct_random_var':ct_random_var,
             'ct_specific_random_var':ct_specific_random_var, 'randomeffect_vars':randomeffect_vars_d,
             'r2':r2_d, 'fixedeffect_vars':fixedeffect_vars_d, 'nu':np.mean(vs), 'hess':hess, 
             'convergence':convergence}
@@ -337,10 +336,9 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS
     wald_p['hom2'] = wald.wald_test(hom2, 0, D[0,0], N-n_par)
     wald_p['V'] = wald.wald_test(V[0,0], 0, D[1,1], N-n_par)
     # wald test beta1 = beta2 = beta3
-    X = get_X(P, fixed_covars_d)
     wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C], 
             n=N, P=n_par)
-    return(reml, wald_p)
+    return(res, wald_p)
 
 #def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
 #    print('IID HE')
@@ -464,7 +462,7 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS'
             Vy = Vy + r2_d[key] * M_ @ M_.T
             Z.append( M_ )
     D = wald.asymptotic_dispersion_matrix(X, Z, Vy)
-    ml = {'hom2':hom2, 'beta':beta_d, 'V':V, 'l':l, 'D':D,
+    res = {'hom2':hom2, 'beta':beta_d, 'V':V, 'l':l, 'D':D,
             'ct_random_var':ct_random_var, 'ct_specific_random_var':ct_specific_random_var,
             'fixedeffect_vars':fixedeffect_vars_d, 'randomeffect_vars':randomeffect_vars_d, 'r2':r2_d,
             'nu':np.mean(vs), 'hess':hess, 'convergence':convergence}
@@ -477,7 +475,7 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS'
     wald_p['beta'] = [wald.wald_test(beta[i], 0, D[i,i], N-n_par, two_sided=True) for i in range(X.shape[1])]
     wald_p['ct_beta'] = util.wald_ct_beta(beta[:C], D[:C,:C], n=N, P=n_par )
 
-    return(ml, wald_p)
+    return(res, wald_p)
 
 def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None, jack_knife=False):
     print('Free REML')
@@ -530,7 +528,7 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
             Z.append( M_ )
     D = wald.reml_asymptotic_dispersion_matrix(X, Z, Vy)
 
-    reml = {'hom2':hom2, 'V':V, 'beta':beta_d, 'l':l, 'D':D, 'fixedeffect_vars':fixedeffect_vars_d, 
+    res = {'hom2':hom2, 'V':V, 'beta':beta_d, 'l':l, 'D':D, 'fixedeffect_vars':fixedeffect_vars_d, 
             'ct_random_var':ct_random_var, 'ct_specific_random_var':ct_specific_random_var, 
             'randomeffect_vars':randomeffect_vars_d, 'r2':r2_d, 'nu':np.mean(vs), 'hess':hess, 
             'convergence':convergence}
@@ -566,7 +564,7 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
         wald_p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
         wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], var_ct_beta, n=N, P=n_par)
 
-    return(reml, wald_p)
+    return(res, wald_p)
 
 #def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
 #    print('Free HE')
@@ -684,10 +682,10 @@ def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS'
     randomeffect_vars_d, r2_d = util.assign_randomeffect_vars( np.array(out['randomeffect_vars']),
             np.array(out['r2']), random_covars)
 
-    ml = {'beta':beta_d, 'V':V, 'l':l, 'ct_random_var':ct_random_var, 'ct_specific_random_var':ct_specific_random_var,
+    res = {'beta':beta_d, 'V':V, 'l':l, 'ct_random_var':ct_random_var, 'ct_specific_random_var':ct_specific_random_var,
             'fixedeffect_vars':fixedeffect_vars_d, 'randomeffect_vars':randomeffect_vars_d,
             'r2':r2_d, 'nu':np.mean(vs), 'hess':hess, 'convergence':convergence}
-    return(ml)
+    return(res)
 
 def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFGS', par=None):
     print('Full REML')
@@ -727,11 +725,11 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, method='BFG
     randomeffect_vars_d, r2_d  = util.assign_randomeffect_vars(np.array(out['randomeffect_vars']),
             np.array(out['r2']), random_covars)
 
-    reml = {'V':V, 'beta':beta_d, 'l':l, 'ct_random_var':ct_random_var, 
+    res = {'V':V, 'beta':beta_d, 'l':l, 'ct_random_var':ct_random_var, 
             'ct_specific_random_var':ct_specific_random_var,
             'randomeffect_vars':randomeffect_vars_d, 'r2':r2_d,
             'fixedeffect_vars':fixedeffect_vars_d, 'nu':np.mean(vs), 'hess':hess, 'convergence':convergence}
-    return(reml)
+    return(res)
 
 #def full_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}):
 #    print('Full HE')
