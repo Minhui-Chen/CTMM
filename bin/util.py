@@ -66,14 +66,14 @@ def re_optim(out, opt, fun, par, args, method, nrep=10):
             out, opt = out_, opt_
     return( out, opt )
 
-def dict2Rlist( X, order=True ):
+def dict2Rlist( X ):
     '''
     X: a python dictionary
     '''
     if len( X.keys() ) == 0:
         return( r('NULL') )
     else:
-        keys = np.sort( list(X.keys()) ) if order else list(X.keys())
+        keys = np.sort( list(X.keys()) )
         rlist = ro.ListVector.from_length( len(keys) )
         for i in range( len(keys) ):
             if isinstance(X[keys[i]], str):
