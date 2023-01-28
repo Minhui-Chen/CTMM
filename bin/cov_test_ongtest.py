@@ -7,7 +7,7 @@ from rpy2.robjects import r, pandas2ri
 from rpy2.robjects.packages import importr
 from rpy2.robjects.packages import STAP
 from rpy2.robjects.conversion import localconverter
-import wald, util, op_R
+import wald, util, op, op_R
 
 #def he_randomeffect_vars(x_m, random_covars_d, ests, sig2s):
 #    if len(random_covars_d.keys()) > 0:
@@ -77,16 +77,16 @@ def main():
             random_covars_d = {}
 
         ## HE
-        hom_he, hom_he_wald = op_R.hom_HE(y_f, P_f, nu_f, 
+        hom_he, hom_he_wald = op.hom_HE(y_f, P_f, nu_f, 
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
 
-        iid_he, iid_he_wald = op_R.iid_HE(y_f, P_f, nu_f, 
+        iid_he, iid_he_wald = op.iid_HE(y_f, P_f, nu_f, 
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
 
-        free_he, free_he_wald = op_R.free_HE(y_f, P_f, nu_f, 
+        free_he, free_he_wald = op.free_HE(y_f, P_f, nu_f, 
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
 
-        full_he = op_R.full_HE(y_f, P_f, nu_f, 
+        full_he = op.full_HE(y_f, P_f, nu_f, 
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
 
         if 'HE_as_initial' not in snakemake.params.keys():
