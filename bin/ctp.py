@@ -1185,7 +1185,6 @@ def free_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}, 
 
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
-        #p['V_iid'] = util.wald_ct_beta(np.diag(V), var_V, n=n_equation, P=n_par)
         p['ct_beta'] = util.wald_ct_beta( beta['ct_beta'], var_ct_beta, n=N, P=n_par )
 
     print( time.time() - start , flush=True )
@@ -1443,12 +1442,7 @@ def main():
             snakemake.params.HE = True
 
         if snakemake.params.HE:
-            if 'n_equation' not in snakemake.wildcards.keys():
-                # number of equations to decide degree of freedom in Wald test
-                n_equation = None
-            else:
-                n_equation = snakemake.wildcards.n_equation
-            free_he, free_he_wald = free_HE(y_f, P_f, nu_f, jack_knife=True, n_equation=n_equation)
+            free_he, free_he_wald = free_HE(y_f, P_f, nu_f, jack_knife=True)
             HE_free_only = False
             if 'HE_free_only' in snakemake.params.keys():
                 HE_free_only = snakemake.params.HE_free_only
