@@ -7,8 +7,7 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr
 from rpy2.robjects.packages import STAP
 from rpy2.robjects.conversion import localconverter
-sys.path.append('bin')
-import util, wald, cuomo_ctng_test
+import util, wald, ctp
 
 def get_X(fixed_covars_d, N, C):
     X = np.kron( np.ones((N,1)), np.eye(C) )
@@ -658,75 +657,6 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
     print( time.time() - start, flush=True )
     return(reml)
 
-def full_HE(y_f, nu_f):
-    print( 'Full HE', flush=True )
-    start = time.time()
-
-    def full_HE_(Y, vs):
-        N,C = Y.shape
-        ngam = (C - 1) * C // 2
-        D = np.diag( vs.flatten() )
-
-        # calculate useful variables
-        vars = cal_HE_base_vars(Y, vs)
-
-        mt = []
-        # calculate \ve{  \Pi_P^\perp (I_N \otimes { m_{k,k}=1 }  \Pi_P^\perp } t, where t is vector of dependent variable
-        # t = \ve{ y' y'^T - \Pi_P^\perp D \Pi_P^\perp }
-        for k in range(C):
-            mt.append((vars['y_p'].reshape(N,C)[:,k]**2).sum() - vs[:,k].sum() * (N-1) / N)
-
-        for a in range(1,C):
-            for b in range(a):
-                mm_ab = np.zeros((C,C))
-                mm_ab[a,b] = 1
-                mm_ab[b,a] = 1
-                mt.append(vars['y_p'] @ np.kron(np.identity(N) - np.ones((N,N)) / N, mm_ab) @ vars['y_p'])
-
-        # make matrix M^T M, where is M is design matrix of HE regression
-        mm = np.zeros((C+ngam,C+ngam))
-        for i in range(C):
-            mm[i,i] = (N-1)
-        for i in range(C, C+ngam):
-            mm[i,i] = 2 * (N-1)
-        #print(mm)
-
-        #
-        theta = np.linalg.inv(mm) @ mt
-        V = np.zeros((C,C))
-        V[np.tril_indices(C,k=-1)] = theta[C:]
-        V = V + V.T + np.diag(theta[:C])
-
-        # beta
-        A = V
-        sig2s = np.kron(np.eye(N), A) + D
-        beta = util.glse( sig2s, np.kron(np.ones((N,1)), np.eye(C)), Y.flatten() )
-
-        return(theta, beta)
-
-    Y = np.loadtxt(y_f)
-    vs = np.loadtxt(nu_f)
-    N, C = Y.shape
-    n_par = C*C
-
-    theta, beta = full_HE_(Y, vs)
-    V = np.zeros((C,C))
-    V[np.tril_indices(C,k=-1)] = theta[C:]
-    V = V + V.T + np.diag(theta[:C])
-    ### jackknife
-    jacks = [full_HE_(np.delete(Y, i, axis=0), np.delete(vs, i, axis=0)) for i in range(N)]
-    jacks_V_diag = [x[0][:C] for x in jacks]
-    var_V_diag = (len(jacks) - 1.0) * np.cov(np.array(jacks_V_diag).T, bias=True)
-    jacks_beta = [x[1] for x in jacks]
-    var_beta = (len(jacks) - 1.0) * np.cov(np.array(jacks_beta).T, bias=True)
-
-    he = {'V': V}
-    p = {'V': wald.mvwald_test(np.diag(V), np.zeros_like(C), var_V_diag, n=N, P=n_par),
-            'Vi': [wald.wald_test(V[i,i], 0, var_V_diag[i,i], df=N-n_par) for i in range(C)]}
-
-    print( time.time() - start, flush=True )
-    return(he, p)
-
 def main():
     # par
     params = snakemake.params
@@ -757,15 +687,15 @@ def main():
                 n_equation = None
             else:
                 n_equation = snakemake.wildcards.n_equation
-            free_he, free_he_wald = cuomo_ctng_test.free_HE(y_f, P_f, nu_f, jack_knife=True, n_equation=n_equation)
+            free_he, free_he_wald = ctp.free_HE(y_f, P_f, nu_f, jack_knife=True, n_equation=n_equation)
             HE_free_only = False
             if 'HE_free_only' in snakemake.params.keys():
                 HE_free_only = snakemake.params.HE_free_only
             if HE_free_only:
                 out['he'] = { 'free': free_he, 'wald':{'free': free_he_wald} }
             else:
-                hom_he, hom_he_wald = cuomo_ctng_test.hom_HE(y_f, P_f, nu_f, jack_knife=True)
-                full_he, full_he_wald = full_HE(y_f, nu_f)
+                hom_he, hom_he_wald = ctp.hom_HE(y_f, P_f, nu_f, jack_knife=True)
+                full_he, full_he_wald = ctp.full_HE(y_f, nu_f)
 
                 out['he'] = {'hom': hom_he, 'free': free_he, 'full': full_he,
                         'wald':{'hom':hom_he_wald, 'free': free_he_wald, 'full':full_he_wald} }
