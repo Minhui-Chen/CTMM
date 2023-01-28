@@ -275,8 +275,8 @@ rule ctp_test:
         mem_per_cpu = '5gb',
         time = '48:00:00',
     priority: 1
-    script: 'bin/ctp_scipy.py'
-    #script: 'bin/CTP/ctp.py'
+    script: 'bin/ctp.py'
+    #script: 'bin/ctp_R.py'
 
 use rule op_aggReplications as ctp_aggReplications with:
     input:
@@ -303,7 +303,7 @@ rule ctp_test_scipy:
         mem_per_cpu = '5gb',
         time = '48:00:00',
     priority: 1
-    script: 'bin/ctp_scipy.py'
+    script: 'bin/ctp.py'
 
 use rule op_aggReplications as ctp_scipy_aggReplications with:
     input:
