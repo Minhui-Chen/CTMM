@@ -144,7 +144,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
     X = get_X(fixed_covars_d, N, C)
-    n_par = 1 + len(random_covars_d.keys())
+    n_par = 1 + len(random_covars_d.keys()) + X.shape[1]
 
     fixed_covars_array_d = {}
     for key in fixed_covars_d.keys():
@@ -192,7 +192,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         wald_p['hom2'] = wald.wald_test(hom2, 0, D[0,0], N-n_par)
         # wald test beta1 = beta2 = beta3
         wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
-                n=N, P=n_par+X.shape[1])
+                n=N, P=n_par)
     else:
         jacks = {'ct_beta':[], 'hom2':[]}
         for i in range(N):
@@ -210,7 +210,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         
         wald_p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         # wald test beta1 = beta2 = beta3
-        wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+        wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], var_ct_beta, n=N, P=n_par)
 
     print( time.time() - start, flush=True )
     return(reml, wald_p)
@@ -313,7 +313,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
     X = get_X(fixed_covars_d, N, C)
-    n_par = 1 + len(random_covars_d.keys())
+    n_par = 1 + len(random_covars_d.keys()) + X.shape[1]
 
     fixed_covars_array_d = {}
     for key in fixed_covars_d.keys():
@@ -362,7 +362,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         wald_p['V'] = wald.wald_test(V[0,0], 0, D[1,1], N-n_par)
         # wald test beta1 = beta2 = beta3
         wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
-                n=N, P=n_par+X.shape[1])
+                n=N, P=n_par)
     else:
         jacks = {'ct_beta':[], 'hom2':[], 'het':[]}
         for i in range(N):
@@ -383,7 +383,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         wald_p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         wald_p['V'] = wald.wald_test(V[0,0], 0, var_het, N-n_par)
         # wald test beta1 = beta2 = beta3
-        wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+        wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], var_ct_beta, n=N, P=n_par)
 
     print( time.time() - start, flush=True )
     return(reml, wald_p)
@@ -492,7 +492,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
     N, C = P.shape
-    n_par = 1 + C + len(random_covars_d.keys())
+    n_par = 1 + C + len(random_covars_d.keys()) + X.shape[1]
 
     fixed_covars_array_d = {}
     for key in fixed_covars_d.keys():
@@ -547,7 +547,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         wald_p['Vi'] = [wald.wald_test(V[i,i], 0, D[i+1,i+1], N-n_par) for i in range(C)]
         # wald test beta1 = beta2 = beta3
         wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], np.linalg.inv(X.T @ np.linalg.inv(Vy) @ X)[:C,:C],
-                n=N, P=n_par+X.shape[1])
+                n=N, P=n_par)
     else:
         jacks = { 'ct_beta':[], 'hom2':[], 'V':[] }
         for i in range(N):
@@ -568,7 +568,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         wald_p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         wald_p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
         # wald test beta1 = beta2 = beta3
-        wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], var_ct_beta, n=N, P=n_par+X.shape[1])
+        wald_p['ct_beta'] = util.wald_ct_beta(beta_d['ct_beta'], var_ct_beta, n=N, P=n_par)
 
     print( time.time() - start, flush=True )
     return(reml, wald_p)
