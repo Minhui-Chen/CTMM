@@ -2,12 +2,7 @@ import os, sys, re
 import helper, mystats 
 import scipy
 import numpy as np, pandas as pd
-import rpy2.robjects as robjects 
-from rpy2.robjects import r, pandas2ri
-from rpy2.robjects.packages import importr
-from rpy2.robjects.packages import STAP
-from rpy2.robjects.conversion import localconverter
-import wald, util, ong_test, cuomo_ctng_test
+import wald, util, op, op_R, cuomo_ctng_test
 
 def main():
     # par
@@ -37,72 +32,39 @@ def main():
         cts = np.unique( ctnu['day'] )
         ctnu_grouped = ctnu.groupby('day').mean()
 
-        #X = ong_test.get_X(P, fixed_covars_d)
-
         ## HE
-        # project out fixed effect (including cell type main effect) from y
-        #proj = np.eye(len(y)) - X @ np.linalg.inv(X.T @ X) @ X.T
-        #y_p = proj @ y
-        #Y = y_p**2 - np.diag(proj @ np.diag(vs) @ proj)
-
-
-        ## HE
-        hom_he, hom_he_wald = ong_test.hom_HE(y_f, P_f, nu_f,
+        hom_he, hom_he_wald = op.hom_HE(y_f, P_f, nu_f,
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, jack_knife=True)
 
-        iid_he, iid_he_wald = ong_test.iid_HE(y_f, P_f, nu_f, 
+        iid_he, iid_he_wald = op.iid_HE(y_f, P_f, nu_f, 
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, jack_knife=True)
 
-        free_he, free_he_wald = ong_test.free_HE(y_f, P_f, nu_f, 
+        free_he, free_he_wald = op.free_HE(y_f, P_f, nu_f, 
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, jack_knife=True)
 
         full_he = ong_test.full_HE(y_f, P_f, nu_f, 
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
 
 
-        if 'HE_as_initial' not in snakemake.params.keys():
-            snakemake.params.HE_as_initial = False
-
         ## ML
-        #null_ml = null_ML(y_f, P_f, nu_f)
-        if not snakemake.params.HE_as_initial:
-            hom_ml, hom_ml_wald = ong_test.hom_ML(y_f, P_f, nu_f,  
-                    fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-            iid_ml, iid_ml_wald = ong_test.iid_ML(y_f, P_f, nu_f, 
-                    fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-            free_ml, free_ml_wald = ong_test.free_ML(y_f, P_f, nu_f, 
-                    fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-            full_ml = ong_test.full_ML(y_f, P_f, nu_f, 
-                    fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-        else:
-            hom_ml, hom_ml_wald = ong_test.hom_ML(y_f, P_f, nu_f,  
-                    fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d,
-                    par=util.generate_HE_initial(hom_he, ML=True))
-            iid_ml, iid_ml_wald = ong_test.iid_ML(y_f, P_f, nu_f, 
-                    fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d,
-                    par=util.generate_HE_initial(iid_he, ML=True))
-            free_ml, free_ml_wald = ong_test.free_ML(y_f, P_f, nu_f, 
-                    fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d,
-                    par=util.generate_HE_initial(free_he, ML=True))
-            full_ml = ong_test.full_ML(y_f, P_f, nu_f, 
-                    fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d,
-                    par=util.generate_HE_initial(full_he, ML=True))
+        hom_ml, hom_ml_wald = op_R.hom_ML(y_f, P_f, nu_f,  
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
+        iid_ml, iid_ml_wald = op_R.iid_ML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
+        free_ml, free_ml_wald = op_R.free_ML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
+        full_ml = op_R.full_ML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
 
         ## REML
-        if not snakemake.params.HE_as_initial:
-            hom_reml, hom_reml_wald = ong_test.hom_REML(y_f, P_f, nu_f, fixed_covars_d, random_covars_d)
-            iid_reml, iid_reml_wald = ong_test.iid_REML(y_f, P_f, nu_f, fixed_covars_d, random_covars_d)
-            free_reml, free_reml_wald = ong_test.free_REML(y_f, P_f, nu_f, fixed_covars_d, random_covars_d)
-            full_reml = ong_test.full_REML(y_f, P_f, nu_f, fixed_covars_d, random_covars_d)
-        else:
-            hom_reml, hom_reml_wald = ong_test.hom_REML(y_f, P_f, nu_f, fixed_covars_d, random_covars_d,
-                    par=util.generate_HE_initial(hom_he, REML=True))
-            iid_reml, iid_reml_wald = ong_test.iid_REML(y_f, P_f, nu_f, fixed_covars_d, random_covars_d,
-                    par=util.generate_HE_initial(iid_he, REML=True))
-            free_reml, free_reml_wald = ong_test.free_REML(y_f, P_f, nu_f, fixed_covars_d, random_covars_d,
-                    par=util.generate_HE_initial(free_he, REML=True))
-            full_reml = ong_test.full_REML(y_f, P_f, nu_f, fixed_covars_d, random_covars_d,
-                    par=util.generate_HE_initial(full_he, REML=True))
+        hom_reml, hom_reml_wald = op_R.hom_REML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
+        iid_reml, iid_reml_wald = op_R.iid_REML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
+        free_reml, free_reml_wald = op_R.free_REML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
+        full_reml = op_R.full_REML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
 
         out = {
                 'ml': {'hom': hom_ml, 'iid': iid_ml, 'free': free_ml, 'full': full_ml,
@@ -117,7 +79,6 @@ def main():
 
         # LRT
         ## ML
-        #hom_null_lrt = mystats.lrt(out['ml']['hom']['l'], out['ml']['null']['l'], 1)
         iid_hom_lrt = mystats.lrt(out['ml']['iid']['l'], out['ml']['hom']['l'], 1)
         free_hom_lrt = mystats.lrt(out['ml']['free']['l'], out['ml']['hom']['l'], C)
         free_iid_lrt = mystats.lrt(out['ml']['free']['l'], out['ml']['iid']['l'], C-1)
@@ -125,7 +86,6 @@ def main():
         full_iid_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['iid']['l'], C*(C+1)//2-2)
         full_free_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['free']['l'], C*(C+1)//2-C-1)
 
-        #out['ml']['lrt'] = {'hom_null':hom_null_lrt, 'iid_hom':iid_hom_lrt, 'free_hom':free_hom_lrt,
         out['ml']['lrt'] = {'iid_hom':iid_hom_lrt, 'free_hom':free_hom_lrt,
                 'free_iid':free_iid_lrt, 'full_hom':full_hom_lrt, 'full_iid':full_iid_lrt,
                 'full_free':full_free_lrt}
