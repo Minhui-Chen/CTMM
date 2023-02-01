@@ -1,0 +1,40 @@
+# counts: log or raw counts
+# ind_min_cellnum:  exclude individuals <= number of cells
+# ct_min_cellnum: For cts <= ct_min_cellnum, set nu and y to missing
+# im_miny : minimum for imputed y. N no min. min: set imputed y to min unimputed y of the same ct across inds. std-x: delete individuals with at least one ct > mean + x * std or < mean - x * std
+# im_genome : impute all genes together
+# im_quan : quantile normalization for each gene / ct
+# first model is basemodel
+ind_min_cellnum	ct_min_cellnum	im_miny	im_scale	im_genome	im_mvn	sex	PC	experiment	disease
+#100	10	N	Y	Y	N	N	0	N	N
+100	10	N	Y	Y	N	Y	6	R	Y
+#100	10	N	N	N	Y	Y	6	R	Y
+#100	10	N	Y	Y	N	Y	8	R	Y
+#100	10	N	Y	Y	N	Y	9	R	Y
+#100	10	N	Y	Y	N	Y	10	R	Y
+#100	10	N	Y	Y	N	Y	11	R	Y
+#100	10	N	Y	Y_Corrected	N	Y	11	R	Y
+#100	10	N	N	N	Y	Y	11	R	Y
+#100	10	N	Y	N	N	Y	11	R	Y
+#100	10	N	N	N	Y	N	0	N	N
+#100	10	N	N	Y	N	N	0	N	N
+#100	10	N	N	N	N	N	0	N	N
+#100	10	N	Y	N	N	N	0	N	N
+#100	10	N	Y	Y	N	Y	11	Y	Y
+#100	10	N	Y	Y	N	Y	11	N	Y
+#100	10	N	Y	Y	N	Y	0	N	Y
+#50	10	N	N	N	Y	N	0	N	N
+#50	10	N	N	Y	N	N	0	N	N
+#50	10	N	Y	Y	N	N	0	N	N
+#50	10	N	N	N	N	N	0	N	N
+#50	10	N	Y	N	N	N	0	N	N
+#50	10	N	N	N	Y	Y	11	R	Y
+#50	10	N	Y	Y	N	Y	11	R	Y
+#50	10	N	Y	N	N	Y	11	R	Y
+##100	20	N	Y	Y	N	Y	11	R	Y
+#100	40	N	Y	Y	N	Y	11	R	Y
+##100	10	N	Y	Y	D	Y	11	R	Y
+##100	20	N	Y	Y	D	Y	11	R	Y
+##100	30	N	Y	Y	D	Y	11	R	Y
+#100	30	std-3	Y	Y	D	Y	11	R	Y
+#100	40	N	Y	Y	D	Y	11	R	Y
