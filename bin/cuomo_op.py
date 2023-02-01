@@ -9,20 +9,6 @@ from rpy2.robjects.packages import STAP
 from rpy2.robjects.conversion import localconverter
 import wald, util, ong_test, cuomo_ctng_test
 
-#def he_randomeffect_vars(x_m, random_covars_d, ests, sig2s):
-#    if len(random_covars_d.keys()) > 0:
-#        randomeffect_vars_l, randomV_l = util.RandomeffectVariance( ests[x_m.shape[1]:],
-#                [np.loadtxt( random_covars_d[key] ) for key in np.sort(list(random_covars_d.keys()))] )
-#        randomeffect_vars_d, randomV_d = util.assign_randomeffect_vars(randomeffect_vars_l, 
-#                randomV_l, random_covars_d)
-#        for random_var, key in zip(ests[x_m.shape[1]:], np.sort(list(random_covars_d.keys()))):
-#            Q = np.loadtxt(random_covars_d[key])
-#            sig2s = np.diag(sig2s) + random_var * Q @ Q.T
-#    else:
-#        randomeffect_vars_d = {}
-#        randomV_d = {}
-#    return( randomeffect_vars_d, randomV_d, sig2s)
-
 def main():
     # par
     params = snakemake.params
