@@ -3,7 +3,6 @@ import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
-import plot, plot_help
 
 def free_cor( out, hom_max=None, hom_min=None, with_hom2=False):
     cor_dict = {}
@@ -172,7 +171,7 @@ def main():
         if ct2 - ct1 != 1:
             my_pal[pair] = 'lightblue'
         else:
-            my_pal[pair] = plot_help.mycolors()[0]
+            my_pal[pair] = sns.color_palette('muted')[0]
     sns.violinplot( x='variable', y='value', data=data, ax=ax, cut=0, palette=my_pal )
 
     ax.set_ylabel( 'Covariance between CTs in Full model' )
