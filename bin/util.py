@@ -64,6 +64,7 @@ def re_optim(out, opt, fun, par, args, method, nrep=10):
             out, opt = out_, opt_
         elif (out['success'] == out_['success']) and (out['fun'] > out_['fun']):
             out, opt = out_, opt_
+    print( out['fun'] )
     return( out, opt )
 
 def dict2Rlist( X ):
@@ -348,3 +349,14 @@ def jk_rmInd(i, Y, vs, fixed_covars={}, random_covars={}, P=None):
         P_ = np.delete(P, i, axis=0)
         return(Y_, vs_, fixed_covars_, random_covars_, P_)
 
+def lrt(l, l0, k):
+    '''
+    l, l0 : float
+        log likelihood for alternative and null hypothesis models
+    k : int
+        number of parameters constrained in null model compared to alternative
+    '''
+
+    Lambda = 2 * (l-l0)
+    p = stats.chi2.sf(Lambda, k)
+    return(p)
