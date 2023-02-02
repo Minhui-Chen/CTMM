@@ -1,4 +1,4 @@
-import helper, os
+import os
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -32,25 +32,11 @@ def imputeY4eachgene(y, gene, y_path):
     y.to_csv(f'{y_path}/rep{gene}/y.before_imputation.txt', sep='\t')
 
     if snakemake.wildcards.im_mvn == 'N':
-        if snakemake.wildcards.im_scale == 'Y':
-            y = softimpute(y, True)
-        else:
-            y = softimpute(y, False)
+        y = softimpute(y, True)
     else:
         y = mvn( y )
 
     y.to_csv(f'{y_path}/rep{gene}/y.imputed.txt', sep='\t')
-
-    ### make imputation heatmap
-    fig, axes = plt.subplots(ncols=2, figsize=(12,48))
-    vmin = np.nanmin( (y_before, y) )
-    vmax = np.nanmax( (y_before, y) )
-    sns.heatmap(y_before, cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[0])
-    annotation = y.astype('str')
-    annotation[y > 0] = ''
-    sns.heatmap(y, annot=annotation, fmt='s', cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[1])
-    fig.savefig(f'{y_path}/rep{gene}/y.imputation.heatmap.png')
-    plt.close()
 
     return( y )
 
@@ -61,27 +47,20 @@ def imputeNU4eachgene(nu, nu_path, gene):
     nu.to_csv(f'{nu_path}/rep{gene}/nu.before_imputation.txt', sep='\t')
 
     if snakemake.wildcards.im_mvn == 'N':
-        if snakemake.wildcards.im_scale == 'Y':
-            nu = softimpute( nu, True )
-        else:
-            nu = softimpute( nu, False )
+        nu = softimpute( nu, True )
     else:
         nu = mvn( nu )
 
     nu.to_csv(f'{nu_path}/rep{gene}/nu.imputed.txt', sep='\t')
 
-    ### make imputation heatmap
-    fig, axes = plt.subplots(ncols=2, figsize=(12,48))
-    vmin = np.nanmin( (nu_before, nu) )
-    vmax = np.nanmax( (nu_before, nu) )
-    sns.heatmap(nu_before, cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[0])
-    annotation = nu.astype('str')
-    annotation[nu > 0] = ''
-    sns.heatmap(nu, annot=annotation, fmt='s', cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[1])
-    fig.savefig(nu_path+f'/rep{gene}/nu.imputation.heatmap.png')
-    plt.close()
-
     return( nu )
+
+def generate_tmpfn():
+    tmpf = tempfile.NamedTemporaryFile(delete=False)
+    tmpfn = tmpf.name
+    tmpf.close()
+    print(tmpfn)
+    return tmpfn
 
 def main():
     pandas2ri.activate()
@@ -102,11 +81,6 @@ def main():
     y = y.sort_values(by=['donor','day']).reset_index()
     nu = nu.sort_values(by=['donor','day']).reset_index()
 
-    if snakemake.wildcards.im_mvn == 'D':
-        # delete individuals with missing data (so no imputation)
-        P = P.loc[P.index.isin(y['donor'])]
-        n = n.loc[n.index.isin(y['donor'])]
-
     days = list(np.unique(P.columns))
     inds = list(np.unique(P.index))
 
@@ -125,7 +99,7 @@ def main():
     nu_imputed_indXct_ctng = pd.DataFrame()
 
     ## for each gene
-    tmpfn = helper.generate_tmpfn()
+    tmpfn = generate_tmpfn()
     for i, gene in enumerate(genes):
         print(gene)
         ### for y
@@ -140,7 +114,7 @@ def main():
             print(P)
             sys.exit('Different order!\n')
 
-        if snakemake.wildcards.im_genome not in ['Y','Y_Corrected']:
+        if snakemake.wildcards.im_genome not in ['Y']:
             # impute y for each gene
             y_ = imputeY4eachgene(y_, gene, y_path)
 
@@ -167,7 +141,7 @@ def main():
             print(P)
             sys.exit('Different order!\n')
 
-        if snakemake.wildcards.im_genome not in ['Y','Y_Corrected']:
+        if snakemake.wildcards.im_genome not in ['Y']:
             nu_ = imputeNU4eachgene(nu_, nu_path, gene)
 
         ### make a copy for nu_: one sets <0 to 0 for ong, the other one sets <0 to max(nu_) for ctng
