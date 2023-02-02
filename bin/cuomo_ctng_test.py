@@ -1,13 +1,6 @@
 import os, sys, re, time
-import helper, mystats 
 import scipy
 import numpy as np, pandas as pd
-import rpy2.robjects as robjects 
-from rpy2.robjects import r, pandas2ri
-from rpy2.robjects.packages import importr
-from rpy2.robjects.packages import STAP
-from rpy2.robjects.conversion import localconverter
-sys.path.append('bin/CTP')
 import wald, util, ctp
 
 def inverse_sig2s(R, A, vs, sigma_r2):
@@ -1217,7 +1210,7 @@ def collect_covariates(snakemake, donors=None):
 
     fixed_covars_d = {}
     random_covars_d = {}  # random effect only support homogeneous variance i.e. \sigma * I
-    covars_f = helper.generate_tmpfn()
+    covars_f = util.generate_tmpfn()
     ## pca
     ### get individuals after filtering from pca result file
     pca = pd.read_table(snakemake.input.pca).sort_values(by='donor')
@@ -1311,7 +1304,7 @@ def main():
         ctnu_grouped = ctnu.groupby('day').mean()
 
         # transform y and ctnu from vector to matrix
-        tmp_f = helper.generate_tmpfn()
+        tmp_f = util.generate_tmpfn()
         y = pd.read_table(y_f)
         y = y.pivot(index='donor', columns='day', values=gene)
         ctnu = ctnu.pivot(index='donor', columns='day', values=gene)
@@ -1430,13 +1423,13 @@ def main():
 
             # LRT
             C = np.loadtxt(y_f).shape[1]
-            #hom_null_lrt = mystats.lrt(out['ml']['hom']['l'], out['ml']['null']['l'], 1)
-            iid_hom_lrt = mystats.lrt(out['ml']['iid']['l'], out['ml']['hom']['l'], 1)
-            free_hom_lrt = mystats.lrt(out['ml']['free']['l'], out['ml']['hom']['l'], C)
-            free_iid_lrt = mystats.lrt(out['ml']['free']['l'], out['ml']['iid']['l'], C-1)
-            full_hom_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['hom']['l'], C*(C+1)//2-1)
-            full_iid_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['iid']['l'], C*(C+1)//2-2)
-            full_free_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['free']['l'], C*(C+1)//2-C-1)
+            #hom_null_lrt = util.lrt(out['ml']['hom']['l'], out['ml']['null']['l'], 1)
+            iid_hom_lrt = util.lrt(out['ml']['iid']['l'], out['ml']['hom']['l'], 1)
+            free_hom_lrt = util.lrt(out['ml']['free']['l'], out['ml']['hom']['l'], C)
+            free_iid_lrt = util.lrt(out['ml']['free']['l'], out['ml']['iid']['l'], C-1)
+            full_hom_lrt = util.lrt(out['ml']['full']['l'], out['ml']['hom']['l'], C*(C+1)//2-1)
+            full_iid_lrt = util.lrt(out['ml']['full']['l'], out['ml']['iid']['l'], C*(C+1)//2-2)
+            full_free_lrt = util.lrt(out['ml']['full']['l'], out['ml']['free']['l'], C*(C+1)//2-C-1)
 
             out['ml']['lrt'] = {'iid_hom':iid_hom_lrt, 'free_hom':free_hom_lrt,
                     'free_iid':free_iid_lrt, 'full_hom':full_hom_lrt, 'full_iid':full_iid_lrt,
@@ -1483,12 +1476,12 @@ def main():
 
             ## LRT
             C = np.loadtxt(y_f).shape[1]
-            iid_hom_lrt = mystats.lrt(out['reml']['iid']['l'], out['reml']['hom']['l'], 1)
-            free_hom_lrt = mystats.lrt(out['reml']['free']['l'], out['reml']['hom']['l'], C)
-            free_iid_lrt = mystats.lrt(out['reml']['free']['l'], out['reml']['iid']['l'], C-1)
-            full_hom_lrt = mystats.lrt(out['reml']['full']['l'], out['reml']['hom']['l'], C*(C+1)//2-1)
-            full_iid_lrt = mystats.lrt(out['reml']['full']['l'], out['reml']['iid']['l'], C*(C+1)//2-2)
-            full_free_lrt = mystats.lrt(out['reml']['full']['l'], out['reml']['free']['l'], C*(C+1)//2-C-1)
+            iid_hom_lrt = util.lrt(out['reml']['iid']['l'], out['reml']['hom']['l'], 1)
+            free_hom_lrt = util.lrt(out['reml']['free']['l'], out['reml']['hom']['l'], C)
+            free_iid_lrt = util.lrt(out['reml']['free']['l'], out['reml']['iid']['l'], C-1)
+            full_hom_lrt = util.lrt(out['reml']['full']['l'], out['reml']['hom']['l'], C*(C+1)//2-1)
+            full_iid_lrt = util.lrt(out['reml']['full']['l'], out['reml']['iid']['l'], C*(C+1)//2-2)
+            full_free_lrt = util.lrt(out['reml']['full']['l'], out['reml']['free']['l'], C*(C+1)//2-C-1)
 
             out['reml']['lrt'] = {'iid_hom':iid_hom_lrt, 'free_hom':free_hom_lrt,
                     'free_iid':free_iid_lrt, 'full_hom':full_hom_lrt, 'full_iid':full_iid_lrt,
