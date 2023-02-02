@@ -1,4 +1,4 @@
-import helper, os, multiprocessing
+import helper, os
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -7,7 +7,7 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr, STAP
 from rpy2.robjects.conversion import localconverter
 
-def softimpute(y, scale, out={}):
+def softimpute(y, scale):
     softImpute_f = 'bin/my_softImpute.R'
     softImpute_r = STAP( open(softImpute_f).read(), 'softImpute_r' )
     if scale:
@@ -15,90 +15,73 @@ def softimpute(y, scale, out={}):
     else:
         out_ = softImpute_r.my_softImpute( r['as.matrix'](y) )
     out_ = dict( zip(out_.names, list(out_)) )
-    out['y'] = pd.DataFrame(out_['Y'], index=y.index, columns=y.columns)
+    out = pd.DataFrame(out_['Y'], index=y.index, columns=y.columns)
+    return( out )
 
-def mvn(y, out={}):
+def mvn(y):
     mvn_f = 'bin/mvn_impute.R'
     mvn_r = STAP( open(mvn_f).read(), 'mvn_r' )
     out_ = mvn_r.MVN_impute( r['as.matrix'](y) )
     out_ = dict( zip(out_.names, list(out_)) )
-    out['y'] = pd.DataFrame(out_['Y'], index=y.index, columns=y.columns)
+    out = pd.DataFrame(out_['Y'], index=y.index, columns=y.columns)
+    return( out )
 
-def imputeY4eachgene(y_, gene, y_path):
-    y_before = y_
+def imputeY4eachgene(y, gene, y_path):
+    y_before = y
     os.makedirs(f'{y_path}/rep{gene}', exist_ok=True)
-    y_.to_csv(f'{y_path}/rep{gene}/y.before_imputation.txt', sep='\t')
+    y.to_csv(f'{y_path}/rep{gene}/y.before_imputation.txt', sep='\t')
 
-    manager = multiprocessing.Manager()
-    out = manager.dict()
     if snakemake.wildcards.im_mvn == 'N':
-        # python doesn't know memory used by rpy2
-        # put the r process in a subprocess, so it would free used memory after terminate
         if snakemake.wildcards.im_scale == 'Y':
-            p = multiprocessing.Process(target=softimpute, args=(y_, True, out))
+            y = softimpute(y, True)
         else:
-            p = multiprocessing.Process(target=softimpute, args=(y_, False, out))
+            y = softimpute(y, False)
     else:
-        p = multiprocessing.Process(target=mvn, args=(y_, out))
+        y = mvn( y )
 
-    p.start()
-    p.join()
-
-    y_ = out['y']
-    y_.to_csv(f'{y_path}/rep{gene}/y.imputed.txt', sep='\t')
+    y.to_csv(f'{y_path}/rep{gene}/y.imputed.txt', sep='\t')
 
     ### make imputation heatmap
     fig, axes = plt.subplots(ncols=2, figsize=(12,48))
-    vmin = np.nanmin( (y_before, y_) )
-    vmax = np.nanmax( (y_before, y_) )
+    vmin = np.nanmin( (y_before, y) )
+    vmax = np.nanmax( (y_before, y) )
     sns.heatmap(y_before, cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[0])
-    annotation = y_.astype('str')
-    annotation[y_ > 0] = ''
-    sns.heatmap(y_, annot=annotation, fmt='s', cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[1])
+    annotation = y.astype('str')
+    annotation[y > 0] = ''
+    sns.heatmap(y, annot=annotation, fmt='s', cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[1])
     fig.savefig(f'{y_path}/rep{gene}/y.imputation.heatmap.png')
     plt.close()
 
-    #if snakemake.wildcards.im_miny == 'N':
-    #    pass
-    #elif snakemake.wildcards.im_miny == 'min':
-    #    for day in y_.columns:
-    #        min_y = np.nanmin(y_before[day])
-    #        y_.loc[y_[day] < min_y, day] = min_y
-    #else:
-    #    y_[y_ < float(snakemake.wildcards.im_miny)] = float(snakemake.wildcards.im_miny) 
-    #y_.to_csv(f'{y_path}/rep{gene}/y.cutted.txt', sep='\t')
+    return( y )
 
-    return( y_ )
-
-def imputeNU4eachgene(nu_, nu_path, gene):
-    nu_before = nu_
+def imputeNU4eachgene(nu, nu_path, gene):
+    nu_before = nu
 
     os.makedirs(f'{nu_path}/rep{gene}', exist_ok=True)
-    nu_.to_csv(f'{nu_path}/rep{gene}/nu.before_imputation.txt', sep='\t')
+    nu.to_csv(f'{nu_path}/rep{gene}/nu.before_imputation.txt', sep='\t')
 
     if snakemake.wildcards.im_mvn == 'N':
         if snakemake.wildcards.im_scale == 'Y':
-            os.system(f'Rscript bin/my_softImpute.R {nu_path}/rep{gene}/nu.before_imputation.txt {nu_path}/rep{gene}/nu.imputed.txt scale')
+            nu = softimpute( nu, True )
         else:
-            os.system(f'Rscript bin/my_softImpute.R {nu_path}/rep{gene}/nu.before_imputation.txt {nu_path}/rep{gene}/nu.imputed.txt')
+            nu = softimpute( nu, False )
     else:
-        os.system(f'Rscript bin/mvn_impute.R {nu_path}/rep{gene}/nu.before_imputation.txt {nu_path}/rep{gene}/nu.imputed.txt')
+        nu = mvn( nu )
 
-    nu_ = pd.read_table(f'{nu_path}/rep{gene}/nu.imputed.txt')
-    nu_.index.name = 'donor'
+    nu.to_csv(f'{nu_path}/rep{gene}/nu.imputed.txt', sep='\t')
 
     ### make imputation heatmap
     fig, axes = plt.subplots(ncols=2, figsize=(12,48))
-    vmin = np.nanmin( (nu_before, nu_) )
-    vmax = np.nanmax( (nu_before, nu_) )
+    vmin = np.nanmin( (nu_before, nu) )
+    vmax = np.nanmax( (nu_before, nu) )
     sns.heatmap(nu_before, cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[0])
-    annotation = nu_.astype('str')
-    annotation[nu_ > 0] = ''
-    sns.heatmap(nu_, annot=annotation, fmt='s', cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[1])
+    annotation = nu.astype('str')
+    annotation[nu > 0] = ''
+    sns.heatmap(nu, annot=annotation, fmt='s', cmap="YlGnBu", vmin=vmin, vmax=vmax, ax=axes[1])
     fig.savefig(nu_path+f'/rep{gene}/nu.imputation.heatmap.png')
     plt.close()
 
-    return( nu_ )
+    return( nu )
 
 def main():
     pandas2ri.activate()
@@ -113,12 +96,7 @@ def main():
     n = pd.read_table(input.n, index_col=0) # donor * day
     n.index.name = 'donor'
     genes = [line.strip() for line in open(input.y_batch)]
-    # collect days and inds and genes
 
-#    if snakemake.wildcards.im_genome == 'Y':
-#        y = pd.read_table(input.genome_imputed_y, index_col=(0,1)) # donor - day * gene
-#        nu = pd.read_table(input.genome_imputed_nu, index_col=(0,1)) # donor - day * gene
-#    else:
     y = pd.read_table(input.y, index_col=(0,1))[genes] # donor - day * gene
     nu = pd.read_table(input.nu, index_col=(0,1))[genes] # donor - day * gene
     y = y.sort_values(by=['donor','day']).reset_index()
@@ -200,9 +178,7 @@ def main():
             nu_[nu_ < 0] = 0
         nu_ctng_ = nu_ctng_.mask( nu_ctng_ < 0, np.amax(np.array(nu_ctng_)) )
 
-        # calculate NU from CTNU (updated on 4/17)
-        #nu_imputed_ind[gene] = nu_.mul(n**2).sum(axis=1) / ((n**2).sum(axis=1)) 
-        #nu_imputed_ind_ctng[gene] = nu_ctng_.mul(n).sum(axis=1) / ((n**2).sum(axis=1)) 
+        # calculate NU from CTNU
         nu_imputed_ind[gene] = nu_.mul(P**2).sum(axis=1)
         nu_imputed_ind_ctng[gene] = nu_ctng_.mul(P**2).sum(axis=1)
 
@@ -227,10 +203,6 @@ def main():
             if np.any(nu_imputed_indXct_ctng['donor'] != nu_ctng_['donor']) or np.any(nu_imputed_indXct_ctng['day'] != nu_ctng_['day']):
                 sys.exit('Not matching order!\n')
         nu_imputed_indXct_ctng[gene] = nu_ctng_[gene]
-
-    # save imputed y and nu of all genes
-    #y_imputed_indXct.to_csv(output.y_imputed_allgenes, sep='\t', index=False)
-    #nu_imputed_indXct.to_csv(output.nu_imputed_allgenes, sep='\t', index=False)
 
     # transpose to gene * donor
     y = y_imputed_ind.transpose()
@@ -275,19 +247,18 @@ def main():
 
     # y and nu and P
     ## make sure P and inds in the same order
-    if np.any(np.array(P.index) != inds) or np.any(np.array(nu.columns) != inds) or np.any(np.array(y.columns)!=inds) or np.any(np.array(nu_ctng.columns) != inds) or np.any(np.unique(y_imputed_indXct['donor'])!=inds) or np.any(np.unique(nu_imputed_indXct['donor'])!=inds):
+    if ( np.any(np.array(P.index) != inds) or np.any(np.array(nu.columns) != inds) or 
+            np.any(np.array(y.columns)!=inds) or np.any(np.array(nu_ctng.columns) != inds) or 
+            np.any(np.unique(y_imputed_indXct['donor'])!=inds) or 
+            np.any(np.unique(nu_imputed_indXct['donor'])!=inds) ):
         sys.exit('Not matching order of individuals!\n')
+
     ### save inds
     P_path = os.path.dirname(output.P)
     for gene in genes:
-        # exclude individuals with nu = 0 (some individuals have enough cells, but all cells have no gene expression)
-        # seems we should keep nu = 0
         y_ = np.array(y.loc[gene])
         nu_ = np.array(nu.loc[gene])
         nu_ctng_ = np.array(nu_ctng.loc[gene])
-        #in_inds = (nu_ != 0)
-        #y_ = y_[in_inds]
-        #nu_ = nu_[in_inds]
         os.makedirs(y_path+f'/rep{gene}', exist_ok=True)
         os.makedirs(nu_path+f'/rep{gene}', exist_ok=True)
         os.makedirs(P_path+f'/rep{gene}', exist_ok=True)
@@ -299,11 +270,13 @@ def main():
         np.savetxt(nu_path+f'/rep{gene}/nu.gz', nu_, delimiter='\t')
         np.savetxt(nu_path+f'/rep{gene}/nu.ctng.gz', nu_ctng_, delimiter='\t')
 
-        y_imputed_indXct[['donor','day',gene]].to_csv(y_path+f'/rep{gene}/ct.y.gz', sep='\t', index=False)
+        y_imputed_indXct[['donor','day',gene]].to_csv(
+                y_path+f'/rep{gene}/ct.y.gz', sep='\t', index=False)
 
-        nu_imputed_indXct[['donor','day',gene]].to_csv(nu_path+f'/rep{gene}/ct.nu.gz', sep='\t', index=False)
-        nu_imputed_indXct_ctng[['donor','day',gene]].to_csv(nu_path+f'/rep{gene}/ct.nu.ctng.gz', 
-                sep='\t',index=False)
+        nu_imputed_indXct[['donor','day',gene]].to_csv(
+                nu_path+f'/rep{gene}/ct.nu.gz', sep='\t', index=False)
+        nu_imputed_indXct_ctng[['donor','day',gene]].to_csv(
+                nu_path+f'/rep{gene}/ct.nu.ctng.gz', sep='\t',index=False)
 
         P.to_csv(P_path+f'/rep{gene}/P.txt', sep='\t', index=False, header=False)
 
