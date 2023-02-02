@@ -358,6 +358,7 @@ def hom_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         R = list( random_covars.values() )[0]
         _, R, [Y, P, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, P, vs], fixed_covars)
         random_covars[ list(random_covars.keys())[0] ] = R
+        random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
         X = get_X(fixed_covars, N, C)
 
     # optim
@@ -418,7 +419,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     print('Hom REML', flush=True)
     start = time.time()
     
-    def extract(out, X, P, fixed_covars, random_covars, random_MMT):
+    def extract(out, Y, X, P, vs, fixed_covars, random_covars, random_MMT):
         N, C = P.shape
         hom2, r2 = out['x'][0], out['x'][1:]
         l = out['fun'] * (-1)
@@ -438,13 +439,14 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
            
         out, opt = util.optim(hom_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
        
-        hom2, r2, beta, l, fixed_vars, random_vars, Vy = extract(out, X, P, fixed_covars, random_covars, random_MMT)
+        hom2, r2, beta, l, fixed_vars, random_vars, Vy = extract(
+                out, Y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
         if util.check_optim(opt, hom2, 0, fixed_vars, random_vars):
             out, opt = util.re_optim(out, opt, hom_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT),
                     method=method, nrep=nrep)
             hom2, r2, beta, l, fixed_vars, random_vars, Vy = extract(
-                    out, X, P, fixed_covars, random_covars, random_MMT)
+                    out, Y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
         return(hom2, r2, beta, l, fixed_vars, random_vars, Vy, opt)
 
@@ -471,6 +473,7 @@ def hom_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         R = list( random_covars.values() )[0]
         _, R, [Y, P, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, P, vs], fixed_covars)
         random_covars[ list(random_covars.keys())[0] ] = R
+        random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
         X = get_X(fixed_covars, N, C)
 
     # optim
@@ -636,6 +639,7 @@ def iid_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         R = list( random_covars.values() )[0]
         _, R, [Y, P, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, P, vs], fixed_covars)
         random_covars[ list(random_covars.keys())[0] ] = R
+        random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
         X = get_X(fixed_covars, N, C)
 
     # optim
@@ -699,7 +703,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
     print('IID REML', flush=True)
     start = time.time()
 
-    def extract(out, X, P, fixed_covars, random_covars, random_MMT):
+    def extract(out, Y, X, P, vs, fixed_covars, random_covars, random_MMT):
         N, C = P.shape
         hom2, r2 = out['x'][0], out['x'][2:]
         V = np.eye(C) * out['x'][1]
@@ -718,13 +722,13 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
            
         out, opt = util.optim(iid_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         hom2, V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy = extract(
-                out, X, P, fixed_covars, random_covars, random_MMT)
+                out, Y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
         if util.check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
             out, opt = util.re_optim(out, opt, iid_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT),
                     method=method, nrep=nrep)
             hom2, V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy = extract(
-                    out, X, P, fixed_covars, random_covars, random_MMT)
+                    out, Y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
         return(hom2, V, r2, beta, l, fixed_vars, random_vars, 
                 Vy, ct_overall_var, ct_specific_var, opt)
@@ -754,6 +758,7 @@ def iid_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         R = list( random_covars.values() )[0]
         _, R, [Y, P, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, P, vs], fixed_covars)
         random_covars[ list(random_covars.keys())[0] ] = R
+        random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
         X = get_X(fixed_covars, N, C)
 
     # optim
@@ -929,6 +934,7 @@ def free_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         R = list( random_covars.values() )[0]
         _, R, [Y, P, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, P, vs], fixed_covars)
         random_covars[ list(random_covars.keys())[0] ] = R
+        random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
         X = get_X(fixed_covars, N, C)
 
     # optim
@@ -999,7 +1005,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
     print('Free REML', flush=True)
     start = time.time()
 
-    def extract(out, X, P, fixed_covars, random_covars, random_MMT):
+    def extract(out, Y, X, P, vs, fixed_covars, random_covars, random_MMT):
         N, C = P.shape
         hom2, r2 = out['x'][0], out['x'][(C+1):]
         V = np.diag( out['x'][1:(C+1)] )
@@ -1018,13 +1024,13 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
            
         out, opt = util.optim(free_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
         hom2, V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy = extract(
-                out, X, P, fixed_covars, random_covars, random_MMT)
+                out, Y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
         if util.check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars):
             out, opt = util.re_optim(out, opt, free_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT),
                     method=method, nrep=nrep)
             hom2, V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy = extract(
-                    out, X, P, fixed_covars, random_covars, random_MMT)
+                    out, Y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
         return(hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, 
                 ct_overall_var, ct_specific_var, opt)
@@ -1054,6 +1060,7 @@ def free_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         R = list( random_covars.values() )[0]
         _, R, [Y, P, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, P, vs], fixed_covars)
         random_covars[ list(random_covars.keys())[0] ] = R
+        random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
         X = get_X(fixed_covars, N, C)
 
     # optim
@@ -1243,6 +1250,7 @@ def full_ML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={},
         R = list( random_covars.values() )[0]
         _, R, [Y, P, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, P, vs], fixed_covars)
         random_covars[ list(random_covars.keys())[0] ] = R
+        random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
         X = get_X(fixed_covars, N, C)
 
     # optim
@@ -1342,6 +1350,7 @@ def full_REML(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}
         R = list( random_covars.values() )[0]
         _, R, [Y, P, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, P, vs], fixed_covars)
         random_covars[ list(random_covars.keys())[0] ] = R
+        random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
         X = get_X(fixed_covars, N, C)
 
     # optim
