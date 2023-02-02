@@ -1,12 +1,10 @@
-import re, sys, time
+import re, sys
 import numpy as np, pandas as pd
 from scipy import stats
 
 def main():
     #
     meta = pd.read_table(sys.argv[1], usecols=['donor', 'day', 'cell_name'])
-    #inds = np.unique( meta['donor'] ) # for test
-    #meta = meta.loc[meta['donor'].isin(inds[:5])] # for test
 
     counts = pd.read_table(sys.argv[2], index_col=0) # gene * cell
     counts = counts[ meta['cell_name'] ]
@@ -15,11 +13,7 @@ def main():
 
     # merge
     counts = counts.merge(meta, left_index=True, right_on='cell_name') #  cell * (gene, donor, day)
-    #genes = list(genes)
-    #genes.remove('ENSG00000001084_GCLC')
-    #genes.remove('ENSG00000001167_NFYA')
     counts = counts[['donor','day']+list(genes)]
-    print(time.time())
 
     # nu
     counts_groupby_ct = counts.groupby(['donor', 'day'])
@@ -32,7 +26,6 @@ def main():
 
     var_ct_nu = counts_groupby_ct.agg(lambda x: my_bootstrap(x) )
     var_ct_nu.to_csv(sys.argv[3], sep='\t')
-    print(time.time())
 
 if __name__ == '__main__':
     main()
