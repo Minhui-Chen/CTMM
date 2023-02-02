@@ -1,4 +1,4 @@
-import helper, os, shutil, sys
+import os, shutil, sys
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -50,23 +50,6 @@ def main():
         covars = covars.set_index('donor')
         covars.columns = pd.MultiIndex.from_product([['covar'],covars.columns], names=['first','second'])
 
-    #P = pd.read_table(input.P, index_col=0) # donor * day
-    #P.index.name = 'donor'
-    #n = pd.read_table(input.n, index_col=0) # donor * day
-    #n.index.name = 'donor'
-
-    # collect days and inds and genes
-    #days = list(np.unique(n.columns))
-    #inds = list(np.unique(n.index))
-
-#    # set ct with less cells to missing and impute
-#    ## find low ct
-#    low_cts = (n <= int(snakemake.wildcards.ct_min_cellnum))
-#    low_cts_index = n[low_cts].stack().index
-#    ## set to NA
-#    y.loc[y.index.isin(low_cts_index)] = np.nan
-#    nu.loc[nu.index.isin(low_cts_index)] = np.nan
-
     # transform from donor-day * gene to donor * gene-day
     y = y.unstack(level=1)
     y_columns = y.columns
@@ -74,20 +57,11 @@ def main():
     nu = nu.unstack(level=1)
     nu_columns = nu.columns
     print(nu)
-    #y = y.sort_values(by=['donor','day'])
-    #nu = nu.sort_values(by=['donor','day'])
-    #P = P.sort_values(by='donor')[days]
-    #n = n.sort_values(by='donor')[days]
 
     # impute all genes together
     y_path = os.path.dirname(output.y)
     nu_path = os.path.dirname(output.nu)
     if snakemake.wildcards.im_genome in ['Y', 'Y_Corrected']:
-        ## impute y and nu
-        #y_before = y
-        #y.to_csv(f'{y_path}/y.before_imputation.txt', sep='\t')
-        #nu_before = nu
-        #nu.to_csv(f'{nu_path}/nu.before_imputation.txt', sep='\t')
         if snakemake.wildcards.im_genome == 'Y_Corrected':
             y = y.merge(covars, left_index=True, right_index=True)
             nu = nu.merge(covars, left_index=True, right_index=True)
@@ -119,16 +93,6 @@ def main():
             nu = nu.dropna()
         else:
             sys.exit('Impute Genome only support softImpute!\n')
-#            mvn_f = 'bin/mvn_impute.R'
-#            mvn_r = STAP( open(mvn_f).read(), 'mvn_r' )
-#            ### y
-#            out = mvn_r.MVN_impute( r['as.matrix'](y) )
-#            out = dict( zip(out.names, list(out)) )
-#            y = pd.DataFrame(out['Y'], index=y.index, columns=y.columns)
-#            ### nu
-#            out = mvn_r.MVN_softImpute( r['as.matrix'](nu) )
-#            out = dict( zip(out.names, list(out)) )
-#            nu = pd.DataFrame(out['Y'], index=nu.index, columns=nu.columns)
 
         # transform back from donor * gene-day to donor-day * gene
         y = y.stack(level=1).sort_values(by=['donor','day'])
