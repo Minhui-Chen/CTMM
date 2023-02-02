@@ -29,12 +29,16 @@ def main():
             softImpute_r = STAP( open(softImpute_f).read(), 'softImpute_r' )
             pandas2ri.activate()
             numpy2ri.activate()
+            if seed not in snakemake.params.keys():
+                seed = ro.NULL
+            else:
+                seed = ro.NULL if snakemake.params.seed is None else ro.FloatVector(snakemake.params.seed)
             ### y
-            out = softImpute_r.my_softImpute( r['as.matrix'](y), scale=ro.vectors.BoolVector([True]) )
+            out = softImpute_r.my_softImpute( r['as.matrix'](y), scale=ro.vectors.BoolVector([True]), seed=seed )
             out = dict( zip(out.names, list(out)) )
             y = pd.DataFrame(out['Y'], index=y.index, columns=y.columns)[y_columns]
             ### nu
-            out = softImpute_r.my_softImpute( r['as.matrix'](nu), scale=ro.vectors.BoolVector([True]) )
+            out = softImpute_r.my_softImpute( r['as.matrix'](nu), scale=ro.vectors.BoolVector([True]), seed=seed )
             out = dict( zip(out.names, list(out)) )
             nu = pd.DataFrame(out['Y'], index=nu.index, columns=nu.columns)[nu_columns]
         else:
