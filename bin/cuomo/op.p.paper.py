@@ -2,7 +2,7 @@ import math
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import wald, plot
+import draw
 
 def main():
     # par
@@ -69,13 +69,7 @@ def main():
         data = pd.DataFrame({'beta':beta_ps, 'V':V_ps, 'gene':genes})
 
         ## free 
-        #if len(np.unique(beta_ps)) == 1 or len(np.unique(V_ps)) == 1:
-        #    plot.scatter(data['beta'], data['V'], s=5, linregress=False, ax=axes[0,i])
-        #else:
-            #plot.scatter(beta_ps, V_ps, s=5, heatscatter=True, linregress=False, ax=axes[0,i])
-        #np.savetxt('beta_ps.txt', beta_ps)
-        #np.savetxt('V_ps.txt', V_ps)
-        plot.scatter(beta_ps, V_ps, s=5, heatscatter=True, linregress=False, ax=axes[i])
+        draw.scatter(beta_ps, V_ps, s=5, heatscatter=True, linregress=False, ax=axes[i])
 
         axes[i].scatter(data.loc[data['gene'].isin(marker),'beta'], 
                 data.loc[data['gene'].isin(marker),'V'], s=10, c='m')

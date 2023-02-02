@@ -1,8 +1,8 @@
+import math
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
-import math
-import plot
 from scipy import stats
+import draw
 
 out = np.load(snakemake.input.out, allow_pickle=True).item()
 remlJK = np.load(snakemake.input.remlJK, allow_pickle=True).item()
@@ -35,7 +35,7 @@ for method, tmp_data, tmp_threshold, png_f in zip(['reml','he'], [remlJK_data, d
     fig, ax = plt.subplots(dpi=600)
 
     ## heatscatter
-    plot.scatter(tmp_data[method+'_beta'], tmp_data[method+'_V'], s=5, heatscatter=True, linregress=False, ax=ax)
+    draw.scatter(tmp_data[method+'_beta'], tmp_data[method+'_V'], s=5, heatscatter=True, linregress=False, ax=ax)
 
     # add nonsignificant V in HE
     #tmp = data.loc[data['he_V'] < threshold]
