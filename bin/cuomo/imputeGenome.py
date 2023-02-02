@@ -1,7 +1,5 @@
 import os, shutil, sys
 import numpy as np, pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import rpy2.robjects as ro
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr, STAP
