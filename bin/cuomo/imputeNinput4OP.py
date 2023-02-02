@@ -1,4 +1,4 @@
-import os
+import os, tempfile
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -257,11 +257,11 @@ def main():
     # collect files
     f1 = open(output.y, 'w')
     f2 = open(output.nu, 'w')
-    f3 = open(output.nu_ctng, 'w')
+    f3 = open(output.nu_ctp, 'w')
     f4 = open(output.P, 'w')
-    f5 = open(output.imputed_ct_y, 'w')
-    f6 = open(output.imputed_ct_nu, 'w')
-    f7 = open(output.imputed_ct_nu_ctng, 'w')
+    f5 = open(output.imputed_cty, 'w')
+    f6 = open(output.imputed_ctnu, 'w')
+    f7 = open(output.imputed_ctnu_ctp, 'w')
     for gene in genes:
         f1.write(y_path+f'/rep{gene}/y.gz\n')
         f2.write(nu_path+f'/rep{gene}/nu.gz\n')
