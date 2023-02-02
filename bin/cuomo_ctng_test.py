@@ -1313,35 +1313,6 @@ def main():
         y.to_csv(y_f, sep='\t', index=False, header=False)
         ctnu.to_csv(ctnu_f, sep='\t', index=False, header=False)
 
-        if snakemake.wildcards.im_miny.split('-')[0] == 'std':
-            threshold = float(snakemake.wildcards.im_miny.split('-')[1])
-            tmp = y.copy()
-            for ct in cts:
-                mean, std = np.mean(y[ct]), np.std(y[ct])
-                tmp.loc[(tmp[ct] > (mean + threshold * std)) | (tmp[ct] < (mean - threshold * std)), ct] = np.nan
-            tmp = tmp.dropna()
-            remain_inds = np.array(tmp.index)
-            #print(y.index)
-            #print(tmp.index)
-            #print( y.shape, tmp.shape)
-
-            nu = np.loadtxt(nu_f)
-            nu_f = tmp_f+'.nu'
-            np.savetxt(nu_f, nu[np.isin(np.unique(y.index),remain_inds)], delimiter='\t')
-            P = pd.read_table(P_f, header=None)
-            P = P.loc[y.index.isin(remain_inds)]
-            P_f = tmp_f+'.P'
-            P.to_csv(P_f, sep='\t', index=False, header=False)
-            y = y.loc[y.index.isin(remain_inds)]
-            y.to_csv(y_f, sep='\t', index=False, header=False)
-            ctnu = ctnu.loc[ctnu.index.isin(remain_inds)]
-            ctnu.to_csv(ctnu_f, sep='\t', index=False, header=False)
-
-            # collect covariates
-            #print( remain_inds )
-            fixed_covars_d, random_covars_d = collect_covariates(snakemake, remain_inds)
-
-
         # if there are individuals with more than 1 cts with ctnu =0 , hom and IID is gonna broken
         # so just skip these ~20 genes
         if 'Hom' not in snakemake.params.keys():
