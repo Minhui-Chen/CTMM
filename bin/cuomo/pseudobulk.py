@@ -2,6 +2,19 @@ import numpy as np, pandas as pd
 import re, sys, time
 from scipy import stats
 
+def check_unique_cell( meta, counts ):
+    # check unique cells
+    if len(np.unique(meta['cell_name'])) != meta.shape[0]:
+        sys.exit('Duplicate cells!\n')
+
+    # check identical cells
+    if not np.all(np.unique(meta['cell_name']) == np.unique(counts.index)):
+        print(len(np.unique(meta['cell_name'])))
+        print(len(np.unique(counts.index)))
+        print(meta.loc[~meta['cell_name'].isin(counts.index), 'cell_name'])
+        print(counts.loc[~counts.index.isin(meta['cell_name'])])
+        sys.exit('Not matching cells!\n')
+
 def main():
     # 
     input = snakemake.input
@@ -19,24 +32,7 @@ def main():
         print(counts.loc[np.any(pd.isna(counts), axis=1)])
         sys.exit('Missing values in gene expression!\n')
 
-    def check_unique_cell( meta, counts ):
-        # check unique cells
-        if len(np.unique(meta['cell_name'])) != meta.shape[0]:
-            sys.exit('Duplicate cells!\n')
-
-        # check identical cells
-        if not np.all(np.unique(meta['cell_name']) == np.unique(counts.index)):
-            print(len(np.unique(meta['cell_name'])))
-            print(len(np.unique(counts.index)))
-            print(meta.loc[~meta['cell_name'].isin(counts.index), 'cell_name'])
-            print(counts.loc[~counts.index.isin(meta['cell_name'])])
-            sys.exit('Not matching cells!\n')
-
-    if 'unique_cell' in snakemake.params.keys():
-        if snakemake.params.unique_cell:
-            check_unique_cell( meta, counts )
-    else:
-        check_unique_cell( meta, counts )
+    check_unique_cell( meta, counts )
 
     # merge
     print( counts.shape[0])
