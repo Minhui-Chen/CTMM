@@ -3,7 +3,6 @@ import numpy as np, pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
-import plot_help
 
 def main():
     # read
@@ -96,7 +95,7 @@ def main():
         if ct2 - ct1 != 1:
             my_pal[pair] = 'lightblue'
         else:
-            my_pal[pair] = plot_help.mycolors()[0]
+            my_pal[pair] = sns.color_palette('muted')[0]
 
     mpl.rcParams.update({'font.size': 11})
     color = sns.color_palette()[0]
