@@ -360,3 +360,10 @@ def lrt(l, l0, k):
     Lambda = 2 * (l-l0)
     p = stats.chi2.sf(Lambda, k)
     return(p)
+
+def generate_tmpfn():
+    tmpf = tempfile.NamedTemporaryFile(delete=False)
+    tmpfn = tmpf.name
+    tmpf.close()
+    print(tmpfn)
+    return tmpfn
