@@ -1282,6 +1282,7 @@ def main():
     input = snakemake.input
     output = snakemake.output
     wildcards = snakemake.wildcards
+    optim_by_r = False if 'optim_by_r' not in params.keys() else params.optim_by_r
 
     # collect covariates
     fixed_covars_d, random_covars_d = collect_covariates(snakemake)
@@ -1363,28 +1364,28 @@ def main():
         #null_ml = null_ML(y_f, P_f, nu_f, fixed_covars_d)
         if snakemake.params.ML:
             if not snakemake.params.HE_as_initial:
-                free_ml, free_ml_p = ctp.free_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d)
-                full_ml = ctp.full_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d)
+                free_ml, free_ml_p = ctp.free_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r)
+                full_ml = ctp.full_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r)
                 if snakemake.params.Hom:
-                    hom_ml, hom_ml_p = ctp.hom_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d)
+                    hom_ml, hom_ml_p = ctp.hom_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r)
                 else:
                     hom_ml, hom_ml_p = free_ml, free_ml_p
                 if snakemake.params.IID:
-                    iid_ml, iid_ml_p = ctp.iid_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d)
+                    iid_ml, iid_ml_p = ctp.iid_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r)
                 else:
                     iid_ml, iid_ml_p = free_ml, free_ml_p
             else:
-                free_ml, free_ml_p = ctp.free_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d,
+                free_ml, free_ml_p = ctp.free_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r,
                         par=util.generate_HE_initial(free_he, ML=True))
-                full_ml = ctp.full_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d,
+                full_ml = ctp.full_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r,
                         par=util.generate_HE_initial(full_he, ML=True))
                 if snakemake.params.Hom:
-                    hom_ml, hom_ml_p = ctp.hom_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d,
+                    hom_ml, hom_ml_p = ctp.hom_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r,
                             par=util.generate_HE_initial(hom_he, ML=True))
                 else:
                     hom_ml, hom_ml_p = free_ml, free_ml_p
                 if snakemake.params.IID:
-                    iid_ml, iid_ml_p = ctp.iid_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d,
+                    iid_ml, iid_ml_p = ctp.iid_ML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r,
                             par=util.generate_HE_initial(iid_he, ML=True))
                 else:
                     iid_ml, iid_ml_p = free_ml, free_ml_p
@@ -1411,33 +1412,33 @@ def main():
             if not snakemake.params.HE_as_initial:
                 if 'Free_reml_jk' in snakemake.params.keys():
                     free_reml, free_reml_p = ctp.free_REML(y_f, P_f, ctnu_f, nu_f, 
-                            fixed_covars_d, random_covars_d, nrep=5, jack_knife=snakemake.params.Free_reml_jk)
+                            fixed_covars_d, random_covars_d, optim_by_r=optim_by_r, jack_knife=snakemake.params.Free_reml_jk)
                 else:
                     free_reml, free_reml_p = ctp.free_REML(y_f, P_f, ctnu_f, nu_f, 
-                            fixed_covars_d, random_covars_d, nrep=5)
-                full_reml = ctp.full_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d)
+                            fixed_covars_d, random_covars_d, optim_by_r=optim_by_r)
+                full_reml = ctp.full_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r)
 
                 if snakemake.params.Hom:
-                    hom_reml, hom_reml_p = ctp.hom_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d)
+                    hom_reml, hom_reml_p = ctp.hom_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r)
                 else:
                     hom_reml, hom_reml_p = free_reml, free_reml_p
                 if snakemake.params.IID:
-                    iid_reml, iid_reml_p = ctp.iid_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d)
+                    iid_reml, iid_reml_p = ctp.iid_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r)
                 else:
                     iid_reml, iid_reml_p = free_reml, free_reml_p
             else:
-                free_reml, free_reml_p = ctp.free_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d,
+                free_reml, free_reml_p = ctp.free_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r,
                         par=util.generate_HE_initial(free_he, REML=True))
-                full_reml = ctp.full_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d,
+                full_reml = ctp.full_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r,
                         par=util.generate_HE_initial(full_he, REML=True))
 
                 if snakemake.params.Hom:
-                    hom_reml, hom_reml_p = ctp.hom_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d,
+                    hom_reml, hom_reml_p = ctp.hom_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r,
                             par=util.generate_HE_initial(hom_he, REML=True))
                 else:
                     hom_reml, hom_reml_p = free_reml, free_reml_p
                 if snakemake.params.IID:
-                    iid_reml, iid_reml_p = ctp.iid_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d,
+                    iid_reml, iid_reml_p = ctp.iid_REML(y_f, P_f, ctnu_f, nu_f, fixed_covars_d, random_covars_d, optim_by_r=optim_by_r,
                             par=util.generate_HE_initial(iid_he, REML=True))
                 else:
                     iid_reml, iid_reml_p = free_reml, free_reml_p
