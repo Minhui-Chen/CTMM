@@ -3,7 +3,6 @@ import numpy as np, pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
-import plot_help
 
 def main():
     # read
@@ -117,7 +116,7 @@ def main():
         if ct2 - ct1 != 1:
             my_pal[pair] = 'lightblue'
         else:
-            my_pal[pair] = plot_help.mycolors()[0]
+            my_pal[pair] = sns.color_palette('muted')[0]
     sns.violinplot( x='variable', y='value', data=data, ax=axes[1], cut=0, palette=my_pal )
     axes[1].axhline(0, ls='--', color='0.9', zorder=0)
     axes[1].set_ylabel( ylab, fontsize=12 )
