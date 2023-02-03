@@ -150,7 +150,7 @@ screml_iid <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessian
 
         hom2 <- out$par[1]
         V <- diag(C) * out$par[2]
-        r2 <- out$par[2:length(out$par)]
+        r2 <- out$par[3:length(out$par)]
         beta <- gls(y, P, X, vs, hom2, V, random, r2)
         l <- out$value * (-1)
         
