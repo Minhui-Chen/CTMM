@@ -3,11 +3,9 @@ import numpy as np, pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
-import plot_help
 
 def main():
     # par
-    #mycolors = plot_help.mycolors(n=10, palette='muted')
 
     # collect data
     op_hom = [np.load(f, allow_pickle=True).item() for f in snakemake.input.op_hom]

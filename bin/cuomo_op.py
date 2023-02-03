@@ -40,7 +40,7 @@ def main():
         free_he, free_he_wald = op.free_HE(y_f, P_f, nu_f, 
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, jack_knife=True)
 
-        full_he = ong_test.full_HE(y_f, P_f, nu_f, 
+        full_he = op.full_HE(y_f, P_f, nu_f, 
                 fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
 
 
