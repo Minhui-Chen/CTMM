@@ -794,7 +794,7 @@ def main():
     params = snakemake.params
     input = snakemake.input
     output = snakemake.output
-    optim_method = 'BFGS-Nelder'
+    optim_method = 'BFGS' if 'method' not in params.keys() else params.method
 
     #
     batch = params.batch
