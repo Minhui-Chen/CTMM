@@ -12,7 +12,7 @@ LL <- function(y, P, X, C, vs, hom2, V, random_variances=NULL, random_MMT=NULL){
         A <- sweep( t(X), 2, sig2s_inv, '*') # t(X) %*% diag(sig2s_inv)
         B <- A %*% X
         eval <- eigen(B,symmetric=TRUE)$values
-        if (max(eval)/(min(eval)+1e-99) > 1e6 | min(eval)<0) return(1e12)
+        if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
         M <- diag(sig2s_inv) - t(A) %*% solve(B) %*% A
         L <- sum(log( sig2s ))
     } else {
@@ -21,12 +21,12 @@ LL <- function(y, P, X, C, vs, hom2, V, random_variances=NULL, random_MMT=NULL){
             sig2s <- sig2s + random_variances[i] * random_MMT[[i]]
         }
         eval <- eigen(sig2s,symmetric=TRUE)$values
-        if (max(eval)/(min(eval)+1e-99) > 1e6 | min(eval)<0) return(1e12)
+        if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
         sig2s_inv <- solve( sig2s )
         A <- t(X) %*% sig2s_inv
         B <- A %*% X
         eval <- eigen(B,symmetric=TRUE)$values
-        if (max(eval)/(min(eval)+1e-99) > 1e6 | min(eval)<0) return(1e12)
+        if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
         M <- sig2s_inv - t(A) %*% solve(B) %*% A
         L <- determinant(sig2s, logarithm=TRUE)$modulus
     }
