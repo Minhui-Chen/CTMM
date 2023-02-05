@@ -155,6 +155,7 @@ rule op_test:
         ML = True,
         REML = True,
         HE = True,
+        method = 'BFGS',
     resources:
         mem_per_cpu = '5000',
     script: 'bin/op_R.py'
@@ -214,6 +215,7 @@ rule op_test_remlJK:
         HE = False,
     resources:
         mem_per_cpu = '10gb',
+        time = '18:00:00',
     script: 'bin/op_R.py'
 
 use rule op_aggReplications as op_remlJK_aggReplications with:
@@ -321,9 +323,9 @@ use rule op_compare_optim_RvsPython as ctp_compare_optim_RvsPython with:
 
 rule ctp_test_remlJK:
     input:
-        cty = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/cty.batch{{i}}.txt',
+        y = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/cty.batch{{i}}.txt',
         P = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
-        ctnu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
+        nu = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/ctnu.batch{{i}}.txt',
     output:
         out = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/out.remlJK.batch{{i}}',
     params:
@@ -334,11 +336,12 @@ rule ctp_test_remlJK:
         Free_reml_only = True,
         Free_reml_jk = True,
         HE = False,
+        optim_by_r = True,
     resources:
         mem_per_cpu = '10gb',
         time = '200:00:00',
     priority: 1
-    script: 'bin/ctp_test.py'
+    script: 'bin/ctp.py'
 
 use rule op_aggReplications as ctp_remlJK_aggReplications with:
     input:
@@ -373,184 +376,51 @@ rule paper_opNctp_power:
         hom_remlJK = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
         free_remlJK = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
         plot_order = op_plot_order,
-    script: 'bin/paper_opNctp_power.py'
-
-rule paper_ctp_power:
-    input:
-        hom_ss = expand('analysis/ctp/hom/{params}/out.npy',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='hom']).instance_patterns),
-        hom_ss_remlJK = expand('analysis/ctp/hom/{params}/out.remlJK.npy',
-                params=get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
-        free_ss = expand('analysis/ctp/free/{params}/out.npy',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
-        free_ss_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
-                params=get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
-        hom_a = expand('analysis/ctp/hom/{params}/out.npy',
-                params=get_subspace('a', op_params.loc[op_params['model']=='hom']).instance_patterns),
-        hom_a_remlJK = expand('analysis/ctp/hom/{params}/out.remlJK.npy',
-                params=get_subspace('a', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
-        free_a = expand('analysis/ctp/free/{params}/out.npy',
-                params=get_subspace('a', op_params.loc[op_params['model']=='free']).instance_patterns),
-        free_a_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
-                params=get_subspace('a', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
-        free_vc = expand('analysis/ctp/free/{params}/out.npy',
-                params=get_subspace('vc', op_params.loc[op_params['model']=='free']).instance_patterns),
-        free_vc_remlJK = expand('analysis/ctp/free/{params}/out.remlJK.npy',
-                params=get_subspace('vc', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)]).instance_patterns),
-    output:
-        png = 'results/ctp/power.paper.supp.png',
-    params: 
-        arg_ss = 'ss',
-        hom_ss = np.array(get_subspace('ss', op_params.loc[op_params['model']=='hom'])['ss']),
-        free_ss = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
-        hom_ss_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)])['ss']),
-        free_ss_remlJK = np.array(get_subspace('ss', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['ss']),
-        arg_a = 'a',
-        hom_a = np.array(get_subspace('a', op_params.loc[op_params['model']=='hom'])['a']),
-        free_a = np.array(get_subspace('a', op_params.loc[op_params['model']=='free'])['a']),
-        hom_a_remlJK = np.array(get_subspace('a', op_params.loc[(op_params['model']=='hom') & (op_params['ss'].astype('float')<=100)])['a']),
-        free_a_remlJK = np.array(get_subspace('a', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['a']),
-        arg_vc = 'vc',
-        free_vc = np.array(get_subspace('vc', op_params.loc[op_params['model']=='free'])['vc']),
-        free_vc_remlJK = np.array(get_subspace('vc', op_params.loc[(op_params['model']=='free') & (op_params['ss'].astype('float')<=100)])['vc']),
-        plot_order = op_plot_order,
-    script: 'bin/paper_ctp_power.py'
-
-rule paper_opNctp_estimates_ss:
-    input:
-        op_free = expand('analysis/op/free/{params}/out.npy',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
-        ctp_free = expand('analysis/ctp/free/{params}/out.npy',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
-        V = expand('analysis/op/free/{params}/V.txt',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='free']).instance_patterns),
-    output:
-        png = 'results/ctp/opNctp.estimate.ss.paper.supp.png',
-    params:
-        free = np.array(get_subspace('ss', op_params.loc[op_params['model']=='free'])['ss']),
-        plot_order = op_plot_order,
-        #subspace = lambda wildcards: get_subspace(wildcards.arg,
-        #        op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
-        #colorpalette = colorpalette,
-        pointcolor = pointcolor,
-        #mycolors = mycolors,
-    script: 'bin/paper_opNctp_estimates_ss.py'
-
-rule paper_opNctp_estimates_a:
-    input:
-        op_free = expand('analysis/op/free/{params}/out.npy',
-                params=get_subspace('a', op_params.loc[op_params['model']=='free']).instance_patterns),
-        ctp_free = expand('analysis/ctp/free/{params}/out.npy',
-                params=get_subspace('a', op_params.loc[op_params['model']=='free']).instance_patterns),
-        V = expand('analysis/op/free/{params}/V.txt',
-                params=get_subspace('a', op_params.loc[op_params['model']=='free']).instance_patterns),
-    output:
-        png = 'results/ctp/opNctp.estimate.a.paper.supp.png',
-    params:
-        free = np.array(get_subspace('a', op_params.loc[op_params['model']=='free'])['a']),
-        plot_order = op_plot_order,
-        #subspace = lambda wildcards: get_subspace(wildcards.arg,
-        #        op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
-        #colorpalette = colorpalette,
-        pointcolor = pointcolor,
-        #mycolors = mycolors,
-    script: 'bin/paper_opNctp_estimates_a.py'
-
-rule paper_opNctp_estimates_vc:
-    input:
-        op_free = expand('analysis/op/free/{params}/out.npy',
-                params=get_subspace('vc', op_params.loc[op_params['model']=='free']).instance_patterns),
-        ctp_free = expand('analysis/ctp/free/{params}/out.npy',
-                params=get_subspace('vc', op_params.loc[op_params['model']=='free']).instance_patterns),
-        V = expand('analysis/op/free/{params}/V.txt',
-                params=get_subspace('vc', op_params.loc[op_params['model']=='free']).instance_patterns),
-        op_hom = expand('analysis/op/hom/{params}/out.npy',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='hom'].iloc[[0]]).instance_patterns),
-        ctp_hom = expand('analysis/ctp/hom/{params}/out.npy',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='hom'].iloc[[0]]).instance_patterns),
-        V_hom = expand('analysis/op/hom/{params}/V.txt',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='hom'].iloc[[0]]).instance_patterns),
-    output:
-        png = 'results/ctp/opNctp.estimate.vc.paper.supp.png',
-    params:
-        arg = 'vc',
-        free = np.array(get_subspace('vc', op_params.loc[op_params['model']=='free'])['vc']),
-        plot_order = op_plot_order,
-        #subspace = lambda wildcards: get_subspace(wildcards.arg,
-        #        op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
-        #colorpalette = colorpalette,
-        pointcolor = pointcolor,
-        #mycolors = mycolors,
-    script: 'bin/paper_opNctp_estimates_vc.py'
-
-rule paper_opNctp_estimates_ss_full:
-    input:
-        op_full = expand('analysis/op/full/{params}/out.npy',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='full']).instance_patterns),
-        ctp_full = expand('analysis/ctp/full/{params}/out.npy',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='full']).instance_patterns),
-        V = expand('analysis/op/full/{params}/V.txt',
-                params=get_subspace('ss', op_params.loc[op_params['model']=='full']).instance_patterns),
-    output:
-        png = 'results/ctp/opNctp.estimate.ss.full.paper.supp.png',
-    params:
-        full = np.array(get_subspace('ss', op_params.loc[op_params['model']=='full'])['ss']),
-        plot_order = op_plot_order,
-        #subspace = lambda wildcards: get_subspace(wildcards.arg,
-        #        op_params.loc[op_params['model']==wildcards.model]).iloc[:,:],
-        #colorpalette = colorpalette,
-        pointcolor = pointcolor,
-        #mycolors = mycolors,
-        vc = get_subspace('ss', op_params.loc[op_params['model']=='full'])['vc'][0],
-    script: 'bin/paper_opNctp_estimates_ss_full.py'
-
+    script: 'bin/sim/opNctp_power.py'
 
 #########################################################################################
 # Cuomo et al 2020 Nature Communications
 #########################################################################################
-############################################ data ###########################
-rule cuomo_data_format:
-    input:
+####################### data ###########################
+rule cuomo_data_download:
+    output:
         raw = 'data/cuomo2020natcommun/raw_counts.csv.zip',
         log = 'data/cuomo2020natcommun/log_normalised_counts.csv.zip',
+        meta = 'data/cuomo2020natcommun/cell_metadata_cols.tsv',
+        supp2 = 'data/cuomo2020natcommun/suppdata2.txt',
+    shell:
+        '''
+        mkdir -p $(dirname {output.log})
+        cd $(dirname {output.log})
+        wget https://zenodo.org/record/3625024/files/raw_counts.csv.zip
+        wget https://zenodo.org/record/3625024/files/log_normalised_counts.csv.zip
+        wget https://zenodo.org/record/3625024/files/cell_metadata_cols.tsv
+        wget --no-check-certificate https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-020-14457-z/MediaObjects/41467_2020_14457_MOESM4_ESM.txt
+        mv 41467_2020_14457_MOESM4_ESM.txt suppdata2.txt
+        '''
+
+rule cuomo_data_format:
+    input:
+        log = 'data/cuomo2020natcommun/log_normalised_counts.csv.zip',
     output:
-        raw = 'data/cuomo2020natcommun/raw_counts.csv.gz',
         log = 'data/cuomo2020natcommun/log_normalised_counts.csv.gz',
     params:
-        raw = lambda wildcards, input: re.sub('\.zip$', '', input.raw),
         log = lambda wildcards, input: re.sub('\.zip$', '', input.log),
     shell:
         '''
-        unzip -p {input.raw} | tr ',' '\t' | sed 's/"//g' | gzip > {output.raw}
         unzip -p {input.log} | tr ',' '\t' | sed 's/"//g' | gzip > {output.log}
         '''
 
-rule cuomo_metadata_columns:
-    input:
-        meta = 'data/cuomo2020natcommun/cell_metadata_cols.tsv',
-    output:
-        info = 'data/cuomo2020natcommun/data.info',
-    script: "bin/cuomo_data_explore.py"
-
-#rule cuomo_cellnum_summary:
-#    input:
-#        meta = 'data/cuomo2020natcommun/cell_metadata_cols.tsv',
-#    output:
-#        summary = 'analysis/cuomo/data/cellnum.txt',
-#        png = 'analysis/cuomo/data/cellnum.png',
-#        png2 = 'analysis/cuomo/data/cellnum2.png',
-#    script: "bin/cuomo_cellnum_summary.py"
-
-rule cuomo_day_meta_extractLargeExperiments:
+rule cuomo_extractLargeExperiments:
     # extract the largest experiment for each individual
     input:
         meta = 'data/cuomo2020natcommun/cell_metadata_cols.tsv',
     output:
         meta = 'analysis/cuomo/data/meta.txt',
         png = 'analysis/cuomo/data/meta.png',
-    script: 'bin/cuomo_day_meta_extractLargeExperiments.py'
+    script: 'bin/cuomo/extractLargeExperiments.py'
 
-rule cuomo_day_pseudobulk_log:
+rule cuomo_pseudobulk:
     input:
         meta = 'analysis/cuomo/data/meta.txt',
         counts = 'data/cuomo2020natcommun/log_normalised_counts.csv.gz',
@@ -560,10 +430,9 @@ rule cuomo_day_pseudobulk_log:
     resources: 
         mem_per_cpu = '10gb',
         time = '24:00:00',
-    script: 'bin/cuomo_day_pseudobulk.py'
+    script: 'bin/cuomo/pseudobulk.py'
 
-# coefficient of variation for NU
-rule cuomo_day_pseudobulk_log_varNU:
+rule cuomo_varNU:
     input:
         meta = 'analysis/cuomo/data/meta.txt',
         counts = 'staging/cuomo/bootstrapedNU/data/counts{i}.txt.gz',
@@ -575,10 +444,10 @@ rule cuomo_day_pseudobulk_log_varNU:
     shell: 
         '''
         module load python/3.8.1
-        python3 bin/cuomo_day_pseudobulk_log_varNU.py {input.meta} {input.counts} {output.var_nu}
+        python3 bin/cuomo/varNU.py {input.meta} {input.counts} {output.var_nu}
         '''
 
-rule cuomo_day_pseudobulk_log_varNU_merge:
+rule cuomo_varNU_merge:
     input:
         var_nu = expand('staging/cuomo/bootstrapedNU/data/counts{i}.var_nu.gz', i=range(100)),
     output:
@@ -587,33 +456,19 @@ rule cuomo_day_pseudobulk_log_varNU_merge:
         nus = [pd.read_table(f, index_col=(0,1)) for f in input.var_nu]
         # check donor day
         index = nus[0].index
-        #donors = nus[0]['donor']
-        #days = nus[0]['day']
         for data in nus[1:]:
-            #if np.any( donors != data['donor'] ) or np.any( days != data['day'] ):
             if np.any( index != data.index ):
                 sys.exit('Wrop order!\n')
         # merge
         data = pd.concat( nus, axis=1 )
         data.to_csv( output.var_nu, sep='\t')
 
-rule cuomo_day_pseudobulk_log_varNU_dist:
-    input:
-        meta = 'analysis/cuomo/data/meta.txt',
-        var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
-        nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
-    output:
-        png = 'results/cuomo/data/log/bootstrapedNU/day.raw.var_nu.png',
-    script: 'bin/cuomo_day_pseudobulk_log_varNU_dist.py'
-
-#################################### analysis ###############
+########### analysis ###############
 ## read parameters
 cuomo_params = pd.read_table('cuomo.params.txt', dtype="str", comment='#')
-if cuomo_params.shape[0] != cuomo_params.drop_duplicates().shape[0]:
-    sys.exit('Duplicated parameters!\n')
 cuomo_paramspace = Paramspace(cuomo_params, filename_params="*")
 
-rule cuomo_day_filterInds:
+rule cuomo_filterInds:
     input:
         meta = 'analysis/cuomo/data/meta.txt',
         y = 'analysis/cuomo/data/log/day.raw.pseudobulk.gz', # donor - day * gene
@@ -623,9 +478,9 @@ rule cuomo_day_filterInds:
         nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterInds.nu.gz', # donor - day * gene
         P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterInds.prop.gz', # donor * day
         n = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterInds.cellnum.gz', # donor * day
-    script: 'bin/cuomo_day_filterInds.py'
+    script: 'bin/cuomo/filterInds.py'
 
-rule cuomo_day_filterCTs:
+rule cuomo_filterCTs:
     input:
         y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterInds.pseudobulk.gz', # donor - day * gene
         nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterInds.nu.gz', # donor - day * gene
@@ -654,23 +509,33 @@ rule cuomo_split2batches:
     output:
         y_batch = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/y/batch{i}.txt' 
                 for i in range(cuomo_batch_no)],
-    script: "bin/cuomo_split2batches.py"
+    run:
+        y = pd.read_table(input.y, index_col=(0,1))
+        # create batches
+        genes = list(y.columns)
+        genes = np.array_split(genes, len(output.y_batch))
+        # output
+        for genes_, y_batch_f in zip(genes, output.y_batch):
+            with open(y_batch_f, 'w') as f:
+                f.write( '\n'.join(genes_) )
 
-rule cuomo_day_imputeGenome:
+rule cuomo_imputeGenome:
     input:
         y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterCTs.pseudobulk.gz', # donor - day * gene
         nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterCTs.nu.gz', # donor - day * gene
-        supp = f'data/cuomo2020natcommun/suppdata2.txt', # sex disease
+        supp = 'data/cuomo2020natcommun/suppdata2.txt', # sex disease
         meta = 'analysis/cuomo/data/meta.txt', # experiment 
     output:
         y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.Gimputed.pseudobulk.gz', # donor - day * gene
         nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.Gimputed.nu.gz', # donor - day * gene
+    params:
+        seed = 123450, # seed for softimpute
     resources: 
         mem = '20gb',
         time = '20:00:00',
-    script: 'bin/cuomo_day_imputeGenome.py'
+    script: 'bin/cuomo/imputeGenome.py'
 
-rule cuomo_day_imputeNinputForop:
+rule cuomo_imputeNinput4OP:
     # also exclude individuals with nu = 0 which cause null model fail (some individuals have enough cells, but all cells have no expression of specific gene)
     # seems we should keep nu = 0
     input:
@@ -684,53 +549,37 @@ rule cuomo_day_imputeNinputForop:
         nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.txt', # list
         nu_ctp = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctp.txt', # list
         P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/P.txt', # list
-        imputed_ct_y = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.y.txt', # donor - day * gene
-        imputed_ct_nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.txt', #donor-day * gene # negative ct_nu set to 0
-        imputed_ct_nu_ctp = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene # negative ct_nu set to max(ct_nu)
+        imputed_cty = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.y.txt', # donor - day * gene
+        imputed_ctnu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.txt', #donor-day * gene # negative ct_nu set to 0
+        imputed_ctnu_ctp = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene # negative ct_nu set to max(ct_nu)
     resources: mem = '10gb',
-    script: 'bin/cuomo_day_imputeNinputForop.py'
+    script: 'bin/cuomo/imputeNinput4OP.py'
 
-rule cuomo_day_summary_imputation:
-    input:
-        y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterCTs.pseudobulk.gz', # donor - day * gene
-        nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterCTs.nu.gz', # donor - day * gene
-        imputed_ct_y = [f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.y.txt'
-                for i in range(cuomo_batch_no)], # donor - day * gene
-        imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.txt'
-                for i in range(cuomo_batch_no)], #donor-day * gene # negative ct_nu set to 0
-        n = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterInds.cellnum.gz', # donor * day
-    output: png = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/imputation.png',
-    script: 'bin/cuomo_day_summary_imputation.py'
-
-rule cuomo_day_y_collect:
+rule cuomo_y_collect:
     input:
         y = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/y.txt' 
                 for i in range(cuomo_batch_no)],
     output:
         y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/y.merged.txt',
-    script: 'bin/cuomo_day_y_merge.py'
+    run:
+        y_fs = []
+        for f in input.y: y_fs = y_fs + [line.strip() for line in open(f)]
+        y = []
+        for f in y_fs: y.append(np.loadtxt(f))
+        y = np.array(y) # gene * ind
+        y = y.transpose() # ind * gene
+        np.savetxt(output.y, y)
 
-rule cuomo_day_pca:
+rule cuomo_pca:
     input:
         y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/y.merged.txt',
         imputed_ct_y = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch0/ct.y.txt', # donor - day * gene
-        #P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterInds.prop.gz', # donor * day
     output:
         evec = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/evec.txt',
         eval = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/eval.txt',
         pca = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.txt',
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.png',
-    script: 'bin/cuomo_day_pca.py'
-
-rule cuomo_day_PCassociatedVar:
-    input:
-        pca = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.txt',
-        P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterInds.prop.gz', # donor * day
-        supp = f'data/cuomo2020natcommun/suppdata2.txt', # sex disease
-        meta = 'analysis/cuomo/data/meta.txt', # experiment 
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.associatedVar.png',
-    script: 'bin/cuomo_day_PCassociatedVar.py'
+    script: 'bin/cuomo/pca.py'
 
 rule cuomo_op_test:
     input:
@@ -739,81 +588,26 @@ rule cuomo_op_test:
         nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.txt',
         P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/P.txt',
         pca = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.txt',
-        supp = f'data/cuomo2020natcommun/suppdata2.txt', # sex disease
+        supp = 'data/cuomo2020natcommun/suppdata2.txt', # sex disease
         meta = 'analysis/cuomo/data/meta.txt', # experiment 
         imputed_ct_nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.txt', # donor - day * gene
     output:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/out.txt',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/op.txt',
     params:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/rep/out.npy',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/rep/op.npy',
         genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
-        HE_as_initial = False,
     resources:
         time = '48:00:00',
         mem = '8gb',
     priority: -1
-    script: "bin/cuomo/op_test.py"
-
-#def cuomo_op_test_agg(wildcards):
-#    checkpoint_output = checkpoints.cuomo_split2batches.get(**wildcards).output[0]
-#    # snakemake bug
-#    par = ''
-#    for column in cuomo_params.columns:
-#        par = par + f'{column}={wildcards[column]}/'
-#    #print(par)
-#    return expand(f"staging/cuomo/{par[:-1]}/batch{{i}}/out.txt", 
-#            i=glob_wildcards(os.path.join(checkpoint_output, "batch{i}.txt")).i)
+    script: 'bin/cuomo_op.py'
 
 use rule op_aggReplications as cuomo_op_aggReplications with:
     input:
-        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/out.txt' 
+        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/op.txt' 
                 for i in range(cuomo_batch_no)],
     output:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-
-rule cuomo_op_corr_plot:
-    input:
-        base = expand('analysis/cuomo/{params}/out.npy', 
-                params=Paramspace(cuomo_params.iloc[[0]], filename_params="*").instance_patterns),
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/CTcorr.png',
-    script: 'bin/cuomo_op_corr_plot.py'
-
-rule cuomo_op_rVariance_plot:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/rVariance.png',
-    script: 'bin/cuomo_op_rVariance_plot.py'
-
-rule cuomo_op_variance_plot:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/vc.png',
-    params:
-        cut_off = {'free':[-1.5,2], 'full':[-3,3]},
-    script: 'bin/cuomo_op_variance_plot.py'
-
-rule cuomo_op_waldNlrt_plot:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/waldNlrt.png',
-    script: 'bin/cuomo_op_waldNlrt_plot.py'
-
-rule cuomo_op_experimentR_plot:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy', 
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/hom.png',
-    script: 'bin/cuomo_op_experimentR_plot.py'
-
-rule cuomo_op_experimentR_all:
-    input:
-        png = expand('results/cuomo/{params}/hom.png',
-                params=Paramspace(cuomo_params.loc[cuomo_params['experiment']=='R'], filename_params="*").instance_patterns),
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/op.npy',
 
 rule cuomo_ctp_test:
     input:
@@ -823,12 +617,12 @@ rule cuomo_ctp_test:
         imputed_ct_nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene 
         P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/P.txt', # list
         pca = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.txt',
-        supp = f'data/cuomo2020natcommun/suppdata2.txt', # sex disease
+        supp = 'data/cuomo2020natcommun/suppdata2.txt', # sex disease
         meta = 'analysis/cuomo/data/meta.txt', # experiment
     output:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.out.txt',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.txt',
     params:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp/rep/out.npy',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/rep/ctp.npy',
         genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
         ML = True,  
         REML = True,
@@ -836,32 +630,24 @@ rule cuomo_ctp_test:
         jack_knife = True,
         IID = False,
         Hom = False,
+        optim_by_r = True, 
     resources: 
         mem = '10gb',
         time = '48:00:00',
-    script: 'bin/cuomo_ctp_test.py'
+    script: 'bin/cuomo_ctng_test.py'
 
 use rule op_aggReplications as cuomo_ctp_aggReplications with:
     input:
-        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.out.txt'
+        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.txt'
                 for i in range(cuomo_batch_no)],
     output:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
 
-rule cuomo_ctp_test2:
-    input:
-        y_batch = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/y/batch{{i}}.txt', # genes
-        imputed_ct_y = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.y.txt', # donor - day * gene
-        nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctp.txt', # list
-        imputed_ct_nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene 
-        P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/P.txt', # list
-        pca = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/pca.txt',
-        supp = f'data/cuomo2020natcommun/suppdata2.txt', # sex disease
-        meta = 'analysis/cuomo/data/meta.txt', # experiment
+use rule cuomo_ctp_test as cuomo_ctp_test2 with:
     output:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.out2.txt',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp2.txt',
     params:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp/rep/out2.npy',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/rep/ctp2.npy',
         genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
         ML = True,  
         REML = True,
@@ -869,23 +655,20 @@ rule cuomo_ctp_test2:
         jack_knife = True,
         IID = True,
         Hom = True,
-    resources: 
-        mem = '10gb',
-        time = '48:00:00',
-    script: 'bin/cuomo_ctp_test.py'
+        optim_by_r = True, 
 
 use rule op_aggReplications as cuomo_ctp_test2_aggReplications with:
     input:
-        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.out2.txt'
+        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp2.txt'
                 for i in range(cuomo_batch_no)],
     output:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out2.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp2.npy',
 
 use rule cuomo_ctp_test as cuomo_ctp_test_remlJK with:
     output:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.remlJK.out.txt',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.remlJK.txt',
     params:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp/rep/remlJK.out.npy',
+        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/rep/ctp.remlJK.npy',
         genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
         ML = False,  
         REML = True,
@@ -893,174 +676,25 @@ use rule cuomo_ctp_test as cuomo_ctp_test_remlJK with:
         HE = False, 
         Hom = False,
         IID = False,
+        optim_by_r = True, 
     resources: 
         mem = '16gb',
         time = '48:00:00',
 
 use rule op_aggReplications as cuomo_ctp_remlJK_aggReplications with:
     input:
-        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.remlJK.out.txt'
+        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.remlJK.txt'
                 for i in range(cuomo_batch_no)],
     output:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
-
-use rule cuomo_op_waldNlrt_plot as  cuomo_ctp_waldNlrt_plot with:
-    # when using LRT test p value in Free REML
-#rule cuomo_ctp_waldNlrt_plot:
-    # when using Wald test p value in Free REML
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.waldNlrt.png',
-    #script: 'bin/cuomo_ctp_waldNlrt_plot.py'
-
-use rule cuomo_op_corr_plot as cuomo_ctp_corr_plot with:
-    input:
-        base = expand('analysis/cuomo/{params}/ctp.out.npy', 
-                params=Paramspace(cuomo_params.iloc[[0]], filename_params="*").instance_patterns),
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.CTcorr.png',
-
-use rule cuomo_op_rVariance_plot as cuomo_ctp_rVariance_plot with:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.rVariance.png',
-
-rule cuomo_ctp_variance_plot:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-        nu_ctp = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/nu.ctp.txt'
-                for i in range(cuomo_batch_no)],
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.vc.png',
-    params:
-        free = ['hom', 'CT_main', 'ct_random_var', 'nu'],
-        cut_off = {'free':[-0.5,0.5], 'full':[-3,3]},
-    script: 'bin/cuomo_ctp_variance_plot.py'
-
-rule cuomo_ctp_Vplot:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.V.png',
-    script: 'bin/cuomo_ctp_Vplot.py'
-
-use rule cuomo_ctp_test as cuomo_ctp_test_miny with:
-    output:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp.miny.out.txt',
-    params:
-        out = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ctp/rep/miny.out.npy',
-        genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
-        ML = True,  
-        REML = True,
-        HE = True, 
-        jack_knife = True,
-    resources: 
-        mem = '10gb',
-        time = '48:00:00',
-
-use rule op_aggReplications as cuomo_ctp_miny_aggReplications with:
-    input:
-        out = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ctp.miny.out.txt'
-                for i in range(cuomo_batch_no)],
-    output:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.out.npy',
-
-use rule cuomo_ctp_waldNlrt_plot as cuomo_ctp_waldNlrt_plot_miny with:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.waldNlrt.png',
-
-use rule cuomo_op_rVariance_plot as cuomo_ctp_rVariance_plot_miny with:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.miny.rVariance.png',
-
-rule cuomo_ctp_HEpvalue_acrossmodel_plot:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.HEpvalue.png',
-    script: 'bin/cuomo_ctp_HEpvalue_acrossmodel_plot.py'
-
-###### p values in REML vs HE free
-rule cuomo_ctp_pvalue_REMLvsHE:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-        y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.Gimputed.pseudobulk.gz', # donor - day * gene
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.free.REMLvsHE.inflated_zeros_{{prop}}.png',
-    script: 'bin/cuomo_ctp_pvalue_REMLvsHE.py'
-
-rule cuomo_ctp_pvalue_REMLvsHE_addrVariance:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-        y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.Gimputed.pseudobulk.gz', # donor - day * gene
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.free.REMLvsHE.rVariance.png',
-    script: 'bin/cuomo_ctp_pvalue_REMLvsHE_addrVariance.py'
-
-rule cuomo_ng_all:
-    input:
-        imputation = expand('analysis/cuomo/{params}/imputation.png', 
-                params=cuomo_paramspace.instance_patterns),
-        op_CTcorr = expand('results/cuomo/{params}/CTcorr.png', 
-                params=cuomo_paramspace.instance_patterns),
-        #op_rVar = expand('results/cuomo/{params}/rVariance.png', 
-        #        params=cuomo_paramspace.instance_patterns),
-        #op_varcomponent = expand('results/cuomo/{params}/vc.png', 
-        #        params=cuomo_paramspace.instance_patterns),
-        ctp_CTcorr = expand('results/cuomo/{params}/ctp.CTcorr.png', 
-                params=cuomo_paramspace.instance_patterns),
-        ctp_rVar = expand('results/cuomo/{params}/ctp.rVariance.png', 
-                params=cuomo_paramspace.instance_patterns),
-        #ctp_varcomponent = expand('results/cuomo/{params}/ctp.vc.png', 
-        #        params=cuomo_paramspace.instance_patterns),
-        #opVSctp = expand('results/cuomo/{params}/opVSctp.hom.png',
-        #        params=cuomo_paramspace.instance_patterns),
-        #ctp_bugs = expand('analysis/cuomo/{params}/ctp_bugs.png',
-        #        params=cuomo_paramspace.instance_patterns),
-        pca = expand('results/cuomo/{params}/pca.associatedVar.png',
-                params=cuomo_paramspace.instance_patterns),
-        op_wald = expand('results/cuomo/{params}/waldNlrt.png',
-                params=cuomo_paramspace.instance_patterns),
-        ctp_wald = expand('results/cuomo/{params}/ctp.waldNlrt.png',
-                params=cuomo_paramspace.instance_patterns),
-        #ctp_HE = expand('results/cuomo/{params}/ctp.HEpvalue.png',
-        #        params=cuomo_paramspace.instance_patterns),
-        ctp_REMLvsHE = expand('results/cuomo/{params}/ctp.free.REMLvsHE.inflated_zeros_1.png',
-                params=cuomo_paramspace.instance_patterns),
-        #ctp_enrichment = expand('results/cuomo/{params}/enrichment/reml.V_bon.beta_bon.enrich.txt',
-        #        params=cuomo_paramspace.instance_patterns),
-        #ctp_remlJK = expand('analysis/cuomo/{params}/ctp.remlJK.out.npy',
-        #        params=cuomo_paramspace.instance_patterns),
-
-# single cell expression pattern plot
-rule cuomo_sc_expressionpattern:
-    input:
-        meta = 'analysis/cuomo/data/meta.txt',
-        counts = 'data/cuomo2020natcommun/log_normalised_counts.csv.gz',
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
-        imputed_ct_y = [f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.y.txt'
-                for i in range(cuomo_batch_no)], # donor - day * gene
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/ctp.{{gene}}.png', 
-    params:
-        mycolors = mycolors,
-        paper = True,
-    script: 'bin/cuomo_sc_expressionpattern.py'
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.npy',
 
 rule cuomo_sc_expressionpattern_paper:
+# single cell expression pattern plot
     input:
         meta = 'analysis/cuomo/data/meta.txt',
         counts = 'data/cuomo2020natcommun/log_normalised_counts.csv.gz',
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
+        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.npy',
         imputed_ct_y = [f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.y.txt'
                 for i in range(cuomo_batch_no)], # donor - day * gene
     output:
@@ -1068,127 +702,33 @@ rule cuomo_sc_expressionpattern_paper:
     params:
         mycolors = mycolors,
         genes = ['ENSG00000204531_POU5F1', 'NDUFB4', 'ENSG00000185155_MIXL1', 'ENSG00000163508_EOMES'],
-    script: 'bin/cuomo_sc_expressionpattern.paper.py'
-
-rule cuomo_sc_expressionpattern_collect:
-    input:
-        png = [f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/ctp.{gene}.png'
-                for gene in ['ENSG00000111704_NANOG', 'ENSG00000141448_GATA6', 'ENSG00000204531_POU5F1',
-                    'ENSG00000181449_SOX2', 'ENSG00000065518_NDUFB4', 'ENSG00000074047_GLI2', 'ENSG00000136997_MYC',
-                    'ENSG00000125845_BMP2', 'ENSG00000107984_DKK1', 'ENSG00000234964_FABP5P7', 
-                    'ENSG00000166105_GLB1L3', 'ENSG00000237550_UBE2Q2P6', 'ENSG00000230903_RPL9P8']],
-    output:
-        touch(f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.sc_expressionpattern.flag'),
-
-# likelihood
-rule cuomo_likelihood_plot:
-    input:
-        imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt'
-                for i in range(cuomo_batch_no)], #donor-day * gene 
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.likelihood.png',
-    script: 'bin/cuomo_likelihood_plot.py'
-
-# p value across test methods: HE, ML, REML, Wald, JK
-rule cuomo_ctp_p:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-        out2 = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out2.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
-    output:
-        hom2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.hom2.png',
-        p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.p.png',
-    script: 'bin/cuomo_ctp_p.py'
-
-rule cuomo_opVSctp_p:
-    input:
-        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
-    output:
-        p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/opVSctp.p.png',
-    script: 'bin/cuomo_opVSctp_p.py'
-
-# find top genes
-rule cuomo_geneP:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/genes/ctp.{{gene}}.P.txt',
-    script: 'bin/cuomo_geneP.py'
-
-rule cuomo_topgenes:
-    input:
-        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
-    output:
-        topgenes = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/opNctp.topgenes.txt',
-    params:
-        op = ['reml', 'he'],
-        ctp = ['remlJK', 'he'],
-    script: 'bin/cuomo_topgenes.py'
+    script: 'bin/cuomo/sc_expressionpattern.paper.py'
 
 # paper plot
-rule paper_cuomo_op_pvalue_plot:
+rule cuomo_ctp_pvalue_paper:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/waldNlrt.supp.png',
-    script: 'bin/cuomo_op_waldNlrt_plot_paper.py'
-
-rule paper_cuomo_ctp_pvalue_plot:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
+        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.npy',
     output:
         reml_p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.REMLpvalue.paper.png',
         he_p = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.HEpvalue.paper.png',
         qq = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.qq.supp.png',
-    script: 'bin/paper_cuomo_ctp_pvalue_plot.py'
+    script: 'bin/cuomo/ctp.p.paper.py'
 
-rule paper_cuomo_ctp_pvalue_plot_ASHG:
+rule cuomo_ctp_freeNfull_Variance_paper:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-        remlJK = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.REMLpvalue.paper.ASHG.png',
-        png2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.HEpvalue.paper.ASHG.png',
-    script: 'bin/paper_cuomo_ctp_pvalue_plot.ASHG.py'
-
-rule paper_cuomo_freeNfull_Variance_plot:
-    input:
-        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/op.npy',
+        ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.freeNfull.Variance.paper.png',
-    script: 'bin/cuomo/paper_cuomo_freeNfull_Variance_plot.py'
+    script: 'bin/cuomo/ctp_freeNfull_Variance.paper.py'
 
-rule paper_cuomo_freeNfull_Variance_plot_ASHG:
+rule cuomo_all:
     input:
-        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.freeNfull.Variance.paper.ASHG.png',
-    script: 'bin/paper_cuomo_freeNfull_Variance_plot.ASHG.py'
-
-rule paper_cuomo_freeNfull_Variance_plot_supp:
-    input:
-        op = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/out.npy',
-        ctp = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        op = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/op.freeNfull.Variance.supp.png',
-        ctp = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.freeNfull.Variance.supp.png',
-    script: 'bin/paper_cuomo_freeNfull_Variance_plot_supp.py'
-
-rule paper_cuomo_ctp_corr_plot:
-    input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
-    output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.CTcorr.paper.png',
-    script: 'bin/paper_cuomo_ctp_corr_plot.py'
-
-
+        ctp_p = expand('results/cuomo/{params}/ctp.REMLpvalue.paper.png',
+                params=cuomo_paramspace.instance_patterns),
+        ctp_v = expand('results/cuomo/{params}/ctp.freeNfull.Variance.paper.png',
+                params=cuomo_paramspace.instance_patterns),
 ###########################################################################################
 # simulate Cuomo genes: a random gene's hom2, ct main variance, nu
 ###########################################################################################
@@ -1197,13 +737,13 @@ cuomo_simulateGene_batch_no = 100
 cuomo_simulateGene_batches = np.array_split(range(cuomo_simulateGene_gene_no), cuomo_simulateGene_batch_no)
 rule cuomo_simulateGene_randompickgene:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
         imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.ctp.txt'
                 for i in range(cuomo_batch_no)], #donor-day * gene 
     output:
         genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/genes.txt',
     params: gene_no = cuomo_simulateGene_gene_no,
-    script: 'bin/cuomo_simulateGene_randompickgene.py'
+    script: 'bin/cuomo/simulateGene_randompickgene.py'
 
 localrules: cuomo_simulateGene_hom_batch
 rule cuomo_simulateGene_hom_batch:
@@ -1214,7 +754,7 @@ for _, batch in enumerate(cuomo_simulateGene_batches):
         name: f'cuomo_simulateGene_hom_batch{_}'
         input:
             flag = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/generatedata.batch',
-            out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+            out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
             genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/genes.txt',
             imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.ctp.txt'
                     for i in range(cuomo_batch_no)], #donor-day * gene 
@@ -1269,7 +809,7 @@ use rule ctp_test as cuomo_simulateGene_hom_ctp_test with:
     output:
         out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctp.out.npy',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctp.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
         ML = True,
         REML = True,
@@ -1280,7 +820,7 @@ use rule op_aggReplications as cuomo_simulateGene_hom_ctp_aggReplications with:
         out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.out.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.npy',
 
 use rule ctp_test as cuomo_simulateGene_hom_ctp_test_remlJK with:
     input:
@@ -1291,7 +831,7 @@ use rule ctp_test as cuomo_simulateGene_hom_ctp_test_remlJK with:
     output:
         out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctp.remlJK.out.npy',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctp.remlJK.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
         ML = False,
         REML = True,
@@ -1306,14 +846,14 @@ use rule op_aggReplications as cuomo_simulateGene_hom_ctp_remlJK_aggReplications
         out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.out.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.npy',
 
 nu_noises = ['1_0_0', '1_2_20', '1_2_10', '1_2_5', '1_2_3', '1_2_2']
 rule cuomo_simulateGene_hom_ctp_test_powerplot:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.npy'
                 for nu_noise in nu_noises],
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.hom.power.png',
@@ -1323,11 +863,11 @@ rule cuomo_simulateGene_hom_ctp_test_powerplot:
 
 rule cuomo_simulateGene_hom_ctp_test_estimates:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.npy'
                 for nu_noise in nu_noises],
-        real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
         genes = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{i}.txt' 
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
@@ -1338,11 +878,11 @@ rule cuomo_simulateGene_hom_ctp_test_estimates:
 
 rule cuomo_simulateGene_hom_ctp_test_estimates_paper:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.npy'
                 for nu_noise in nu_noises],
-        #remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
+        #remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.npy'
         #        for nu_noise in nu_noises],
-        #real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        #real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
         #genes = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{i}.txt' 
         #        for i in range(cuomo_simulateGene_batch_no)],
     output:
@@ -1387,7 +927,7 @@ use rule ctp_test as cuomo_simulateGene_Free_ctp_test with:
     output:
         out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctp.out.npy',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctp.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
         ML = True,
         REML = True,
@@ -1398,7 +938,7 @@ use rule op_aggReplications as cuomo_simulateGene_Free_ctp_aggReplications with:
         out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.out.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.npy',
 
 use rule ctp_test as cuomo_simulateGene_Free_ctp_test_remlJK with:
     input:
@@ -1409,7 +949,7 @@ use rule ctp_test as cuomo_simulateGene_Free_ctp_test_remlJK with:
     output:
         out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctp.remlJK.out.npy',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctp.remlJK.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
         ML = False,
         REML = True,
@@ -1424,24 +964,24 @@ use rule op_aggReplications as cuomo_simulateGene_Free_ctp_remlJK_aggReplication
         out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.out.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.npy',
 
 V1 = ['0_0_0_0', '0.05_0_0_0','0.1_0_0_0', '0.2_0_0_0', '0.5_0_0_0']
 V2 = ['0.05_0.05_0.05_0.05', '0.1_0.1_0.1_0.1', '0.2_0.2_0.2_0.2', '0.5_0.5_0.5_0.5']
 V3 = ['0_0_0_0', '0.05_0.1_0.1_0.1', '0.1_0.1_0.1_0.1', '0.2_0.1_0.1_0.1', '0.5_0.1_0.1_0.1']
 rule cuomo_simulateGene_Free_ctp_test_powerplot:
     input:
-        outs1 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
+        outs1 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.npy'
                 for V in V1],
-        outs2 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
+        outs2 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.npy'
                 for V in V2],
-        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.npy'
                 for V in V3],
-        remlJKs1 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
+        remlJKs1 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.npy'
                 for V in V1],
-        remlJKs2 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
+        remlJKs2 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.npy'
                 for V in V2],
-        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.npy'
                 for V in V3],
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.free.1_2_5.power.png',
@@ -1453,15 +993,15 @@ rule cuomo_simulateGene_Free_ctp_test_powerplot:
 
 rule cuomo_simulateGene_ctp_test_powerplot_paper:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.npy'
                 for nu_noise in nu_noises],
         nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
         var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
-        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.npy'
                 for V in V3],
-        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.npy'
                 for V in V3],
     output:
         png1 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.power.paper.supp.png',
@@ -1473,15 +1013,15 @@ rule cuomo_simulateGene_ctp_test_powerplot_paper:
 
 rule cuomo_simulateGene_ctp_test_powerplot_paper_ASHG:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.npy'
                 for nu_noise in nu_noises],
         nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
         var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
-        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.npy'
                 for V in V3],
-        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.npy'
                 for V in V3],
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.power.paper.ASHG.png',
@@ -1492,15 +1032,15 @@ rule cuomo_simulateGene_ctp_test_powerplot_paper_ASHG:
 
 rule cuomo_simulateGene_ctp_test_powerplot_paper_ZJU:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.npy'
                 for nu_noise in nu_noises],
         nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
         var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
-        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.npy'
                 for V in V3],
-        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.npy'
                 for V in V3],
     output:
         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.power.paper.ZJU.png',
@@ -1511,11 +1051,11 @@ rule cuomo_simulateGene_ctp_test_powerplot_paper_ZJU:
 
 rule cuomo_simulateGene_free_ctp_test_estimates:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.out.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.npy'
                 for V in V3],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.out.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.npy'
                 for V in V3],
-        #real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.out.npy',
+        #real_out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
         #genes = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{i}.txt' 
         #        for i in range(cuomo_simulateGene_batch_no)],
     output:
@@ -1546,7 +1086,7 @@ wildcard_constraints:
 wildcard_constraints:
     missingness = "[\d\.]+"
 
-use rule cuomo_day_filterInds as cuomo_imputation_day_filterInds with:
+use rule cuomo_filterInds as cuomo_imputation_day_filterInds with:
     input:
         meta = 'analysis/cuomo/data/meta.txt',
         y = 'analysis/cuomo/data/log/day.raw.pseudobulk.gz', # donor - day * gene
@@ -1561,7 +1101,7 @@ use rule cuomo_day_filterInds as cuomo_imputation_day_filterInds with:
         P = 'staging/imp/ind_min_cellnum{ind_min_cellnum}/day.filterInds.prop.gz', # donor * day
         n = 'staging/imp/ind_min_cellnum{ind_min_cellnum}/day.filterInds.cellnum.gz', # donor * day
 
-use rule cuomo_day_filterCTs as cuomo_imputation_day_filterCTs with:
+use rule cuomo_filterCTs as cuomo_imputation_day_filterCTs with:
     input:
         #y = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/day.filterInds.pseudobulk.gz', # donor - day * gene
         #nu = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/day.filterInds.nu.gz', # donor - day * gene
@@ -1598,7 +1138,7 @@ use rule cuomo_split2batches as cuomo_imputation_split2batches with:
         y_batch = expand('staging/imp/ind_min_cellnum{{ind_min_cellnum}}/ct_min_cellnum{{ct_min_cellnum}}/missingness{{missingness}}/rep{{k}}/y/batch{i}.txt', 
                 i=range(cuomo_imput_batch_no)),
 
-use rule cuomo_day_imputeGenome as cuomo_imputation_day_imputeGenome with:
+use rule cuomo_imputeGenome as cuomo_imputation_day_imputeGenome with:
     input:
         #y = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/day.masked.pseudobulk.gz', # donor - day * gene
         #nu = f'staging/imp/{cuomo_imput_paramspace.wildcard_pattern}/rep{{k}}/day.masked.nu.gz', # donor - day * gene
