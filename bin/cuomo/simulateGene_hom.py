@@ -42,9 +42,11 @@ def main():
         pi = np.mean(P, axis=0)
         Pd = P-pi
         ss, C = P.shape[0], P.shape[1]
-        s = (Pd.T @ Pd) / ss
+        s = (Pd.T @ Pd) / (ss-1)
         # sanity check
-        if not np.isclose(beta @ s @ beta, out['reml']['hom']['fixedeffect_vars']['celltype_main_var'][gene_idx]):
+        if not np.isclose(beta @ s @ beta, out['reml']['hom']['fixedeffect_vars']['ct_beta'][gene_idx]):
+            print( beta @ s @ beta )
+            print( out['reml']['hom']['fixedeffect_vars']['ct_beta'][gene_idx] )
             sys.exit('Fixed effect variance error!\n')
 
         # homogeneous effect
