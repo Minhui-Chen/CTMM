@@ -200,7 +200,7 @@ screml_free <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessia
 	hom2 <- out$par[1]
 	V <- diag(out$par[1+1:C])
     r2 <- out$par[(C+2):length(out$par)]
-    beta <- gls(y, P, X, vs, hom2, matrix(rep(0,C*C),nrow=C), random, r2)
+    beta <- gls(y, P, X, vs, hom2, V, random, r2)
     l <- out$value * (-1)
 
     ct_overall_var <- RandomeffectVariance_( V, P )
@@ -213,7 +213,7 @@ screml_free <- function(y, P, vs, fixed=NULL, random=NULL, method='BFGS', hessia
         hom2 <- out$par[1]
         V <- diag(out$par[1+1:C])
         r2 <- out$par[(C+2):length(out$par)]
-        beta <- gls(y, P, X, vs, hom2, matrix(rep(0,C*C),nrow=C), random, r2)
+        beta <- gls(y, P, X, vs, hom2, V, random, r2)
         l <- out$value * (-1)
 
         ct_overall_var <- RandomeffectVariance_( V, P )
