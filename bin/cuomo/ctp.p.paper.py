@@ -6,7 +6,7 @@ import draw
 
 out = np.load(snakemake.input.out, allow_pickle=True).item()
 remlJK = np.load(snakemake.input.remlJK, allow_pickle=True).item()
-marker = [] # ['NANOG','T','GATA6']
+marker = ['NANOG','T','GATA6']
 candidate = ['POU5F1']
 
 # p
@@ -79,6 +79,7 @@ for method, tmp_data, tmp_threshold, png_f in zip(['reml','he'], [remlJK_data, d
     ax.set_xlabel('$-log_{10}$ p(mean differentiation)', fontsize=14)
     ax.set_ylabel('$-log_{10}$ p(variance differentiation)', fontsize=14)
 
+    fig.tight_layout(pad=1)
     fig.savefig(png_f)
 
 # QQ plot
