@@ -1149,7 +1149,7 @@ def full_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}):
     for key in random_covars_d.keys():
         random_covars_array_d[key] = np.loadtxt( random_covars_d[key] )
 
-    stats = cal_HE_base_vars(Y, vs, fixed_covars_array_d, random_covars_array_d)
+    stats = cal_HE_base_vars(Y, vs, fixed_covars_array_d, random_covars_array_d, reorder_R=False)
     t = (np.outer(stats['y_p'], stats['y_p']) - stats['proj'] @ D @ stats['proj']).flatten('F')
     stats['t'] = t
 
@@ -1167,6 +1167,7 @@ def full_HE(y_f, P_f, ctnu_f, nu_f=None, fixed_covars_d={}, random_covars_d={}):
             M.append((stats['proj'] @ np.kron(np.eye(N), m) @ stats['proj']).flatten('F') )
 
     M = np.array(M).T
+    print( M.T @ t )
 
     if len(random_covars_d.keys()) == 0:
         theta = np.linalg.inv(M.T @ M) @ M.T @ t
