@@ -1,8 +1,7 @@
-import os
+import os, tempfile
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import helper
 
 def error1(ax, V, beta, CTs, label=None, shift=0):
     # plot with V only, no hom2
@@ -28,11 +27,18 @@ def error2(ax, V, beta, CTs, label=None, shift=0, color=None):
         ax.arrow( i+shift, beta[CTs].iloc[0][i], 0, error[i], head_width=0.05,
                 length_includes_head=True, color=color, zorder=10)
 
+def format_e(x):
+    if x > 1e-3:
+        x = '%.3f'%(x)
+    else:
+        x = '%.3e'%(x)
+    return( x )
 # 
 meta = pd.read_table(snakemake.input.meta)
 out = np.load(snakemake.input.out, allow_pickle=True).item()
 remlJK = np.load(snakemake.input.remlJK, allow_pickle=True).item()
 reml_V = [np.diag(x) for x in remlJK['reml']['free']['V']]
+reml_V_p = dict( zip(remlJK['gene'], remlJK['reml']['wald']['free']['V']) )
 C = len( reml_V[0] )
 CTs = ['day0', 'day1', 'day2', 'day3']
 reml_V = pd.DataFrame(reml_V, columns=CTs)
@@ -42,6 +48,7 @@ reml_V['hom2'] = remlJK['reml']['free']['hom2']
 
 reml_beta = pd.DataFrame(remlJK['reml']['free']['beta']['ct_beta'], columns=CTs)
 reml_beta['gene'] = remlJK['gene']
+reml_beta_p = dict( zip(remlJK['gene'], remlJK['reml']['wald']['free']['ct_beta']) )
 
 he_V = [np.diag(x) for x in out['he']['free']['V']]
 he_V = pd.DataFrame(he_V, columns=CTs)
@@ -74,7 +81,9 @@ for gene, ax in zip(genes, axes.flatten()):
     gene_he_V = he_V.loc[he_V['gene'] == gene]
     gene_he_beta = he_beta.loc[he_beta['gene'] == gene]
 
-    tmpfn = helper.generate_tmpfn()
+    tmpf = tempfile.NamedTemporaryFile(delete=False)
+    tmpfn = tmpf.name
+    tmpf.close()
     os.system(f'zcat {snakemake.input.counts} | head -n1 > {tmpfn}')
     os.system(f'zcat {snakemake.input.counts} | grep {gene} >> {tmpfn}')
     counts = pd.read_table(tmpfn, index_col=0)
@@ -102,6 +111,9 @@ for gene, ax in zip(genes, axes.flatten()):
     error2(ax, gene_reml_V, gene_reml_beta, CTs, label='REML', color=snakemake.params.mycolors[0])
     #error2(ax, gene_he_V, gene_he_beta, CTs, label='HE', shift=0.03, color=snakemake.params.mycolors[1])
 
+    ax.text(0.05, 0.88, 
+            f'p(variance differentiation)={format_e(reml_V_p[gene])}\np(mean differentiation)={format_e(reml_beta_p[gene])}',
+            transform=ax.transAxes,)
     ax.set_xlabel('')
     ax.set_ylabel('')
     ax.set_title(gene.split('_')[1])
