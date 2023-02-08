@@ -1,6 +1,6 @@
 import os, sys, re
 import numpy as np, pandas as pd
-import wald, util, op, op_R, cuomo_ctng_test
+import wald, util, op, op_R, cuomo_ctp
 
 def main():
     # par
@@ -10,7 +10,7 @@ def main():
     wildcards = snakemake.wildcards
 
     # collect covariates
-    fixed_covars_d, random_covars_d = cuomo_ctng_test.collect_covariates(snakemake)
+    fixed_covars_d, random_covars_d = cuomo_ctp.collect_covariates(snakemake)
 
     #
     genes = params.genes
