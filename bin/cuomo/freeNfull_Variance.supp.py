@@ -55,7 +55,7 @@ def main():
             ctp_free_data[f'V-{ct}-hom'] = ctp_free_data[f'V-{ct}']+ctp_free_data['hom2']
 
         op_free_datas.append( cut_data(op_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -2, 2) )
-        ctp_free_datas.append( cut_data(ctp_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -0.5, 1) )
+        ctp_free_datas.append( cut_data(ctp_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -0.5, 2) )
 
         #data = cut_data(op_data[[f'V-{ct}' for ct in CTs]].copy())
         #sns.violinplot(data=data, ax=axes[0,0], cut=0, color=color, orient='h')
@@ -72,25 +72,16 @@ def main():
         op_cor = [ct_cor(x) for x in V if np.all(np.diag(x) > 0)]
         print( len(V) - len(op_cor) )
         op_cor = pd.DataFrame(op_cor, columns=CT_pairs)
+        op_cor = cut_data(op_cor, -2, 2) if method != 'he' else cut_data(op_cor, -5, 5)
         op_full_data = pd.melt(op_cor)
-        #threshold = [np.mean(data['value']) - 3*np.std(data['value']), np.mean(data['value']) + 3*np.std(data['value'])]
-        if method != 'he':
-            threshold = [-2, 2]
-        else:
-            threshold = [-5, 5]
-        op_full_data.loc[op_full_data['value'] > threshold[1], 'value'] = threshold[1]
-        op_full_data.loc[op_full_data['value'] < threshold[0], 'value'] = threshold[0]
         op_full_datas.append( op_full_data )
 
         V = ctp[method]['full']['V']
         ctp_cor = [ct_cor(x) for x in V if np.all(np.diag(x) > 0)]
         print( len(V) - len(ctp_cor) )
         ctp_cor = pd.DataFrame(ctp_cor, columns=CT_pairs)
+        ctp_cor = cut_data(ctp_cor, -1.5, 1.5) 
         ctp_full_data = pd.melt(ctp_cor)
-        #threshold = [np.mean(data['value']) - 3*np.std(data['value']), np.mean(data['value']) + 3*np.std(data['value'])]
-        threshold = [-0.5, 1]
-        ctp_full_data.loc[ctp_full_data['value'] > threshold[1], 'value'] = threshold[1]
-        ctp_full_data.loc[ctp_full_data['value'] < threshold[0], 'value'] = threshold[0]
         ctp_full_datas.append( ctp_full_data )
 
     # plot
