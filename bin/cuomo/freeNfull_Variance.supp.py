@@ -4,89 +4,94 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+def cut_data(data, l, r):
+    data[data > r] = r
+    data[data < l] = l
+    return data
+
+def ct_cor(V):
+    C = V.shape[0]
+    cor = []
+    for i in range(C-1):
+        for j in range(i+1, C):
+            cor.append( V[i,j]/math.sqrt(V[i,i] * V[j,j]) )
+    return( cor )
+    
 def main():
     # read
-    ong = np.load(snakemake.input.ong, allow_pickle=True).item()
-    ctng = np.load(snakemake.input.ctng, allow_pickle=True).item()
+    op = np.load(snakemake.input.op, allow_pickle=True).item()
+    ctp = np.load(snakemake.input.ctp, allow_pickle=True).item()
 
     #
     methods = ['ml', 'reml', 'he']
-    V = ong['reml']['free']['V']
+    V = op['reml']['free']['V']
     n = V.shape[0]
     C = V.shape[1]
     CTs = [f'CT{i}' for i in range(1,C+1)]
     CT_pairs = [f'CT{i}-CT{j}' for i in range(1,C) for j in range(i+1,C+1)]
 
     ## Free model
-    def cut_data(data, l, r):
-        #mean = np.mean(np.array(data))
-        #std = np.std(np.array(data))
-        #l = mean - 2.5*std
-        #r = mean + 2.5*std
-        #r = 1.5
-        data[data > r] = r
-        data[data < l] = l
-        return data
-    
-    ong_free_datas = []
-    ctng_free_datas = []
-    ong_full_datas = []
-    ctng_full_datas = []
+    op_free_datas = []
+    ctp_free_datas = []
+    op_full_datas = []
+    ctp_full_datas = []
     for method in methods:
-        ong_free_data = pd.DataFrame()
-        ctng_free_data = pd.DataFrame()
+        op_free_data = pd.DataFrame()
+        ctp_free_data = pd.DataFrame()
         # Free model
         ## hom2
-        ong_free_data['hom2'] = ong[method]['free']['hom2']
-        ctng_free_data['hom2'] = ctng[method]['free']['hom2']
+        op_free_data['hom2'] = op[method]['free']['hom2']
+        ctp_free_data['hom2'] = ctp[method]['free']['hom2']
         ## V
-        V = [np.diag(x) for x in ong[method]['free']['V']]
+        V = [np.diag(x) for x in op[method]['free']['V']]
         V = pd.DataFrame(V, columns=[f'V-{ct}' for ct in CTs])
-        ong_free_data = pd.concat( (ong_free_data, V), axis=1)
-        V = [np.diag(x) for x in ctng[method]['free']['V']]
+        op_free_data = pd.concat( (op_free_data, V), axis=1)
+        V = [np.diag(x) for x in ctp[method]['free']['V']]
         V = pd.DataFrame(V, columns=[f'V-{ct}' for ct in CTs])
-        ctng_free_data = pd.concat( (ctng_free_data, V), axis=1)
+        ctp_free_data = pd.concat( (ctp_free_data, V), axis=1)
 
         for ct in CTs:
-            ong_free_data[f'V-{ct}-hom'] = ong_free_data[f'V-{ct}']+ong_free_data['hom2']
-            ctng_free_data[f'V-{ct}-hom'] = ctng_free_data[f'V-{ct}']+ctng_free_data['hom2']
+            op_free_data[f'V-{ct}-hom'] = op_free_data[f'V-{ct}']+op_free_data['hom2']
+            ctp_free_data[f'V-{ct}-hom'] = ctp_free_data[f'V-{ct}']+ctp_free_data['hom2']
 
-        ong_free_datas.append( cut_data(ong_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -2, 2) )
-        ctng_free_datas.append( cut_data(ctng_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -0.5, 1) )
+        op_free_datas.append( cut_data(op_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -2, 2) )
+        ctp_free_datas.append( cut_data(ctp_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -0.5, 1) )
 
-        #data = cut_data(ong_data[[f'V-{ct}' for ct in CTs]].copy())
+        #data = cut_data(op_data[[f'V-{ct}' for ct in CTs]].copy())
         #sns.violinplot(data=data, ax=axes[0,0], cut=0, color=color, orient='h')
-        #data = cut_data(ctng_data[[f'V-{ct}' for ct in CTs]].copy())
+        #data = cut_data(ctp_data[[f'V-{ct}' for ct in CTs]].copy())
         #sns.violinplot(data=data, ax=axes[1,0], cut=0, color=color, orient='h')
 
-        #data = cut_data(ong_data[[f'V-{ct}-hom' for ct in CTs]+['hom2']].copy())
+        #data = cut_data(op_data[[f'V-{ct}-hom' for ct in CTs]+['hom2']].copy())
         #sns.violinplot(data=data, ax=axes[0], cut=0, color=color, orient='h')
-        #axes[0].set_ylabel('ONG')
-        #ctng_free_data = cut_data(ctng_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -10, 1.5)
+        #axes[0].set_ylabel('op')
+        #ctp_free_data = cut_data(ctp_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -10, 1.5)
 
         ## Full model
-        V = ong[method]['full']['V']
-        ong_cov = [x[np.triu_indices(C,1)] for x in V]
-        ong_cov = pd.DataFrame(ong_cov, columns=CT_pairs)
-        ong_full_data = pd.melt(ong_cov)
+        V = op[method]['full']['V']
+        op_cor = [ct_cor(x) for x in V if np.all(np.diag(x) > 0)]
+        print( len(V) - len(op_cor) )
+        op_cor = pd.DataFrame(op_cor, columns=CT_pairs)
+        op_full_data = pd.melt(op_cor)
         #threshold = [np.mean(data['value']) - 3*np.std(data['value']), np.mean(data['value']) + 3*np.std(data['value'])]
         if method != 'he':
             threshold = [-2, 2]
         else:
             threshold = [-5, 5]
-        ong_full_data.loc[ong_full_data['value'] > threshold[1], 'value'] = threshold[1]
-        ong_full_data.loc[ong_full_data['value'] < threshold[0], 'value'] = threshold[0]
-        ong_full_datas.append( ong_full_data )
+        op_full_data.loc[op_full_data['value'] > threshold[1], 'value'] = threshold[1]
+        op_full_data.loc[op_full_data['value'] < threshold[0], 'value'] = threshold[0]
+        op_full_datas.append( op_full_data )
 
-        V = ctng[method]['full']['V']
-        ctng_cov = [x[np.triu_indices(C,1)] for x in V]
-        ctng_cov = pd.DataFrame(ctng_cov, columns=CT_pairs)
-        ctng_full_data = pd.melt(ctng_cov)
+        V = ctp[method]['full']['V']
+        ctp_cor = [ct_cor(x) for x in V if np.all(np.diag(x) > 0)]
+        print( len(V) - len(ctp_cor) )
+        ctp_cor = pd.DataFrame(ctp_cor, columns=CT_pairs)
+        ctp_full_data = pd.melt(ctp_cor)
         #threshold = [np.mean(data['value']) - 3*np.std(data['value']), np.mean(data['value']) + 3*np.std(data['value'])]
         threshold = [-0.5, 1]
-        ctng_full_data.loc[ctng_full_data['value'] > threshold[1], 'value'] = threshold[1]
-        ctng_full_data.loc[ctng_full_data['value'] < threshold[0], 'value'] = threshold[0]
-        ctng_full_datas.append( ctng_full_data )
+        ctp_full_data.loc[ctp_full_data['value'] > threshold[1], 'value'] = threshold[1]
+        ctp_full_data.loc[ctp_full_data['value'] < threshold[0], 'value'] = threshold[0]
+        ctp_full_datas.append( ctp_full_data )
 
     # plot
     my_pal = {}
@@ -100,10 +105,11 @@ def main():
     mpl.rcParams.update({'font.size': 11})
     color = sns.color_palette()[0]
 
-    for free_datas, full_datas, png in zip([ong_free_datas, ctng_free_datas],
-            [ong_full_datas, ctng_full_datas],
-            [snakemake.output.ong, snakemake.output.ctng]):
-        fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(12, 12), dpi=600, sharex='col', sharey=True)
+    for free_datas, full_datas, png in zip([op_free_datas, ctp_free_datas],
+            [op_full_datas, ctp_full_datas],
+            [snakemake.output.op, snakemake.output.ctp]):
+        fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(12, 12), dpi=600, sharex='col')
+        #fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(12, 12), dpi=600, sharex='col', sharey=True)
         
         for i, method, free_data, full_data in zip(range(len(methods)), methods, free_datas, full_datas):
             sns.violinplot(data=free_data, ax=axes[i,0], cut=0, color=color)
@@ -115,7 +121,7 @@ def main():
             sns.violinplot( x='variable', y='value', data=full_data, ax=axes[i,1], cut=0, palette=my_pal )
             axes[i,1].axhline(0, ls='--', color='0.8', zorder=0)
             axes[i,1].set_xlabel('')
-            axes[i,1].set_ylabel( 'Covariance between CTs in Full model', fontsize=12, labelpad=8 )
+            axes[i,1].set_ylabel( 'Correlation between CTs in Full model', fontsize=12, labelpad=8 )
             axes[i,1].set_title(method.upper())
 
         # change ticks in Free model
@@ -146,9 +152,6 @@ def main():
             labels[i] = r'$V_{({%s},{%s})}$'%(ct1, ct2)
         plt.xticks(locs, labels)
 
-       
-        #axes[0].text(-0.05, 1.05, '(A)', fontsize=16, transform=axes[0].transAxes)
-        #axes[1].text(-0.05, 1.05, '(B)', fontsize=16, transform=axes[1].transAxes)
         fig.tight_layout(pad=2, w_pad=3)
         fig.savefig(png)
 
