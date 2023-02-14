@@ -75,7 +75,7 @@ fig.savefig( snakemake.output.png1 )
 
 colors = sns.color_palette()
 lw = 1.0
-fig, axes = plt.subplots(ncols=2, figsize=(6.85,2.8), dpi=600, sharey=True)
+fig, axes = plt.subplots(ncols=2, figsize=(6.85,2.8), dpi=600)
 
 sns.lineplot(x='noise', y='power', hue='Method', palette=colors[1:4], style='Method', 
         dashes=False, markers=True, data=data, ax=axes[0], lw=lw)
@@ -83,6 +83,8 @@ axes[0].set_xlabel(r'Coefficient of variation($\nu$)', fontsize=10)
 axes[0].set_ylabel('False positive rate', fontsize=10)
 axes[0].text(-0.05, 1.05, '(A)', fontsize=10, transform=axes[0].transAxes)
 axes[0].axhline(y=0.05, color='0.8', ls='--', zorder=0)
+axes[0].set_ylim([-0.02,1.02])
+axes[0].legend(loc='upper left')
 
 axes[0].axvline(x=np.percentile(cv, 10), color='0.6', ls='--', zorder=0)
 axes[0].axvline(x=np.percentile(cv, 50), color='0.6', ls='--', zorder=0)
@@ -94,6 +96,7 @@ axes[1].set_ylabel('True positive rate', fontsize=10)
 axes[1].axhline(y=0.05, color='0.8', ls='--', zorder=0)
 axes[1].text(-0.05, 1.05, '(B)', fontsize=10, transform=axes[1].transAxes)
 axes[1].legend().set_visible(False)
+axes[1].set_ylim([-0.02,1.02])
 
 fig.tight_layout(pad=2, h_pad=5)
 fig.savefig(snakemake.output.png2)
