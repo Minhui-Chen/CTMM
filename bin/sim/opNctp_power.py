@@ -37,15 +37,6 @@ def main():
                 power['Positive rate'].append(np.sum(out['free']['V'] < 0.05) / out['free']['V'].shape[0])
         power = pd.DataFrame(power)
 
-        # shift overlapping lines
-        #columns = power.columns.to_list()
-        #columns.remove('label')
-        #for i in range(len(columns)-1):
-        #    for j in range(i+1, len(columns)):
-        #        if np.all(power[columns[i]] == power[columns[j]]):
-        #            power[columns[i]] = power[columns[i]] + 0.01
-        #            power[columns[j]] = power[columns[j]] - 0.01
-
         plot_order = np.array(snakemake.params.plot_order['free'][arg])
         try:
             power['label'] = power.apply(lambda x: str(int(float(x['label']))), axis=1)
@@ -94,20 +85,6 @@ def main():
 
     reml_hom_power = reml_hom_power.rename( columns={'label':'sample size'} )
 
-    #reml_op_iid_power = get_power(op_iid, iid_labels, 'ss', 'reml')
-    #reml_op_iid_power['framework'] = 'OP'
-    #reml_ctp_iid_power = get_power(ctp_iid, iid_labels, 'ss', 'reml')
-    #reml_ctp_iid_power['framework'] = 'CTP'
-    #reml_iid_power = pd.concat( [reml_op_iid_power, reml_ctp_iid_power], ignore_index=True )
-    #reml_iid_power = reml_iid_power.rename( columns={'label':'sample size'} )
-
-    #he_op_iid_power = get_power(op_iid, iid_labels, 'ss', 'he')
-    #he_op_iid_power['framework'] = 'OP'
-    #he_ctp_iid_power = get_power(ctp_iid, iid_labels, 'ss', 'he')
-    #he_ctp_iid_power['framework'] = 'CTP'
-    #he_iid_power = pd.concat( [he_op_iid_power, he_ctp_iid_power], ignore_index=True )
-    #he_iid_power = he_iid_power.rename( columns={'label':'sample size'} )
-
     reml_wald_op_free_power = get_power(op_free, free_labels, 'ss', 'REML (Wald)')
     reml_wald_op_free_power['Framework'] = 'OP'
     reml_lrt_op_free_power = get_power(op_free, free_labels, 'ss', 'REML (LRT)')
@@ -138,23 +115,18 @@ def main():
     reml_free_power = reml_free_power.rename( columns={'label':'sample size'} )
 
     # plot
-    mpl.rcParams.update({'font.size': 7, 'lines.markersize': mpl.rcParams['lines.markersize']*0.6})
+    mpl.rcParams.update({'font.size': 7, 'lines.markersize': mpl.rcParams['lines.markersize']*1})
     fig, axes = plt.subplots(ncols=2, sharex=True, sharey=False, figsize=(6.85,2.8), dpi=600)
     alpha = 1.0
     lw = 1.0
-    #ms = 10
 
     ## 
     sns.lineplot(data=reml_hom_power, x='sample size', y='Positive rate', hue='Method', 
             style='Framework', dashes={'OP':(3,2), 'CTP':''}, ax=axes[0], markers={'OP':'X', 'CTP':'o'},
             alpha=alpha, lw=lw, legend=False)
-    #sns.lineplot(data=he_hom_power, x='sample size', y='Positive rate', hue='Method', 
-    #        style='Framework', ax=axes[1,0], markers=True, alpha=alpha, lw=lw)
-    #axes[0].set_title('Hom simulation', fontsize=8)
     axes[0].set_ylabel('False positive rate', fontsize=9)
     axes[0].set_xlabel('Sample size', fontsize=9)
     axes[0].text(-0.10, 1.05, '(A)', fontsize=10, transform=axes[0].transAxes)
-    #axes[0].legend(fontsize=5, markerscale=1.0, handlelength=3.3, ncol=2)
     # make two legends
     colors = sns.color_palette()
     markers = sns.color_palette()
@@ -166,20 +138,11 @@ def main():
     axes[0].add_artist(first_legend)
     line1, = axes[0].plot([], [], color='k', marker='o', label='CTP')
     line2, = axes[0].plot([], [], color='k', linestyle=(0,(2.2,1.5)), marker='x', label='OP')
-    axes[0].legend(handles=[line1, line2], loc='upper left', title='Framework')
-
-    #sns.lineplot(data=reml_iid_power, x='sample size', y='Positive rate', hue='model', 
-    #        style='framework', ax=axes[0,1], markers=True, alpha=alpha, lw=lw)
-    #sns.lineplot(data=he_iid_power, x='sample size', y='Positive rate', hue='model', 
-    #        style='framework', ax=axes[1,1], markers=True, alpha=alpha, lw=lw)
-    #axes[0,1].set_title('IID')
+    axes[0].legend(handles=[line1, line2], loc='upper left', title='Data')
 
     sns.lineplot(data=reml_free_power, x='sample size', y='Positive rate', hue='Method', 
             style='Framework', dashes={'OP':(3,2), 'CTP':''}, ax=axes[1], markers={'OP':'X', 'CTP':'o'}, 
             alpha=alpha, lw=lw)
-    #sns.lineplot(data=he_free_power, x='sample size', y='Positive rate', hue='Method', 
-    #        style='Framework', ax=axes[1,1], markers=True, alpha=alpha, lw=lw)
-    #axes[1].set_title('Free simulation', fontsize=8)
     axes[1].set_ylabel('True positive rate', fontsize=9)
     axes[1].set_xlabel('Sample size', fontsize=9)
     axes[1].text(-0.10, 1.05, '(B)', fontsize=10, transform=axes[1].transAxes)
