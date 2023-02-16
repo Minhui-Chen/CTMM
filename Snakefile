@@ -3,16 +3,10 @@ import re, sys, os, gzip, math, time, scipy, tempfile, copy
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
-mpl.use('agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
-import mystats, plot_help
-sys.path.insert(0, 'bin')
-import screml, wald
 
-
-colorpalette='muted'
-mycolors = plot_help.mycolors(n=10, palette=colorpalette)
+mycolors = sns.color_palette()
 pointcolor = 'red' # color for expected values  in estimates plots
 def generate_tmpfn():
     tmpf = tempfile.NamedTemporaryFile(delete=False)
