@@ -8,6 +8,13 @@ This repository contains scripts for simulations and real data analysis for our 
 
 * [Snakefile](Snakefile) contains steps for perform simulations and iPSCs analyses
 
+* [OP](bin/OP) in bin/OP contains R scripts to fit CTMM using ML and REML with Overall Pseudobulk (OP) data
+
+* [CTP](bin/CTP) in bin/CTP contains R scripts to fit CTMM using ML and REML with Cell Type-specific Pseudobulk (CTP) data
+
+* [op.py](bin/op.py) and [ctp.py](bin/ctp.py) in bin/ are python scripts to fit CTMM using ML, REML, and HE with OP and CTP data.
+
+
 ## Running GxEMM: Hom, IID, and Free models
 
 First, I'll simulate some test data. The details are not important for understanding how to use the package:
