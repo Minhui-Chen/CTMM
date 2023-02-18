@@ -1,10 +1,9 @@
 import os, sys, re, multiprocessing, time
-import helper, mystats 
 import scipy
 from scipy import stats, linalg, optimize
 import numpy as np, pandas as pd
 from numpy.random import default_rng
-import wald, util, cuomo_ctng_test
+import wald, util
 
 def get_X(P, fixed_covars_d):
     X = P
@@ -965,9 +964,9 @@ def main():
                     'wald':{'hom':hom_ml_p, 'free':free_ml_p}}
 
             # LRT
-            free_hom_lrt = mystats.lrt(out['ml']['free']['l'], out['ml']['hom']['l'], C)
-            full_hom_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['hom']['l'], C*(C+1)//2-1)
-            full_free_lrt = mystats.lrt(out['ml']['full']['l'], out['ml']['free']['l'], C*(C+1)//2-C-1)
+            free_hom_lrt = util.lrt(out['ml']['free']['l'], out['ml']['hom']['l'], C)
+            full_hom_lrt = util.lrt(out['ml']['full']['l'], out['ml']['hom']['l'], C*(C+1)//2-1)
+            full_free_lrt = util.lrt(out['ml']['full']['l'], out['ml']['free']['l'], C*(C+1)//2-C-1)
 
             out['ml']['lrt'] = {'free_hom':free_hom_lrt,
                     'full_hom':full_hom_lrt, 'full_free':full_free_lrt}
@@ -998,9 +997,9 @@ def main():
                     'wald':{'hom':hom_reml_p, 'free':free_reml_p}}
 
             ## LRT
-            free_hom_lrt = mystats.lrt(out['reml']['free']['l'], out['reml']['hom']['l'], C)
-            full_hom_lrt = mystats.lrt(out['reml']['full']['l'], out['reml']['hom']['l'], C*(C+1)//2-1)
-            full_free_lrt = mystats.lrt(out['reml']['full']['l'], out['reml']['free']['l'], C*(C+1)//2-C-1)
+            free_hom_lrt = util.lrt(out['reml']['free']['l'], out['reml']['hom']['l'], C)
+            full_hom_lrt = util.lrt(out['reml']['full']['l'], out['reml']['hom']['l'], C*(C+1)//2-1)
+            full_free_lrt = util.lrt(out['reml']['full']['l'], out['reml']['free']['l'], C*(C+1)//2-C-1)
 
             out['reml']['lrt'] = {'free_hom':free_hom_lrt,
                     'full_hom':full_hom_lrt, 'full_free':full_free_lrt}
