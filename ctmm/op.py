@@ -142,7 +142,7 @@ def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
     return( l )
 
 def r_optim(y, P, vs, fixed_covars, random_covars, par, nrep, ml, model, method):
-    if ml.upper() == 'ML'
+    if ml.upper() == 'ML':
         rf = pkg_resources.resource_filename(__name__, 'op.ml.R')
     else:
         rf = pkg_resources.resource_filename(__name__, 'op.reml.R')
