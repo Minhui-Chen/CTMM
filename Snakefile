@@ -183,7 +183,7 @@ rule op_test_remlJK:
     resources:
         mem_per_cpu = '10gb',
         time = '18:00:00',
-    script: 'bin/op_R.py'
+    script: 'bin/sim/op_R.py'
 
 use rule op_aggReplications as op_remlJK_aggReplications with:
     input:
