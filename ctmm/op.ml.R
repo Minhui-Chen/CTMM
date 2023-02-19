@@ -1,7 +1,6 @@
-# random effect V currently only support homogeneous variance i.e. \sigma * I
 library(numDeriv)
 library(mvtnorm)
-source('bin/util.R')
+source('util.R')
 
 LL <- function(y, P, X, C, vs, beta, hom2, V, random_variances, random_MMT){
     sig2s <- hom2 + diag( P %*% V %*% t(P) ) + vs

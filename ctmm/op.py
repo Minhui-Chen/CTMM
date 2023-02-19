@@ -146,10 +146,11 @@ def r_optim(y, P, vs, fixed_covars, random_covars, par, nrep, ml, model, method)
         rf = pkg_resources.resource_filename(__name__, 'op.ml.R')
     else:
         rf = pkg_resources.resource_filename(__name__, 'op.reml.R')
-    r_ml = STAP( open(rf).read(), 'r_ml' )
+    path_to_package = os.path.dirname(rf)
+    r_ml = STAP( open(rf).read().replace('util.R',path_to_package+'/util.R'), 
+            'r_ml' )
     par = robjects.NULL if par is None else robjects.FloatVector(par)
     method = 'BFGS' if method is None else method
-    r.
     numpy2ri.activate()
     if model == 'hom':
         out_ = r_ml.screml_hom(y=robjects.FloatVector(y), P=r['as.matrix'](P),
