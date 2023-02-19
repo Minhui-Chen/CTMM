@@ -143,9 +143,9 @@ def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
 
 def r_optim(y, P, vs, fixed_covars, random_covars, par, nrep, ml, model, method):
     if ml.upper() == 'ML'
-        rf = pkg_resources.resource_filename(__name__, 'ml.R')
+        rf = pkg_resources.resource_filename(__name__, 'op.ml.R')
     else:
-        rf = pkg_resources.resource_filename(__name__, 'reml.R')
+        rf = pkg_resources.resource_filename(__name__, 'op.reml.R')
     r_optim = STAP( open(rf).read(), 'r_optim' )
     par = robjects.NULL if par is None else robjects.FloatVector(par)
     method = 'BFGS' if method is None else method
