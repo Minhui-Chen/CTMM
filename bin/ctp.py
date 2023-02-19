@@ -290,27 +290,27 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
 
 def r_optim(Y, P, ctnu, fixed_covars, random_covars, par, nrep, ml, model, method):
     rf = 'bin/CTP/ml.R' if ml.upper() == 'ML' else 'bin/CTP/reml.R'
-    r_optim = STAP( open(rf).read(), 'r_optim' )
+    r = STAP( open(rf).read(), 'r_optim' )
     par = robjects.NULL if par is None else robjects.FloatVector(par)
     method = 'BFGS' if method is None else method
     numpy2ri.activate()
     if model == 'hom':
-        out_ = r_optim.screml_hom(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
+        out_ = r.screml_hom(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
                 random=util.dict2Rlist(random_covars), 
                 par=par, nrep=nrep, method=method)
     elif model == 'iid':
-        out_ = r_optim.screml_iid(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
+        out_ = r.screml_iid(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
                 random=util.dict2Rlist(random_covars), 
                 par=par, nrep=nrep, method=method)
     elif model == 'free':
-        out_ = r_optim.screml_free(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
+        out_ = r.screml_free(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
                 random=util.dict2Rlist(random_covars), 
                 par=par, nrep=nrep, method=method)
     elif model == 'full':
-        out_ = r_optim.screml_full(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
+        out_ = r.screml_full(Y=r['as.matrix'](Y), P=r['as.matrix'](P),
                 vs=r['as.matrix'](ctnu), fixed=util.dict2Rlist(fixed_covars),
                 random=util.dict2Rlist(random_covars), 
                 par=par, nrep=nrep, method=method)
