@@ -1,12 +1,11 @@
 import os, tempfile
 import numpy as np, pandas as pd
-import scipy
 import rpy2.robjects as ro
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.conversion import localconverter
 from scipy import stats, linalg, optimize
 from numpy.random import default_rng
-import wald
+from . import wald
 
 def read_covars(fixed_covars={}, random_covars={}, C=None):
     def read(covars):
@@ -295,7 +294,7 @@ def check_R(R):
     xs = np.sum(R, axis=0).astype('int')
     R_ = np.ones((xs[0],1))
     for i in range(1,len(xs)):
-        R_ = scipy.linalg.block_diag(R_, np.ones((xs[i],1)))
+        R_ = linalg.block_diag(R_, np.ones((xs[i],1)))
 
     if np.any(R != R_):
         print(R[:5,:])
