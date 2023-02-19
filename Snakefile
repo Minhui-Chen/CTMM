@@ -152,7 +152,7 @@ rule op_test:
         method = 'BFGS',
     resources:
         mem_per_cpu = '5000',
-    script: 'bin/op_R.py'
+    script: 'bin/sim/op_R.py'
 
 rule op_aggReplications:
     input:
@@ -241,8 +241,7 @@ rule ctp_test:
         mem_per_cpu = '5gb',
         time = '48:00:00',
     priority: 1
-    script: 'bin/ctp.py'
-    #script: 'bin/ctp_R.py'
+    script: 'bin/sim/ctp.py'
 
 use rule op_aggReplications as ctp_aggReplications with:
     input:
@@ -530,7 +529,7 @@ rule cuomo_op_test:
         time = '48:00:00',
         mem = '8gb',
     priority: -1
-    script: 'bin/cuomo_op.py'
+    script: 'bin/cuomo/op.py'
 
 use rule op_aggReplications as cuomo_op_aggReplications with:
     input:
@@ -564,7 +563,7 @@ rule cuomo_ctp_test:
     resources: 
         mem = '10gb',
         time = '48:00:00',
-    script: 'bin/cuomo_ctp.py'
+    script: 'bin/cuomo/ctp.py'
 
 use rule op_aggReplications as cuomo_ctp_aggReplications with:
     input:
