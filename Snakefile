@@ -6,6 +6,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# make a logs folders to save log files
+os.makedirs('./logs/', exist_ok=True)
+
 mycolors = sns.color_palette()
 pointcolor = 'red' # color for expected values  in estimates plots
 def generate_tmpfn():
