@@ -1,6 +1,6 @@
 library(numDeriv)
 library(mvtnorm)
-source('bin/util.R')
+source('util.R')
 
 
 LL <- function(y, X, vs, hom2, beta, V, r2=NULL, random_MMT=NULL){

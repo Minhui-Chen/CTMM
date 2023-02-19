@@ -1,6 +1,6 @@
 library(numDeriv)
 library(Matrix)
-source('bin/util.R')
+source('util.R')
 
 LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
     N <- nrow( Y )
