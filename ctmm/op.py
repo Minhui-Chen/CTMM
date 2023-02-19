@@ -146,27 +146,28 @@ def r_optim(y, P, vs, fixed_covars, random_covars, par, nrep, ml, model, method)
         rf = pkg_resources.resource_filename(__name__, 'op.ml.R')
     else:
         rf = pkg_resources.resource_filename(__name__, 'op.reml.R')
-    r_optim = STAP( open(rf).read(), 'r_optim' )
+    r_ml = STAP( open(rf).read(), 'r_ml' )
     par = robjects.NULL if par is None else robjects.FloatVector(par)
     method = 'BFGS' if method is None else method
+    r.
     numpy2ri.activate()
     if model == 'hom':
-        out_ = r.screml_hom(y=robjects.FloatVector(y), P=r['as.matrix'](P),
+        out_ = r_ml.screml_hom(y=robjects.FloatVector(y), P=r['as.matrix'](P),
                 vs=robjects.FloatVector(vs), fixed=util.dict2Rlist(fixed_covars),
                 random=util.dict2Rlist(random_covars),
                 par=par, nrep=nrep, method=method)
     elif model == 'iid':
-        out_ = r.screml_iid(y=robjects.FloatVector(y), P=r['as.matrix'](P),
+        out_ = r_ml.screml_iid(y=robjects.FloatVector(y), P=r['as.matrix'](P),
                 vs=robjects.FloatVector(vs), fixed=util.dict2Rlist(fixed_covars),
                 random=util.dict2Rlist(random_covars),
                 par=par, nrep=nrep, method=method)
     elif model == 'free':
-        out_ = r.screml_free(y=robjects.FloatVector(y), P=r['as.matrix'](P),
+        out_ = r_ml.screml_free(y=robjects.FloatVector(y), P=r['as.matrix'](P),
                 vs=robjects.FloatVector(vs), fixed=util.dict2Rlist(fixed_covars),
                 random=util.dict2Rlist(random_covars),
                 par=par, nrep=nrep, method=method)
     elif model == 'full':
-        out_ = r.screml_full(y=robjects.FloatVector(y), P=r['as.matrix'](P),
+        out_ = r_ml.screml_full(y=robjects.FloatVector(y), P=r['as.matrix'](P),
                 vs=robjects.FloatVector(vs), fixed=util.dict2Rlist(fixed_covars),
                 random=util.dict2Rlist(random_covars),
                 par=par, nrep=nrep, method=method)
