@@ -875,4 +875,5 @@ rule cuomo_simulateGene_ctp_test_powerplot_paper:
 ###########
 # OTHERS
 ###########
-include: 'CTMM.snake'
+if os.path.exists('CTMM.snake'):
+    include: 'CTMM.snake'
