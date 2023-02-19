@@ -1,9 +1,11 @@
 import os, sys, re, time
+import pkg_resources
 import numpy as np
 from scipy import linalg, optimize, stats
 import rpy2.robjects as robjects
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
+
 from . import util, wald
 
 def get_X(fixed_covars_d, N, C):
@@ -288,8 +290,13 @@ def REML_LL(Y, X, N, C, vs, hom2, V, r2=[], random_MMT=[]):
     return( L )
 
 def r_optim(Y, P, ctnu, fixed_covars, random_covars, par, nrep, ml, model, method):
-    rf = 'bin/CTP/ml.R' if ml.upper() == 'ML' else 'bin/CTP/reml.R'
-    r_ml = STAP( open(rf).read(), 'r_ml' )
+    if ml.upper() == 'ML':
+        rf = pkg_resources.resource_filename(__name__, 'ctp.ml.R')
+    else:
+        rf = pkg_resources.resource_filename(__name__, 'ctp.reml.R')
+    path_to_package = os.path.dirname(rf)
+    r_ml = STAP( open(rf).read().replace('util.R',path_to_package+'/util.R'), 
+            'r_ml' )
     par = robjects.NULL if par is None else robjects.FloatVector(par)
     method = 'BFGS' if method is None else method
     numpy2ri.activate()
