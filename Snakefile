@@ -273,7 +273,7 @@ rule ctp_test_remlJK:
         mem_per_cpu = '10gb',
         time = '200:00:00',
     priority: 1
-    script: 'bin/ctp.py'
+    script: 'bin/sim/ctp.py'
 
 use rule op_aggReplications as ctp_remlJK_aggReplications with:
     input:
