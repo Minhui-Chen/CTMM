@@ -1,9 +1,8 @@
 import os, sys, re, multiprocessing, time
-import scipy
 from scipy import stats, linalg, optimize
 import numpy as np, pandas as pd
 from numpy.random import default_rng
-import wald, util
+from ctmm import wald, util, op
 
 def get_X(P, fixed_covars_d):
     X = P
@@ -359,7 +358,7 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, meth
 
     # wald
     Vy = cal_Vy( P, vs, hom2, V, r2, random_MMT )
-    Z = [np.identity(len(y)), scipy.linalg.khatri_rao(np.eye(N), P.T).T]
+    Z = [np.identity(len(y)), linalg.khatri_rao(np.eye(N), P.T).T]
     Z = Z + Rs
     D = wald.asymptotic_dispersion_matrix(X, Z, Vy)
     ml = {'hom2':hom2, 'beta':beta, 'V':V, 'l':l, 'D':D,
@@ -424,7 +423,7 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, me
                 out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT)
 
     # wald
-    Z = [np.eye(N), scipy.linalg.khatri_rao(np.eye(N), P.T).T]
+    Z = [np.eye(N), linalg.khatri_rao(np.eye(N), P.T).T]
     Z = Z + Rs
     D = wald.reml_asymptotic_dispersion_matrix(X, Z, Vy)
 
@@ -942,9 +941,9 @@ def main():
             snakemake.params.HE = True
 
         if snakemake.params.HE:
-            hom_he, hom_he_p = hom_HE(y_f, P_f, nu_f, jack_knife=True)
-            free_he, free_he_p = free_HE(y_f, P_f, nu_f, jack_knife=True)
-            full_he = full_HE(y_f, P_f, nu_f)
+            hom_he, hom_he_p = op.hom_HE(y_f, P_f, nu_f, jack_knife=True)
+            free_he, free_he_p = op.free_HE(y_f, P_f, nu_f, jack_knife=True)
+            full_he = op.full_HE(y_f, P_f, nu_f)
 
             out['he'] = {'hom': hom_he, 'free': free_he, 'full': full_he,
                     'wald':{'hom':hom_he_p, 'free':free_he_p}}
@@ -952,13 +951,13 @@ def main():
         ## ML
         if snakemake.params.ML:
             if not snakemake.params.HE_as_initial:
-                hom_ml, hom_ml_p = hom_ML(y_f, P_f, nu_f)
-                free_ml, free_ml_p = free_ML(y_f, P_f, nu_f)
-                full_ml = full_ML(y_f, P_f, nu_f)
+                hom_ml, hom_ml_p = op.hom_ML(y_f, P_f, nu_f)
+                free_ml, free_ml_p = op.free_ML(y_f, P_f, nu_f)
+                full_ml = op.full_ML(y_f, P_f, nu_f)
             else:
-                hom_ml, hom_ml_p = hom_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, ML=True) )
-                free_ml, free_ml_p = free_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, ML=True) )
-                full_ml = full_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, ML=True) )
+                hom_ml, hom_ml_p = op.hom_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, ML=True) )
+                free_ml, free_ml_p = op.free_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, ML=True) )
+                full_ml = op.full_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, ML=True) )
 
             out['ml'] = {'hom': hom_ml, 'free': free_ml, 'full': full_ml,
                     'wald':{'hom':hom_ml_p, 'free':free_ml_p}}
@@ -978,20 +977,20 @@ def main():
 
             if not snakemake.params.HE_as_initial:
                 if 'Free_reml_jk' in snakemake.params.keys():
-                    free_reml, free_reml_p = free_REML(y_f, P_f, nu_f, jack_knife=snakemake.params.Free_reml_jk)
+                    free_reml, free_reml_p = op.free_REML(y_f, P_f, nu_f, jack_knife=snakemake.params.Free_reml_jk)
                 else:
-                    free_reml, free_reml_p = free_REML(y_f, P_f, nu_f)
+                    free_reml, free_reml_p = op.free_REML(y_f, P_f, nu_f)
 
                 if snakemake.params.Free_reml_only:
                     hom_reml, hom_reml_p = free_reml, free_reml_p
                     full_reml = free_reml
                 else:
-                    hom_reml, hom_reml_p = hom_REML(y_f, P_f, nu_f)
-                    full_reml = full_REML(y_f, P_f, nu_f)
+                    hom_reml, hom_reml_p = op.hom_REML(y_f, P_f, nu_f)
+                    full_reml = op.full_REML(y_f, P_f, nu_f)
             else:
-                hom_reml, hom_reml_p = hom_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, REML=True) )
-                free_reml, free_reml_p = free_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, REML=True))
-                full_reml = full_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, REML=True))
+                hom_reml, hom_reml_p = op.hom_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, REML=True) )
+                free_reml, free_reml_p = op.free_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, REML=True))
+                full_reml = op.full_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, REML=True))
 
             out['reml'] = {'hom':hom_reml, 'free':free_reml, 'full':full_reml,
                     'wald':{'hom':hom_reml_p, 'free':free_reml_p}}

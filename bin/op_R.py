@@ -6,7 +6,7 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr
 from rpy2.robjects.packages import STAP
 from rpy2.robjects.conversion import localconverter
-import wald, util, op
+from ctmm import wald, util, op
 
 def get_X(P, fixed_covars_d):
     X = P
@@ -831,13 +831,16 @@ def main():
         ## ML
         if snakemake.params.ML:
             if not snakemake.params.HE_as_initial:
-                hom_ml, hom_ml_p = hom_ML(y_f, P_f, nu_f, method=optim_method)
-                free_ml, free_ml_p = free_ML(y_f, P_f, nu_f, method=optim_method)
-                full_ml = full_ML(y_f, P_f, nu_f, method=optim_method)
+                hom_ml, hom_ml_p = op.hom_ML(y_f, P_f, nu_f, method=optim_method, optim_by_R=True)
+                free_ml, free_ml_p = op.free_ML(y_f, P_f, nu_f, method=optim_method, optim_by_R=True)
+                full_ml = op.full_ML(y_f, P_f, nu_f, method=optim_method, optim_by_R=True)
             else:
-                hom_ml, hom_ml_p = hom_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, ML=True) )
-                free_ml, free_ml_p = free_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, ML=True) )
-                full_ml = full_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, ML=True) )
+                hom_ml, hom_ml_p = op.hom_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, ML=True),
+                        method=optim_method, optim_by_R=True)
+                free_ml, free_ml_p = op.free_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, ML=True),
+                        method=optim_method, optim_by_R=True)
+                full_ml = op.full_ML( y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, ML=True),
+                        method=optim_method, optim_by_R=True)
 
             out['ml'] = {'hom': hom_ml, 'free': free_ml, 'full': full_ml,
                     'wald':{'hom':hom_ml_p, 'free':free_ml_p}}
@@ -857,21 +860,27 @@ def main():
 
             if not snakemake.params.HE_as_initial:
                 if 'Free_reml_jk' in snakemake.params.keys():
-                    free_reml, free_reml_p = free_REML(y_f, P_f, nu_f, method=optim_method,
-                            jack_knife=snakemake.params.Free_reml_jk)
+                    free_reml, free_reml_p = op.free_REML(y_f, P_f, nu_f, method=optim_method,
+                            jack_knife=snakemake.params.Free_reml_jk, optim_by_R=True)
                 else:
-                    free_reml, free_reml_p = free_REML(y_f, P_f, nu_f, method=optim_method)
+                    free_reml, free_reml_p = op.free_REML(y_f, P_f, nu_f, method=optim_method, 
+                            optim_by_R=True)
 
                 if snakemake.params.Free_reml_only:
                     hom_reml, hom_reml_p = free_reml, free_reml_p
                     full_reml = free_reml
                 else:
-                    hom_reml, hom_reml_p = hom_REML(y_f, P_f, nu_f, method=optim_method)
-                    full_reml = full_REML(y_f, P_f, nu_f, method=optim_method)
+                    hom_reml, hom_reml_p = op.hom_REML(y_f, P_f, nu_f, method=optim_method, 
+                            optim_by_R=True)
+                    full_reml = op.full_REML(y_f, P_f, nu_f, method=optim_method, 
+                            optim_by_R=True)
             else:
-                hom_reml, hom_reml_p = hom_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, REML=True) )
-                free_reml, free_reml_p = free_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, REML=True))
-                full_reml = full_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, REML=True))
+                hom_reml, hom_reml_p = op.hom_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(hom_he, REML=True),
+                        method=optim_method, optim_by_R=True)
+                free_reml, free_reml_p = op.free_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(free_he, REML=True),
+                        method=optim_method, optim_by_R=True)
+                full_reml = op.full_REML(y_f, P_f, nu_f, par=util.generate_HE_initial(full_he, REML=True),
+                        method=optim_method, optim_by_R=True)
 
             out['reml'] = {'hom':hom_reml, 'free':free_reml, 'full':full_reml,
                     'wald':{'hom':hom_reml_p, 'free':free_reml_p}}

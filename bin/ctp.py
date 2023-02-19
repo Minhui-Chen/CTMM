@@ -1,11 +1,10 @@
 import os, sys, re, time
-import scipy
 import numpy as np
 from scipy import linalg, optimize, stats
 import rpy2.robjects as robjects
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
-import util, wald
+from ctmm import util, wald, ctp
 
 def get_X(fixed_covars_d, N, C):
     X = np.kron( np.ones((N,1)), np.eye(C) )
@@ -1461,16 +1460,16 @@ def main():
             snakemake.params.HE = True
 
         if snakemake.params.HE:
-            free_he, free_he_wald = free_HE(y_f, P_f, nu_f, jack_knife=True)
+            free_he, free_he_wald = ctp.free_HE(y_f, P_f, nu_f, jack_knife=True)
             HE_free_only = False
             if 'HE_free_only' in snakemake.params.keys():
                 HE_free_only = snakemake.params.HE_free_only
             if HE_free_only:
                 out['he'] = { 'free': free_he, 'wald':{'free': free_he_wald} }
             else:
-                hom_he, hom_he_wald = hom_HE(y_f, P_f, nu_f, jack_knife=True)
-                iid_he, iid_he_wald = iid_HE(y_f, P_f, nu_f, jack_knife=True)
-                full_he = full_HE(y_f, P_f, nu_f)
+                hom_he, hom_he_wald = ctp.hom_HE(y_f, P_f, nu_f, jack_knife=True)
+                iid_he, iid_he_wald = ctp.iid_HE(y_f, P_f, nu_f, jack_knife=True)
+                full_he = ctp.full_HE(y_f, P_f, nu_f)
 
                 out['he'] = {'hom': hom_he, 'iid': iid_he, 'free': free_he, 'full': full_he,
                         'wald':{'hom':hom_he_wald, 'iid': iid_he_wald, 'free': free_he_wald} }
@@ -1478,18 +1477,18 @@ def main():
         ## ML
         if snakemake.params.ML:
             if not snakemake.params.HE_as_initial:
-                hom_ml, hom_ml_wald = hom_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
-                iid_ml, iid_ml_wald = iid_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
-                free_ml, free_ml_wald = free_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
-                full_ml = full_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                hom_ml, hom_ml_wald = ctp.hom_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                iid_ml, iid_ml_wald = ctp.iid_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                free_ml, free_ml_wald = ctp.free_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                full_ml = ctp.full_ML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
             else:
-                hom_ml, hom_ml_wald = hom_ML(y_f, P_f, nu_f, method=method, 
+                hom_ml, hom_ml_wald = ctp.hom_ML(y_f, P_f, nu_f, method=method, 
                         par=util.generate_HE_initial(hom_he, ML=True), optim_by_r=optim_by_r )
-                iid_ml, iid_ml_wald = iid_ML(y_f, P_f, nu_f, method=method, 
+                iid_ml, iid_ml_wald = ctp.iid_ML(y_f, P_f, nu_f, method=method, 
                         par=util.generate_HE_initial(iid_he, ML=True), optim_by_r=optim_by_r )
-                free_ml, free_ml_wald = free_ML(y_f, P_f, nu_f, method=method, 
+                free_ml, free_ml_wald = ctp.free_ML(y_f, P_f, nu_f, method=method, 
                         par=util.generate_HE_initial(free_he, ML=True), optim_by_r=optim_by_r )
-                full_ml = full_ML(y_f, P_f, nu_f, method=method, 
+                full_ml = ctp.full_ML(y_f, P_f, nu_f, method=method, 
                         par=util.generate_HE_initial(full_he, ML=True), optim_by_r=optim_by_r )
 
             out['ml'] = {'hom': hom_ml, 'iid': iid_ml, 'free': free_ml, 'full': full_ml,
@@ -1515,27 +1514,27 @@ def main():
             if not snakemake.params.HE_as_initial:
                 if snakemake.params.Free_reml_only:
                     if 'Free_reml_jk' in snakemake.params.keys():
-                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method,  
+                        free_reml, free_reml_wald = ctp.free_REML(y_f, P_f, nu_f, method=method,  
                                 jack_knife=snakemake.params.Free_reml_jk, optim_by_r=optim_by_r)
                     else:
-                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                        free_reml, free_reml_wald = ctp.free_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
                 else:
-                    hom_reml, hom_reml_wald = hom_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
-                    iid_reml, iid_reml_wald = iid_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                    hom_reml, hom_reml_wald = ctp.hom_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                    iid_reml, iid_reml_wald = ctp.iid_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
                     if 'Free_reml_jk' in snakemake.params.keys():
-                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method,  
+                        free_reml, free_reml_wald = ctp.free_REML(y_f, P_f, nu_f, method=method,  
                                 jack_knife=snakemake.params.Free_reml_jk, optim_by_r=optim_by_r)
                     else:
-                        free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
-                    full_reml = full_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                        free_reml, free_reml_wald = ctp.free_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
+                    full_reml = ctp.full_REML(y_f, P_f, nu_f, method=method, optim_by_r=optim_by_r)
             else:
-                hom_reml, hom_reml_wald = hom_REML(y_f, P_f, nu_f, method=method, 
+                hom_reml, hom_reml_wald = ctp.hom_REML(y_f, P_f, nu_f, method=method, 
                         par=util.generate_HE_initial(hom_he, REML=True), optim_by_r=optim_by_r)
-                iid_reml, iid_reml_wald = iid_REML(y_f, P_f, nu_f, method=method, 
+                iid_reml, iid_reml_wald = ctp.iid_REML(y_f, P_f, nu_f, method=method, 
                         par=util.generate_HE_initial(iid_he, REML=True), optim_by_r=optim_by_r)
-                free_reml, free_reml_wald = free_REML(y_f, P_f, nu_f, method=method, 
+                free_reml, free_reml_wald = ctp.free_REML(y_f, P_f, nu_f, method=method, 
                         par=util.generate_HE_initial(free_he,REML=True), optim_by_r=optim_by_r)
-                full_reml = full_REML(y_f, P_f, nu_f, method=method, 
+                full_reml = ctp.full_REML(y_f, P_f, nu_f, method=method, 
                         par=util.generate_HE_initial(full_he, REML=True), optim_by_r=optim_by_r)
 
             if snakemake.params.Free_reml_only:

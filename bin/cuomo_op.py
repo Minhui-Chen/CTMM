@@ -1,6 +1,6 @@
 import os, sys, re
 import numpy as np, pandas as pd
-import wald, util, op, op_R, cuomo_ctp
+from ctmm import wald, util, op, cuomo_ctp
 
 def main():
     # par
@@ -45,24 +45,24 @@ def main():
 
 
         ## ML
-        hom_ml, hom_ml_wald = op_R.hom_ML(y_f, P_f, nu_f,  
-                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-        iid_ml, iid_ml_wald = op_R.iid_ML(y_f, P_f, nu_f, 
-                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-        free_ml, free_ml_wald = op_R.free_ML(y_f, P_f, nu_f, 
-                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-        full_ml = op_R.full_ML(y_f, P_f, nu_f, 
-                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
+        hom_ml, hom_ml_wald = op.hom_ML(y_f, P_f, nu_f,  
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, optim_by_R=True)
+        iid_ml, iid_ml_wald = op.iid_ML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, optim_by_R=True)
+        free_ml, free_ml_wald = op.free_ML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, optim_by_R=True)
+        full_ml = op.full_ML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, optim_by_R=True)
 
         ## REML
-        hom_reml, hom_reml_wald = op_R.hom_REML(y_f, P_f, nu_f, 
-                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-        iid_reml, iid_reml_wald = op_R.iid_REML(y_f, P_f, nu_f, 
-                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-        free_reml, free_reml_wald = op_R.free_REML(y_f, P_f, nu_f, 
-                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
-        full_reml = op_R.full_REML(y_f, P_f, nu_f, 
-                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d)
+        hom_reml, hom_reml_wald = op.hom_REML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, optim_by_R=True)
+        iid_reml, iid_reml_wald = op.iid_REML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, optim_by_R=True)
+        free_reml, free_reml_wald = op.free_REML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, optim_by_R=True)
+        full_reml = op.full_REML(y_f, P_f, nu_f, 
+                fixed_covars_d=fixed_covars_d, random_covars_d=random_covars_d, optim_by_R=True)
 
         out = {
                 'ml': {'hom': hom_ml, 'iid': iid_ml, 'free': free_ml, 'full': full_ml,

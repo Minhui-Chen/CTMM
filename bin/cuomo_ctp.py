@@ -1,7 +1,7 @@
 import os, sys, re, time
 import scipy
 import numpy as np, pandas as pd
-import wald, util, ctp
+from ctmm import wald, util, ctp
 
 def collect_covariates(snakemake, donors=None):
     '''
