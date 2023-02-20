@@ -6,8 +6,6 @@ Python and R packages to fit CTMM (Cell Type-specific linear Mixed Model). CTMM 
 ## Installation
 Users can download the latest repository and then use ``pip``:
 
-.. code:: bash
-
     git clone https://github.com/Minhui-Chen/CTMM.git
     cd CTMM
     pip install .
