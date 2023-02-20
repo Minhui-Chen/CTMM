@@ -3,17 +3,23 @@ Python and R packages to fit CTMM (Cell Type-specific linear Mixed Model). CTMM 
   
 * M Chen, A Dahl. (2023) A robust model for cell type-specific interindividual variation in single-cell RNA sequencing data. bioRxiv.
 
+## Installation
+Users can download the latest repository and then use ``pip``:
+
+.. code:: bash
+
+    git clone https://github.com/Minhui-Chen/CTMM.git
+    cd CTMM
+    pip install .
+
 ## Analysis scripts
 This repository contains scripts for simulations and real data analysis for our paper.
 
 * [Snakefile](Snakefile) contains steps for perform simulations and iPSCs analyses
 
-* [OP](bin/OP) in bin/OP contains R scripts to fit CTMM using ML and REML with Overall Pseudobulk (OP) data
+* [sim](bin/sim) in bin/sim contains scripts to perform simulations
 
-* [CTP](bin/CTP) in bin/CTP contains R scripts to fit CTMM using ML and REML with Cell Type-specific Pseudobulk (CTP) data
-
-* [op.py](bin/op.py) and [ctp.py](bin/ctp.py) in bin/ are python scripts to fit CTMM using ML, REML, and HE with OP and CTP data.
-
+* [cuomo](bin/cuomo) in bin/cuomo contains scripts to perform analyses on iPSCs from Cuomo et al. 2020 Nature Communications
 
 ## Running GxEMM: Hom, IID, and Free models
 
