@@ -45,7 +45,7 @@ The output of CTMM have two dictionaries.
 
 CTMM can be fit with Hom, IID, Free, and Full models. Here is an example to illustarte the usage of CTMM:
 ```python
-from ctmm import op, ctp
+from ctmm import op, ctp, util
 
 # Fit OP (Overall Pseudobulk)
 OP_f = 'test/OP.gz' # overall pseudobulk
@@ -65,9 +65,15 @@ CTP_f = 'test/CTP.gz' # Cell Type-specific Pseudobulk
 ctnu_f = 'test/ctnu.gz' # variance of measurement noise for each pair of individual and cell type
 
 ## fit with REML on Free model
-reml_ctp, p_ctp = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True) # use BFGS in scipy package
+free, p_wald = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True) # use BFGS in scipy package
 ### to conduct jackknife-based Wald test 
-reml_ctp, p_ctp_jk = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True, jack_knife=True)
+free_jk, p_jk = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True, jack_knife=True)
+
+# Likelihood-ratio test (LRT)
+## fit with REML on Hom model
+hom, _ = ctp.hom_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True)
+C = 4 # number of cell types
+p_lrt = util.lrt(free['l'], hom['l'], C) # LRT on variance differentiation (V=0)
 ```
 
 Now that the test data has been simulated, we need to run the three GxEMM models. Note you need to point GxEMM to the location of LDAK on your computer, and the location I've used here won't work for you:
