@@ -49,7 +49,7 @@ def get_MMT(random_covars: dict, C: int) -> list:
         random_MMT.append( m )
     return( random_MMT )
 
-def cal_Vy(A: np.ndarray, vs: np.ndarray, r2: Optional[list]=[], random_MMT: Optional[list]=[]) -> np.ndarray:
+def cal_Vy(A: np.ndarray, vs: np.ndarray, r2: list=[], random_MMT: list=[]) -> np.ndarray:
     '''
     Compute covariance matrix of vectorized Cell Type-specific Pseudobulk
 
@@ -176,7 +176,7 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, random_covars: dict, mo
     return( theta, random_MMT )
 
 def ML_LL(Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, hom2: float, 
-        beta: np.ndarray, V: np.ndarray, r2: Optional[list]=[], random_MMT: Optional[list]=[]) -> float:
+        beta: np.ndarray, V: np.ndarray, r2: list=[], random_MMT: list=[]) -> float:
     '''
     Compute log-likelihood in ML
 
@@ -250,7 +250,7 @@ def ML_LL(Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, hom2: fl
     return(l)
 
 def REML_LL(Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, 
-        hom2: float, V: np.ndarray, r2: Optional[list]=[], random_MMT: Optional[list]=[]) -> float:
+        hom2: float, V: np.ndarray, r2: list=[], random_MMT: list=[]) -> float:
     '''
     Compute log-likelihood in REML
 
@@ -463,8 +463,8 @@ def hom_ML_loglike(par: np.ndarray, Y: np.ndarray, X: np.ndarray, N: int, C: int
 
     return( ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT) )
 
-def hom_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
-        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> Tuple[dict, dict]:
+def hom_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, optim_by_R: bool=False) -> Tuple[dict, dict]:
     '''
     Perform ML on Hom model
 
@@ -584,8 +584,8 @@ def hom_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs
 
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
-def hom_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
-        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, jack_knife: Optional[bool]=False, optim_by_R: Optional[bool]=False
+def hom_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, jack_knife: bool=False, optim_by_R: bool=False
         ) -> Tuple[dict, dict]:
     '''
     Perform REML on Hom model
@@ -733,8 +733,8 @@ def hom_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_co
     print( time.time() - start, flush=True )
     return(reml, p)
 
-def hom_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
-        jack_knife: Optional[bool]=True) -> Tuple[dict, dict]:
+def hom_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
+        jack_knife: bool=True) -> Tuple[dict, dict]:
     '''
     Perform HE on Hom model
 
@@ -840,8 +840,8 @@ def iid_ML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: 
 
     return( ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT) )
 
-def iid_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
-        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> Tuple[dict, dict]:
+def iid_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, optim_by_R: bool=False) -> Tuple[dict, dict]:
     '''
     Perform ML on IID model
 
@@ -967,8 +967,8 @@ def iid_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs
 
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
-def iid_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={},
-        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, jack_knife: Optional[bool]=False, optim_by_R: Optional[bool]=False
+def iid_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={},
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, jack_knife: bool=False, optim_by_R: bool=False
         ) -> Tuple[dict, dict]:
     '''
     Perform REML on IID model
@@ -1122,8 +1122,8 @@ def iid_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_co
     print( time.time() - start, flush=True )
     return(reml, p)
 
-def iid_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
-        jack_knife: Optional[bool]=True) -> Tuple[dict, dict]:
+def iid_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
+        jack_knife: bool=True) -> Tuple[dict, dict]:
     '''
     Perform HE on IID model
 
@@ -1233,8 +1233,8 @@ def free_ML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs:
 
     return( ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT) )
 
-def free_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
-        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> Tuple[dict, dict]:
+def free_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, optim_by_R: bool=False) -> Tuple[dict, dict]:
     '''
     Perform ML on Free model
 
@@ -1367,8 +1367,8 @@ def free_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, v
 
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
-def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={},
-        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, jack_knife: Optional[bool]=False, optim_by_R: Optional[bool]=False
+def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={},
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, jack_knife: bool=False, optim_by_R: bool=False
         ) -> Tuple[dict, dict]:
     '''
     Perform REML on Free model
@@ -1531,8 +1531,8 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_c
     print( time.time() - start, flush=True )
     return(reml, p)
 
-def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
-        jack_knife: Optional[bool]=True) -> Tuple[dict, dict]:
+def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
+        jack_knife: bool=True) -> Tuple[dict, dict]:
     '''
     Perform HE on Free model
 
@@ -1645,8 +1645,8 @@ def full_ML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs:
 
     return( ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT) )
 
-def full_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
-        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> dict:
+def full_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, optim_by_R: bool=False) -> dict:
     '''
     Perform ML on Full model
 
@@ -1760,8 +1760,8 @@ def full_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, v
 
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
-def full_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={},
-        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> dict:
+def full_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={},
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, optim_by_R: bool=False) -> dict:
     '''
     Perform REML on Full model
 
@@ -1867,7 +1867,7 @@ def full_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_c
     print( time.time() - start, flush=True )
     return(reml)
 
-def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
         ) -> dict:
     '''
     Perform HE on Free model

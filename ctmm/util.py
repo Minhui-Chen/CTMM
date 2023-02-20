@@ -10,7 +10,7 @@ from numpy.random import default_rng
 
 from . import wald
 
-def read_covars(fixed_covars: Optional[dict] = {}, random_covars: Optional[dict] = {}, C: Optional[int] = None) -> tuple:
+def read_covars(fixed_covars: dict = {}, random_covars: dict = {}, C: Optional[int] = None) -> tuple:
     '''
     Read fixed and random effect design matrices
 
@@ -75,7 +75,7 @@ def optim(fun: callable, par: list, args: tuple, method: str) -> Tuple[object, d
                 'message':out['message'], 'l':out['fun'] * (-1)}
     return( out, opt )
 
-def check_optim(opt: dict, hom2: float, ct_overall_var: float, fixed_vars: dict, random_vars: dict, cut: Optional[float] = 5) -> bool:
+def check_optim(opt: dict, hom2: float, ct_overall_var: float, fixed_vars: dict, random_vars: dict, cut: float=5) -> bool:
     '''
     Check whether optimization converged successfully
 
@@ -97,7 +97,7 @@ def check_optim(opt: dict, hom2: float, ct_overall_var: float, fixed_vars: dict,
     else:
         return False
 
-def re_optim(out: object, opt: dict, fun: callable, par: list, args: tuple, method: str, nrep: Optional[int] = 10) -> Tuple[object, dict]:
+def re_optim(out: object, opt: dict, fun: callable, par: list, args: tuple, method: str, nrep: int=10) -> Tuple[object, dict]:
     '''
     Rerun optimization
 
@@ -171,7 +171,7 @@ def dict2Rlist( X: dict ) -> object:
                     numpy2ri.deactivate()
         return( rlist )
 
-def generate_HE_initial(he: dict, ML: Optional[bool] = False, REML: Optional[bool] = False) -> list:
+def generate_HE_initial(he: dict, ML: bool=False, REML: bool=False) -> list:
     '''
     Convert HE estimates to initial parameter for ML / REML
 
@@ -215,7 +215,7 @@ def generate_HE_initial(he: dict, ML: Optional[bool] = False, REML: Optional[boo
     if ML is True:
         return( initials_fixed_effects + initials_random_effects )
 
-def glse( sig2s: np.ndarray, X: np.ndarray, y: np.ndarray, inverse: Optional[bool] = False ) -> np.ndarray:
+def glse( sig2s: np.ndarray, X: np.ndarray, y: np.ndarray, inverse: bool=False ) -> np.ndarray:
     '''
     Generalized least square estimates
 
@@ -472,7 +472,7 @@ def check_R(R: np.ndarray) -> bool:
     else:
         return( True )
 
-def order_by_randomcovariate(R: np.ndarray, Xs: Optional[list] = [], Ys: Optional[dict] = {}
+def order_by_randomcovariate(R: np.ndarray, Xs: list=[], Ys: dict={}
         ) -> Tuple[np.ndarray, np.ndarray, list, dict]:
     '''
     R is the design matrix of 0 and 1 for a random covriate, which we order along by
@@ -503,7 +503,7 @@ def order_by_randomcovariate(R: np.ndarray, Xs: Optional[list] = [], Ys: Optiona
 
     return(index, R, new_Xs, new_Ys)
 
-def jk_rmInd(i: int, Y: np.ndarray, vs: np.ndarray, fixed_covars: Optional[dict]={}, random_covars: Optional[dict]={}, P: Optional[np.ndarray]=None
+def jk_rmInd(i: int, Y: np.ndarray, vs: np.ndarray, fixed_covars: dict={}, random_covars: dict={}, P: Optional[np.ndarray]=None
         ) -> tuple:
     '''
     Remove one individual from the matrices for jackknife
