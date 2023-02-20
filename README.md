@@ -39,11 +39,12 @@ The output of CTMM have two dictionaries.
 
 * The second one contains p values from Wald test on e.g. differentiation of mean expression between cell types (ct_beta) and differentiation of expression variance between cell types (V). 
 
-** Need to add an example of LRT**
-
 ## Running CTMM
 
-CTMM can be fit with Hom, IID, Free, and Full models. Here is an example to illustarte the usage of CTMM:
+CTMM can be fit using OP and CTP data under hom, iid, free, and full models with ML (maximum likelihood), REML (restricted maximum likelihood), and HE (Haseman-Elston regression, a method-of-moments) methods.
+To fit OP, import ``op`` module and call the function ``[model]_[method]``. For example, to fit Free model using HE, call ``op.free_HE()``. It's the same to fit CTP except to import ``ctp`` module. For example, to fit Full model using ML, call ``ctp.full_HE()``. Funcation arguments can be found using the ``help()``, e.g., ``help(ctp.full_HE())``.
+
+To illustarte the usage of CTMM, here is an example of CTMM on OP and CTP from 50 individuals * 4 cell types:
 ```python
 from ctmm import op, ctp, util
 
