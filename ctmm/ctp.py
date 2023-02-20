@@ -733,7 +733,7 @@ def hom_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_co
     print( time.time() - start, flush=True )
     return(reml, p)
 
-def hom_HE(y_f: str, P_f: str, ctnu_f: str, nu_f=None: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+def hom_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
         jack_knife: Optional[bool]=True) -> Tuple[dict, dict]:
     '''
     Perform HE on Hom model
