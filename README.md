@@ -3,13 +3,6 @@ Python and R packages to fit CTMM (Cell Type-specific linear Mixed Model). CTMM 
   
 * M Chen, A Dahl. (2023) A robust model for cell type-specific interindividual variation in single-cell RNA sequencing data. bioRxiv.
 
-## Installation
-Users can download the latest repository and then use ``pip``:
-
-    git clone https://github.com/Minhui-Chen/CTMM.git
-    cd CTMM
-    pip install .
-
 ## Analysis scripts
 This repository contains scripts for simulations and real data analysis for our paper.
 
@@ -19,34 +12,56 @@ This repository contains scripts for simulations and real data analysis for our 
 
 * [cuomo](bin/cuomo) in bin/cuomo contains scripts to perform analyses on iPSCs from Cuomo et al. 2020 Nature Communications
 
-## Running GxEMM: Hom, IID, and Free models
+## Installation
+Users can download the latest repository and then use ``pip``:
 
-First, I'll simulate some test data. The details are not important for understanding how to use the package:
-```R
-set.seed(1234)
-N <- 1e3 # sample size
-S <- 1e2 # number SNPs
+    git clone https://github.com/Minhui-Chen/CTMM.git
+    cd CTMM
+    pip install .
 
-Z1  <- rbinom( N, 1, .5 )
-Z   <- cbind( Z1, 1-Z1 ) ### two discrete environments
+## Input format
+CTMM can fit two types of pseudobulk gene expression data: Overall Pseudobulk (OP) and Cell Type-specific Pseudobulk (CTP).
 
-snps  <- scale( matrix( rbinom(N*S,2,.1), N, S ) )
-K     <- snps %*% t(snps) / S
+* OP: Overall Pseudobulk gene expression for each individual. The file should have one column without header. (only needed when fitting OP)
 
-X     <- Z[,-1] # fixed effect covariates. Must include Z! Column is dropped here so that cbind(1,X) is full rank
+* CTP: Cell Type-specific Pseudobulk gene expression for each individual. The file should have one column for each cell type and without header. (only needed when fitting CTP)
 
-#genetic variances--assumed heterogeneous in this simulation
-sig2hom <- 0
-sig2het <- c( .1, .4 )
+* P: cell type proportions for each individual. The file should have one column for each cell type and without header.
 
-# noise--assumed homogeneous in this simulation
-epsilon	<- sqrt(1-sig2hom-sum( colMeans( Z^2 ) * sig2het )) * rnorm(N)
+* nu: variance of measurement noise for each individual. The file should have one column without header. (only needed when fitting OP)
 
-# heterogeneous SNP effects--details of this expression are not so important
-betas	<- sapply( sig2het, function(sig) rnorm( S, sd=sqrt( sig/S ) ) )
-uhet	<- sapply( 1:nrow(Z), function(i) snps[i,] %*% ( betas %*% Z[i,] ) )
+* ctnu: variance of measurement noise for each pair of individual and cell type. The file should have one column for each cell type and without header. (only needed when fitting CTP)
 
-y   <- as.numeric( Z %*% c(.1,-.5) + uhet + epsilon )
+## Output
+The output of CTMM have two dictionaries.
+
+* The first one contains estimates of model parameters, including cell type-specific mean expression (beta), variance of cell type-shared random effect (hom2), variance of cell type-specific random effect (V), and others, e.g. loglikelihood (l).
+
+* The second one contains p values from Wald test on e.g. differentiation of mean expression between cell types (ct_beta) and differentiation of expression variance between cell types (V). 
+
+** Need to add an example of LRT**
+
+## Running CTMM
+
+CTMM can be fit with Hom, IID, Free, and Full models. Here is an example to illustarte the usage of CTMM:
+```python
+import numpy as np
+from CTMM  import op, ctp
+
+# Fit OP (Overall Pseudobulk)
+OP_f = 'test/OP.gz' # overall pseudobulk
+P_f = 'test/P.gz' # cell type proportions
+nu_f = 'test/nu.gz' # overall variance of measurement noise for each individual
+
+## fit with REML on Free model
+reml_op, p_op = op.free_REML(y_f=OP_f, P_f=P_f, nu_f=nu_f, method='BFGS', optim_by_R=True) # use BFGS in R optim function for optimization
+
+# Fit CTP (Cell Type-specific Pseudobulk)
+CTP_f = 'test/CTP.gz' # Cell Type-specific Pseudobulk
+ctnu_f = 'test/ctnu.gz' # variance of measurement noise for each pair of individual and cell type
+
+## fit with REML on Free model
+reml_ctp, p_ctp = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True)
 ```
 
 Now that the test data has been simulated, we need to run the three GxEMM models. Note you need to point GxEMM to the location of LDAK on your computer, and the location I've used here won't work for you:
