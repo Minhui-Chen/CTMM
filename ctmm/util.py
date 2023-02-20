@@ -1,3 +1,5 @@
+from typing import Tuple, Optional, Union
+
 import os, tempfile
 import numpy as np, pandas as pd
 import rpy2.robjects as ro
@@ -5,9 +7,25 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.conversion import localconverter
 from scipy import stats, linalg, optimize
 from numpy.random import default_rng
+
 from . import wald
 
-def read_covars(fixed_covars={}, random_covars={}, C=None):
+def read_covars(fixed_covars: Optional[dict] = {}, random_covars: Optional[dict] = {}, C: Optional[int] = None) -> tuple:
+    '''
+    Read fixed and random effect design matrices
+
+    Parameters:
+        fixed_covars:   files of design matrices for fixed effects,
+                        except for cell type-specifc fixed effect, without header
+        random_covars:  files of design matrices for random effects,
+                        except for cell type-shared and -specifc random effect, without header
+        C:  number of cell types
+    Returns:
+        a tuple of
+            #. dict of design matrices for fixed effects
+            #. dict of design matrices for random effects
+            #. others
+    '''
     def read(covars):
         tmp = {}
         for key in covars.keys():
@@ -30,7 +48,20 @@ def read_covars(fixed_covars={}, random_covars={}, C=None):
 
     return( fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT )
 
-def optim(fun, par, args, method):
+def optim(fun: callable, par: list, args: tuple, method: str) -> Tuple[object, dict]:
+    '''
+    Optimization use scipy.optimize.minimize
+
+    Parameters:
+        fun:    objective function to minimize (e.g. log-likelihood function)
+        par:    initial parameters
+        args:   extra arguments passed to objective function
+        method: optimization method, e.g. BFGS
+    Returns:
+        a tuple of
+            #. OptimizeResult object from optimize.minimize
+            #. dict of optimization results
+    '''
     if method is None:
         out1 = optimize.minimize( fun, par, args=args, method='BFGS' )
         out = optimize.minimize( fun, out1['x'], args=args, method='Nelder-Mead' )
@@ -44,7 +75,21 @@ def optim(fun, par, args, method):
                 'message':out['message'], 'l':out['fun'] * (-1)}
     return( out, opt )
 
-def check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars, cut=5):
+def check_optim(opt: dict, hom2: float, ct_overall_var: float, fixed_vars: dict, random_vars: dict, cut: Optional[float] = 5) -> bool:
+    '''
+    Check whether optimization converged successfully
+
+    Parameters:
+        opt:    dict of optimization results, e.g. log-likelihood
+        hom2:   shared variance of cell type random effect
+        ct_ovaerall_var:    overall variance explained by cell type-specific effect
+        fixed_var:  dict of variances explained by each fixed effect feature, including cell type-specific fixed effect
+        random_var: dict of variances explained by each random effect feature, doesn't include cell type-shared or -specific effect
+        cut:    threshold for large variance
+    Returns:
+        True:   optim failed to converge
+        False:  optim successfully to converge
+    '''
     if ( (opt['l'] < -1e10) or (not opt['success']) or (hom2 > cut) or (ct_overall_var > cut) or
             np.any(np.array(list(fixed_vars.values())) > cut) or
             np.any(np.array(list(random_vars.values())) > cut) ):
@@ -52,7 +97,23 @@ def check_optim(opt, hom2, ct_overall_var, fixed_vars, random_vars, cut=5):
     else:
         return False
 
-def re_optim(out, opt, fun, par, args, method, nrep=10):
+def re_optim(out: object, opt: dict, fun: callable, par: list, args: tuple, method: str, nrep: Optional[int] = 10) -> Tuple[object, dict]:
+    '''
+    Rerun optimization
+
+    Parameters:
+        out:    OptimizeResult object
+        opt:    opmization results, e.g. method used, log-likelihood
+        fun:    objective function to minimize
+        par:    initial parameters used in the first try of optimization
+        args:   extra argument passed to the objective function
+        method: optimization method, e.g. BFGS
+        nrep:   number of optimization repeats
+    Returns:
+        a tuple of 
+            #. OptimizeResult of the best optimization
+            #. results of the best optimization
+    '''
     rng = default_rng()
     print( out['fun'] )
     for i in range(nrep):
@@ -66,9 +127,14 @@ def re_optim(out, opt, fun, par, args, method, nrep=10):
     print( out['fun'] )
     return( out, opt )
 
-def dict2Rlist( X ):
+def dict2Rlist( X: dict ) -> object:
     '''
-    X: a python dictionary
+    Transform a python dictionary to R list
+
+    Parameters:
+        X:  python dictionary
+    Returns:
+        R list
     '''
     if len( X.keys() ) == 0:
         return( r('NULL') )
@@ -105,12 +171,16 @@ def dict2Rlist( X ):
                     numpy2ri.deactivate()
         return( rlist )
 
-def generate_HE_initial(he, ML=False, REML=False):
+def generate_HE_initial(he: dict, ML: Optional[bool] = False, REML: Optional[bool] = False) -> list:
     '''
-    he: dict
-        estiamtes from HE
-    ML / REML: boolen
-        return initials for ML / REML
+    Convert HE estimates to initial parameter for ML / REML
+
+    Parameters:
+        he: estiamtes from HE
+        ML: generate initial parameters for ML 
+        REML:   generate initial parameters for REML
+    Returns:
+        initial parameters for ML / REML
     '''
     initials_random_effects = []
     # homogeneous effect
@@ -145,7 +215,18 @@ def generate_HE_initial(he, ML=False, REML=False):
     if ML is True:
         return( initials_fixed_effects + initials_random_effects )
 
-def glse( sig2s, X, y, inverse=False ):
+def glse( sig2s: np.ndarray, X: np.ndarray, y: np.ndarray, inverse: Optional[bool] = False ) -> np.ndarray:
+    '''
+    Generalized least square estimates
+
+    Parameters:
+        sig2s:  covariance matrix of y, pseudobulk
+        X:  desing matrix for fixed effects
+        y:  pseudobulk
+        inverse:    is sig2s inversed
+    Returns:
+        GLS of fixed effects
+    '''
     if not inverse:
         if len( sig2s.shape ) == 1:
             sig2s_inv = 1/sig2s
@@ -160,7 +241,16 @@ def glse( sig2s, X, y, inverse=False ):
     beta = np.linalg.inv(B) @ A @ y
     return( beta )
 
-def FixedeffectVariance_( beta, x ):
+def FixedeffectVariance_( beta: np.ndarray, x: np.ndarray ) -> float:
+    '''
+    Estimate variance explained by fixed effect
+
+    Parameters:
+        beta:   fixed effect sizes
+        x:  design matrix of fixed effect
+    Returns:
+        variance explained by fixed effect
+    '''
     #xd = x - np.mean(x, axis=0)
     #s = ( xd.T @ xd ) / x.shape[0]
     s = np.cov( x, rowvar=False )
@@ -168,7 +258,16 @@ def FixedeffectVariance_( beta, x ):
         s = s.reshape(1,1)
     return( beta @ s @ beta )
 
-def FixedeffectVariance( beta, xs ):
+def FixedeffectVariance( beta: np.ndarray, xs: np.ndarray ) -> list:
+    '''
+    Estimate variance explained by each feature of fixed effect, e.g. cell type, sex
+
+    Parameters:
+        beta:   fixed effect sizes
+        xs: design matrices for fixed effects
+    Returns:
+        variances
+    '''
     j = 0
     vars = []
     for i,x in enumerate(xs):
@@ -177,7 +276,19 @@ def FixedeffectVariance( beta, xs ):
         j = j + x.shape[1]
     return( vars )
 
-def fixedeffect_vars(beta, P, fixed_covars_d):
+def fixedeffect_vars(beta: np.ndarray, P: np.ndarray, fixed_covars_d: dict) -> Tuple[dict, dict]:
+    '''
+    Estimate variance explained by each feature of fixed effect, e.g. cell type, sex
+
+    Parameters:
+        beta:   fixed effect sizes
+        P:  cell type proportions
+        fixed_covars_d: design matrices for fixed effects
+    Returns:
+        a tuple of 
+            #. dict of fixed effects
+            #. dict of variances explained
+    '''
     # read covars if needed
     fixed_covars_d = read_covars(fixed_covars_d, {})[0]
 
@@ -202,7 +313,17 @@ def fixedeffect_vars(beta, P, fixed_covars_d):
 
     return(beta_d, fixed_vars_d)
 
-def assign_beta(beta_l, P, fixed_covars_d):
+def assign_beta(beta_l: list, P: np.ndarray, fixed_covars_d: dict) -> dict:
+    '''
+    Convert a list of fixed effect to dict for each feature
+
+    Parameters:
+        beta_l: fixed effects
+        P:  cell type proportions
+        fixed_covars_d: design matrices for fixed effects
+    Returns:
+        dict of fixed effects
+    '''
     beta_d = { 'ct_beta': beta_l[:P.shape[1]] }
     beta_l = beta_l[P.shape[1]:]
 
@@ -215,17 +336,35 @@ def assign_beta(beta_l, P, fixed_covars_d):
 
     return(beta_d)
 
-def assign_fixedeffect_vars(fixedeffect_vars_l, fixed_covars_d):
+def assign_fixedeffect_vars(fixedeffect_vars_l: list, fixed_covars_d: dict) -> dict:
+    '''
+    Assign fixed effect variance to each feature
+
+    Parameters:
+        fixedeffect_vars_l: fixed effects variances
+        fixed_covars_d: design matrices for fixed effects
+    Returns:
+        fixed effects variances for each feature
+    '''
     fixedeffect_vars_d = {'celltype_main_var': fixedeffect_vars_l[0]}
     if len(fixed_covars_d.keys()) > 0:
         for key, value in zip(np.sort(list(fixed_covars_d.keys())), fixedeffect_vars_l[1:]):
             fixedeffect_vars_d[key] = value
     return(fixedeffect_vars_d)
 
-def RandomeffectVariance_( V, X ):
+def RandomeffectVariance_( V: np.ndarray, X: np.ndarray ) -> float:
+    '''
+    Compute variance of random effect
+
+    Parameters:
+        V:  covariance matrix of random effect
+        X:  design matrix
+    Returns:
+        variance explained
+    '''
     return( np.trace( V @ (X.T @ X) ) / X.shape[0] )
 
-def RandomeffectVariance( Vs, Xs ):
+def RandomeffectVariance( Vs: Union[list, dict], Xs: Union[list, dict] ) -> Union[list, dict]:
     if isinstance( Xs, list ):
         if len( np.array( Vs ).shape ) == 1:
             Vs = [V * np.eye(X.shape[1]) for V, X in zip(Vs, Xs)]
@@ -240,7 +379,10 @@ def RandomeffectVariance( Vs, Xs ):
             vars[key] = RandomeffectVariance_(V,X)
     return( vars )
 
-def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d):
+def assign_randomeffect_vars(randomeffect_vars_l: list, r2_l: list, random_covars_d: dict) -> Tuple[dict, dict]:
+    '''
+    Assign variance of random effects
+    '''
     randomeffect_vars_d = {}
     r2_d = {}
     keys = np.sort( list(random_covars_d.keys()) )
@@ -251,14 +393,36 @@ def assign_randomeffect_vars(randomeffect_vars_l, r2_l, random_covars_d):
 
     return( randomeffect_vars_d, r2_d )
 
-def ct_randomeffect_variance( V, P ):
+def ct_randomeffect_variance( V: np.ndarray, P: np.ndarray ) -> Tuple[float, np.ndarray]:
+    '''
+    Compute overall and specific variance of each cell type
+    
+    Parameters:
+        V:  cell type-specific random effect covariance matrix
+        P:  cell type proportions
+    Returns:
+        A tuple of
+            #. overall variance
+            #. cell type-specific variance
+    '''
     N, C = P.shape
     ct_overall_var = RandomeffectVariance_(V, P)
     ct_specific_var = np.array([V[i,i] * ((P[:,i]**2).mean()) for i in range(C)])
 
     return( ct_overall_var, ct_specific_var )
 
-def cal_variance(beta, P, fixed_covars, r2, random_covars):
+def cal_variance(beta: np.ndarray, P: np.ndarray, fixed_covars: dict, r2: Union[list, np.ndarray, dict], random_covars: dict
+        ) -> Tuple[dict, dict, dict, dict]:
+    '''
+    Compute variance explained by fixed effects and random effects
+
+    Parameters:
+        beta:   fixed effects
+        P:  cell type propotions
+        fixed_covars: design matrices for additional fixed effects
+        r2: variances of additional random effects
+        random_covars:  design matrices for additional random effects
+    '''
     # calcualte variance of fixed and random effects, and convert to dict
     beta, fixed_vars = fixedeffect_vars( beta, P, fixed_covars ) # fixed effects are always ordered
     if isinstance(r2, list) or isinstance(r2, np.ndarray):
@@ -266,18 +430,23 @@ def cal_variance(beta, P, fixed_covars, r2, random_covars):
     random_vars = RandomeffectVariance( r2, random_covars )
     return( beta, fixed_vars, r2, random_vars )
 
-def quantnorm(Y, axis=0):
-    '''
-    # use sklearn.preprocessing.quantile_transform
-    '''
-    pass
+#def quantnorm(Y, axis=0):
+#    '''
+#    # use sklearn.preprocessing.quantile_transform
+#    '''
+#    pass
 
-def wald_ct_beta(beta, beta_var, n, P):
+def wald_ct_beta(beta: np.ndarray, beta_var: np.ndarray, n: int, P: int) -> float:
     '''
-    n: scalar (for Ftest in Wald test)
-        sample size
-    P: scalar (for Ftest in Wald test)
-        number of estimated parameters
+    Wald test on mean expression differentiation
+
+    Parameters:
+        beta:   cell type-specific mean expressions
+        beta_var:   covariance matrix of cell type-specific mean
+        n:  sample size (for Ftest in Wald test)
+        P:  number of estimated parameters (for Ftest in Wald test)
+    Returns:
+        p value for Wald test on mean expression differentiation
     '''
     C = len(beta)
     T = np.concatenate( ( np.eye(C-1), (-1)*np.ones((C-1,1)) ), axis=1 )
@@ -285,7 +454,7 @@ def wald_ct_beta(beta, beta_var, n, P):
     beta_var = T @ beta_var @ T.T
     return(wald.mvwald_test(beta, np.zeros(C-1), beta_var, n=n, P=P))
 
-def check_R(R):
+def check_R(R: np.ndarray) -> bool:
     '''
     Check R matrix: has to be matrix of 0 and 1
     in the structure of scipy.linalg.block_diag(np.ones((a,1)), np.ones((b,1)), np.ones((c,1))
@@ -303,7 +472,8 @@ def check_R(R):
     else:
         return( True )
 
-def order_by_randomcovariate(R, Xs=[], Ys={}):
+def order_by_randomcovariate(R: np.ndarray, Xs: Optional[list] = [], Ys: Optional[dict] = {}
+        ) -> Tuple[np.ndarray, np.ndarray, list, dict]:
     '''
     R is the design matrix of 0 and 1 for a random covriate, which we order along by
     Xs or Ys: a list or dict of matrixs we want to order
@@ -333,7 +503,11 @@ def order_by_randomcovariate(R, Xs=[], Ys={}):
 
     return(index, R, new_Xs, new_Ys)
 
-def jk_rmInd(i, Y, vs, fixed_covars={}, random_covars={}, P=None):
+def jk_rmInd(i: int, Y: np.ndarray, vs: np.ndarray, fixed_covars: Optional[dict]={}, random_covars: Optional[dict]={}, P: Optional[np.ndarray]=None
+        ) -> tuple:
+    '''
+    Remove one individual from the matrices for jackknife
+    '''
     Y_ = np.delete(Y, i, axis=0)
     vs_ = np.delete(vs, i, axis=0)
     fixed_covars_ = {}
@@ -348,12 +522,15 @@ def jk_rmInd(i, Y, vs, fixed_covars={}, random_covars={}, P=None):
         P_ = np.delete(P, i, axis=0)
         return(Y_, vs_, fixed_covars_, random_covars_, P_)
 
-def lrt(l, l0, k):
+def lrt(l: float, l0: float, k: int) -> float:
     '''
-    l, l0 : float
-        log likelihood for alternative and null hypothesis models
-    k : int
-        number of parameters constrained in null model compared to alternative
+    Perfomr Likelihood-ration test (LRT)
+
+    Parameters:
+        l, l0:  log likelihood for alternative and null hypothesis models
+        k:  number of parameters constrained in null model compared to alternative
+    Returns:
+        p value for LRT
     '''
 
     Lambda = 2 * (l-l0)

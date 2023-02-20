@@ -1,3 +1,5 @@
+from typing import Optional, Tuple
+
 import os, sys, re, time
 import pkg_resources
 from scipy import stats, linalg, optimize
@@ -11,27 +13,59 @@ from rpy2.robjects.conversion import localconverter
 
 from . import wald, util
 
-def get_X(P, fixed_covars_d):
+def get_X(P: np.ndarray, fixed_covars: dict) -> np.ndarray:
+    '''
+    Compute the design matrix X for fixed effects.
+    
+    Parameters:
+        P:  cell type proportions matrix
+        fixed_covars:   a dict of design matrices for each feature of fixed effect, 
+                        except for cell type-specific fixed effect
+    Returns:
+        Design matrix for fixed effects
+    '''
     X = P
-    for key in np.sort(list(fixed_covars_d.keys())):
-        m_ = fixed_covars_d[key]
+    for key in np.sort(list(fixed_covars.keys())):
+        m_ = fixed_covars[key]
         if isinstance(m_, str):
-            m_ = np.loadtxt(fixed_covars_d[key])
+            m_ = np.loadtxt(fixed_covars[key])
         if len( m_.shape ) == 1:
             m_ = m_.reshape(-1,1)
         X = np.concatenate( (X, m_), axis=1)
     return(X)
 
-def get_MMT(random_covars):
+def get_MMT(random_covars: dict) -> list:
+    '''
+    Compute M @ M^T, where M is design matrix for each random effect
+
+    Parameters:
+        random_covars:  a dict of design matrices for each feature of random effect,
+                        except for shared and cell type-specific random effects
+    Returns:
+        a list of matrices M @ M^T
+    '''
     random_MMT = []
     for key in np.sort( list(random_covars.keys()) ):
         R = random_covars[key]
         random_MMT.append( R @ R.T )
     return( random_MMT )
 
-def he_ols(y, P, vs, fixed_covars, random_covars, model):
+def he_ols(y: np.ndarray, P: np.ndarray, vs: np.ndarray, 
+        fixed_covars: dict, random_covars: dict, model: str) -> np.ndarray:
     '''
-    Q: design matrix in HE OLS
+    Perform OLS in HE
+
+    Parameters:
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        vs: noise variance
+        fixed_covars:   a dict of design matrices for each feature of fixed effect, 
+                        except for cell type-specific fixed effect
+        random_covars:  a dict of design matrices for each feature of random effect,
+                        except for shared and cell type-specific random effects
+        model:  hom/iid/free/full
+    Returns: 
+        estimates of random effect variances, e.g., \sigma_hom^2, V
     '''
     N, C = P.shape
     X = get_X(P, fixed_covars)
@@ -69,7 +103,21 @@ def he_ols(y, P, vs, fixed_covars, random_covars, model):
     theta = np.linalg.inv( Q.T @ Q ) @ Q.T @ t
     return( theta )
 
-def cal_Vy( P, vs, hom2, V, r2=[], random_MMT=[] ):
+def cal_Vy(P: np.ndarray, vs: np.ndarray, hom2: float, V: np.ndarray, 
+        r2: Optional[list]=[], random_MMT: Optional[list]=[] ) -> np.ndarray:
+    '''
+    Compute covariance matrix of Overall Pseudobulk across individuals
+
+    Parameters:
+        P:  cell type proportions
+        vs: noise variances
+        hom2:   shared variance of random effect across cell types, \sigma_hom^2
+        V:  cell type-specific variance matrix
+        r2: variances of additional random effects
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        covariance matrix of Overall Pseudobulk
+    '''
     Vy = hom2 + np.diag( P @ V @ P.T ) + vs
 
     Vy = np.diag( Vy )
@@ -80,7 +128,24 @@ def cal_Vy( P, vs, hom2, V, r2=[], random_MMT=[] ):
 
     return( Vy )
 
-def ML_LL(y, P, X, vs, beta, hom2, V, r2=[], random_MMT=[]):
+def ML_LL(y: np.ndarray, P: np.ndarray, X: np.ndarray, vs: np.ndarray, beta: np.ndarray, 
+        hom2: float, V: np.ndarray, r2: Optional[list]=[], random_MMT: Optional[list]=[]) -> float:
+    '''
+    Compute log-likelihood in ML
+
+    Parameters:
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        vs: noise variance
+        beta:   fixed effect sizes
+        hom2:   shared variance across cell types
+        V:  cell type-specific variance matrix
+        r2: variances of additional random effects
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     Vy = cal_Vy( P, vs, hom2, V, r2, random_MMT )
 
     if np.array_equal( Vy, np.diag( np.diag(Vy) ) ):
@@ -98,7 +163,24 @@ def ML_LL(y, P, X, vs, beta, hom2, V, r2=[], random_MMT=[]):
         l = stats.multivariate_normal.logpdf(y, mean=X @ beta, cov=Vy) * (-1)
     return( l )
 
-def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
+def REML_LL(y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
+        hom2: float, V: np.ndarray, r2: Optional[list]=[], random_MMT: Optional[list]=[]) -> float:
+    '''
+    Compute log-likelihood in REML
+
+    Parameters:
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        C:  number of cell types
+        vs: noise variance
+        hom2:   shared variance across cell types
+        V:  cell type-specific variance matrix
+        r2: variances of additional random effects
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     Vy = cal_Vy( P, vs, hom2, V, r2, random_MMT )
 
     if np.array_equal( Vy, np.diag( np.diag(Vy) ) ):
@@ -141,7 +223,27 @@ def REML_LL(y, P, X, C, vs, hom2, V, r2=[], random_MMT=[]):
     l = 0.5 * (l + B_det + y @ M @y)
     return( l )
 
-def r_optim(y, P, vs, fixed_covars, random_covars, par, nrep, ml, model, method):
+def r_optim(y: np.ndarray, P: np.ndarray, vs: np.ndarray, fixed_covars: dict, random_covars: dict, 
+        par: list, nrep: int, ml: str, model: str, method: Optional[str]='BFGS') -> dict:
+    '''
+    Opimization using R optim functions
+
+    Parameters:
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        vs: noise variance
+        fixed_covars:   a dict of design matrices for each feature of fixed effect, 
+                        except for cell type-specific fixed effect
+        random_covars:  a dict of design matrices for each feature of random effect,
+                        except for shared and cell type-specific random effects
+        par:    initial parameters for optim
+        nrep:   number of repeats when initial optimization failed
+        ml: ML/REML
+        model:  hom/iid/free/full
+        method: optimization algorithms in R optim function, e.g., BFGS (default) and Nelder-Mead
+    Returns:
+        output from R optim, including estimates of parameters, log-likelihood
+    '''
     if ml.upper() == 'ML':
         rf = pkg_resources.resource_filename(__name__, 'op.ml.R')
     else:
@@ -178,7 +280,22 @@ def r_optim(y, P, vs, fixed_covars, random_covars, par, nrep, ml, model, method)
         out[key] = value
     return( out )
 
-def hom_ML_loglike(par, y, P, X, C, vs, random_MMT):
+def hom_ML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, 
+        vs: np.ndarray, random_MMT: list) -> float:
+    '''
+    Compute ML log-likelihood for Hom model
+
+    Patameters:
+        par:    model parameters
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        C:  number of cell types
+        vs: noise variance
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     hom2 = par[0]
     beta = par[1:(1+X.shape[1])]
     V = np.zeros((C,C))
@@ -186,7 +303,30 @@ def hom_ML_loglike(par, y, P, X, C, vs, random_MMT):
 
     return( ML_LL(y, P, X, vs, beta, hom2, V, r2, random_MMT) )
 
-def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10, optim_by_R=False):
+def hom_ML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> Tuple[dict, dict]:
+    '''
+    Perform ML on Hom model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        par:    initinal parameters 
+        method: optimization algorithms provided by R optim function if optim_by_R is True, 
+                or provided by scipy.optimize in optim_by_R if False
+        nrep:   number of repeats if initinal optimization failed
+        optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
+    Returns
+        A tuple of 
+            #.  estimates of parameters and others
+            #.  p values for hom2 (\sigma_hom^2 = 0) and 
+                ct_beta (no mean expression difference between cell types)
+    '''
     print('Hom ML')
 
     if not optim_by_R:
@@ -272,17 +412,55 @@ def hom_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, meth
 
         wald_p = {}
         wald_p['hom2'] = wald.wald_test(hom2, 0, D[X.shape[1],X.shape[1]], N-n_par)
-        wald_p['beta'] = [wald.wald_test(beta[i], 0, D[i,i], N-n_par, two_sided=True) for i in range(X.shape[1])]
+        #wald_p['beta'] = [wald.wald_test(beta[i], 0, D[i,i], N-n_par, two_sided=True) for i in range(X.shape[1])]
         wald_p['ct_beta'] = util.wald_ct_beta(beta[:C], D[:C,:C], n=N, P=n_par)
         return(res, wald_p)
 
-def hom_REML_loglike(par, y, P, X, C, vs, random_MMT):
+def hom_REML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, 
+        vs: np.ndarray, random_MMT: list) -> float:
+    '''
+    Compute REML log-likelihood for Hom model
+
+    Patameters:
+        par:    model parameters
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        C:  number of cell types
+        vs: noise variance
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     hom2 = par[0]
     V = np.zeros((C,C))
     r2 = par[1:]
     return( REML_LL(y, P, X, C, vs, hom2, V, r2, random_MMT) )
 
-def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10, optim_by_R=False):
+def hom_REML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> Tuple[dict, dict]:
+    '''
+    Perform REML on Hom model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        par:    initinal parameters 
+        method: optimization algorithms provided by R optim function if optim_by_R is True, 
+                or provided by scipy.optimize in optim_by_R if False
+        nrep:   number of repeats if initinal optimization failed
+        optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
+    Returns
+        A tuple of 
+            #.  estimates of parameters and others
+            #.  p values for hom2 (\sigma_hom^2 = 0) and 
+                ct_beta (no mean expression difference between cell types)
+    '''
     print('Hom REML')
     
     if not optim_by_R:
@@ -378,7 +556,26 @@ def hom_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, me
                 n=N, P=n_par)
         return(res, wald_p)
 
-def hom_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
+def hom_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        jack_knife: Optional[bool]=False) -> Tuple[dict, dict]:
+    '''
+    Perform HE on Hom model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        jack_knife: perform jackknife-based test, default False
+    Returns
+        A tuple of 
+            #.  estimates of parameters and others
+            #.  p values for hom2 (\sigma_hom^2 = 0) and 
+                ct_beta (no mean expression difference between cell types)
+    '''
     print('Hom HE')
     start = time.time()
 
@@ -435,7 +632,22 @@ def hom_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
     print( time.time() - start )
     return( he, p )
 
-def iid_ML_loglike(par, y, P, X, C, vs, random_MMT):
+def iid_ML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
+        random_MMT: list) -> float:
+    '''
+    Compute ML log-likelihood for IID model
+
+    Patameters:
+        par:    model parameters
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        C:  number of cell types
+        vs: noise variance
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     hom2 = par[0]
     V = np.eye(C) * par[1]
     beta = par[2:(2+X.shape[1])]
@@ -443,7 +655,30 @@ def iid_ML_loglike(par, y, P, X, C, vs, random_MMT):
 
     return( ML_LL(y, P, X, vs, beta, hom2, V, r2, random_MMT) )
 
-def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10, optim_by_R=False):
+def iid_ML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> Tuple[dict, dict]:
+    '''
+    Perform ML on IID model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        par:    initinal parameters 
+        method: optimization algorithms provided by R optim function if optim_by_R is True, 
+                or provided by scipy.optimize in optim_by_R if False
+        nrep:   number of repeats if initinal optimization failed
+        optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
+    Returns
+        A tuple of 
+            #.  estimates of parameters and others
+            #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0)
+                ct_beta (no mean expression difference between cell types)
+    '''
     print('IID ML')
 
     if not optim_by_R:
@@ -543,13 +778,51 @@ def iid_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, meth
         wald_p['ct_beta'] = util.wald_ct_beta(beta[:C], D[:C,:C], n=N, P=n_par)
         return(res, wald_p)
 
-def iid_REML_loglike(par, y, P, X, C, vs, random_MMT):
+def iid_REML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
+        random_MMT: list) -> float:
+    '''
+    Compute REML log-likelihood for IID model
+
+    Patameters:
+        par:    model parameters
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        C:  number of cell types
+        vs: noise variance
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     hom2 = par[0]
     V = np.eye(C) * par[1]
     r2 = par[2:]
     return( REML_LL(y, P, X, C, vs, hom2, V, r2, random_MMT) )
 
-def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10, optim_by_R=False):
+def iid_REML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> Tuple[dict, dict]:
+    '''
+    Perform REML on IID model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        par:    initinal parameters 
+        method: optimization algorithms provided by R optim function if optim_by_R is True, 
+                or provided by scipy.optimize in optim_by_R if False
+        nrep:   number of repeats if initinal optimization failed
+        optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
+    Returns
+        A tuple of 
+            #.  estimates of parameters and others
+            #.  p values for hom2 (\sigma_hom^2 = 0) and V (V=0)
+                ct_beta (no mean expression difference between cell types)
+    '''
     print('IID REML')
 
     if not optim_by_R:
@@ -655,7 +928,26 @@ def iid_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, me
                 n=N, P=n_par)
         return(res, wald_p)
 
-def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
+def iid_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        jack_knife: Optional[bool]=False) -> Tuple[dict, dict]:
+    '''
+    Perform HE on IID model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        jack_knife: perform jackknife-based test, default False
+    Returns
+        A tuple of 
+            #.  estimates of parameters and others
+            #.  p values for hom2 (\sigma_hom^2 = 0) and V (V=0) and
+                ct_beta (no mean expression difference between cell types)
+    '''
     print('IID HE')
     start = time.time()
 
@@ -718,7 +1010,22 @@ def iid_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fal
     print( time.time() - start )
     return( he, p )
 
-def free_ML_loglike(par, y, P, X, C, vs, random_MMT):
+def free_ML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
+        random_MMT: list) -> float:
+    '''
+    Compute ML log-likelihood for Free model
+
+    Patameters:
+        par:    model parameters
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        C:  number of cell types
+        vs: noise variance
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     hom2 = par[0]
     V = np.diag( par[1:(C+1)] )
     beta = par[(C+1):(C+1+X.shape[1])]
@@ -726,7 +1033,30 @@ def free_ML_loglike(par, y, P, X, C, vs, random_MMT):
 
     return( ML_LL(y, P, X, vs, beta, hom2, V, r2, random_MMT) )
 
-def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10, optim_by_R=False):
+def free_ML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> Tuple[dict, dict]:
+    '''
+    Perform ML on Free model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        par:    initinal parameters 
+        method: optimization algorithms provided by R optim function if optim_by_R is True, 
+                or provided by scipy.optimize in optim_by_R if False
+        nrep:   number of repeats if initinal optimization failed
+        optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
+    Returns
+        A tuple of 
+            #.  estimates of parameters and others
+            #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0) and 
+                ct_beta (no mean expression difference between cell types)
+    '''
     print('Free ML')
 
     if not optim_by_R:
@@ -834,15 +1164,53 @@ def free_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, met
 
         return(res, wald_p)
 
+def free_REML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
+        random_MMT: list) -> float:
+    '''
+    Compute REML log-likelihood for Free model
 
-def free_REML_loglike(par, y, P, X, C, vs, random_MMT):
+    Patameters:
+        par:    model parameters
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        C:  number of cell types
+        vs: noise variance
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     hom2 = par[0]
     V = np.diag( par[1:(C+1)] )
     r2 = par[(C+1):]
     return( REML_LL(y, P, X, C, vs, hom2, V, r2, random_MMT) )
 
-def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10, 
-        jack_knife=False, optim_by_R=False):
+def free_REML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, jack_knife: Optional[bool]=False, 
+        optim_by_R: Optional[bool]=False) -> Tuple[dict, dict]:
+    '''
+    Perform REML on Free model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        par:    initinal parameters 
+        method: optimization algorithms provided by R optim function if optim_by_R is True, 
+                or provided by scipy.optimize in optim_by_R if False
+        nrep:   number of repeats if initinal optimization failed
+        jack_knife: perform jackknife-based test, default False
+        optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
+    Returns
+        A tuple of 
+            #.  estimates of parameters and others
+            #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0) and 
+                ct_beta (no mean expression difference between cell types)
+    '''
     print('Free REML')
 
     if not optim_by_R:
@@ -1010,7 +1378,26 @@ def free_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, m
 
         return(res, wald_p)
 
-def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=False):
+def free_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        jack_knife: Optional[bool]=False) -> Tuple[dict, dict]:
+    '''
+    Perform HE on Free model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        jack_knife: perform jackknife-based test, default False
+    Returns
+        A tuple of 
+            #.  estimates of parameters and others
+            #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0)
+                ct_beta (no mean expression difference between cell types)
+    '''
     print('Free HE')
     start = time.time()
 
@@ -1074,7 +1461,22 @@ def free_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, jack_knife=Fa
     print( time.time() - start )
     return( he, p )
 
-def full_ML_loglike(par, y, P, X, C, vs, random_MMT):
+def full_ML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
+        random_MMT: list) -> float:
+    '''
+    Compute ML log-likelihood for Full model
+
+    Patameters:
+        par:    model parameters
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        C:  number of cell types
+        vs: noise variance
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     ngam = C * (C+1) // 2
     V = np.zeros((C,C))
     V[np.tril_indices(C)] = par[:ngam]
@@ -1085,7 +1487,27 @@ def full_ML_loglike(par, y, P, X, C, vs, random_MMT):
 
     return( ML_LL(y, P, X, vs, beta, hom2, V, r2, random_MMT) )
 
-def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10, optim_by_R=False):
+def full_ML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> dict:
+    '''
+    Perform ML on Hom model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        par:    initinal parameters 
+        method: optimization algorithms provided by R optim function if optim_by_R is True, 
+                or provided by scipy.optimize in optim_by_R if False
+        nrep:   number of repeats if initinal optimization failed
+        optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
+    Returns
+        estimates of parameters and others
+    '''
     print('Full ML')
 
     if not optim_by_R:
@@ -1159,7 +1581,22 @@ def full_ML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, met
                 'r2':r2_d, 'nu':np.mean(vs), 'hess':hess, 'convergence':convergence}
         return(res)
 
-def full_REML_loglike(par, y, P, X, C, vs, random_MMT):
+def full_REML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
+        random_MMT: list) -> float:
+    '''
+    Compute REML log-likelihood for Full model
+
+    Patameters:
+        par:    model parameters
+        y:  Overall Pseudobulk
+        P:  cell type proportions
+        X:  design matrix for fixed effects
+        C:  number of cell types
+        vs: noise variance
+        random_MMT: M @ M^T, where M is design matrix for each additional random effect
+    Returns:
+        log-likelihood
+    '''
     ngam = C * (C+1) // 2
     V = np.zeros((C,C))
     V[np.tril_indices(C)] = par[:ngam]
@@ -1168,7 +1605,27 @@ def full_REML_loglike(par, y, P, X, C, vs, random_MMT):
     r2 = par[ngam:]
     return( REML_LL(y, P, X, C, vs, hom2, V, r2, random_MMT) )
 
-def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, method=None, nrep=10, optim_by_R=False):
+def full_REML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}, 
+        par: Optional[list]=None, method: Optional[str]=None, nrep: Optional[int]=10, optim_by_R: Optional[bool]=False) -> dict:
+    '''
+    Perform REML on Free model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+        par:    initinal parameters 
+        method: optimization algorithms provided by R optim function if optim_by_R is True, 
+                or provided by scipy.optimize in optim_by_R if False
+        nrep:   number of repeats if initinal optimization failed
+        optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
+    Returns
+        estimates of parameters and others
+    '''
     print('Full REML')
 
     if not optim_by_R:
@@ -1249,7 +1706,21 @@ def full_REML(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}, par=None, m
                 'fixedeffect_vars':fixedeffect_vars_d, 'nu':np.mean(vs), 'hess':hess, 'convergence':convergence}
         return(res)
 
-def full_HE(y_f, P_f, nu_f, fixed_covars_d={}, random_covars_d={}):
+def full_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: Optional[dict]={}, random_covars_d: Optional[dict]={}) -> dict:
+    '''
+    Perform HE on Free model
+
+    Parameters:
+        y_f:    file of Overall Pseudobulk, with one column, without header
+        P_f:    file of cell type proportions, with one column for each cell type, without header
+        nu_f:   file of noise variance, with one column, without header
+        fixed_covars_d: files of design matrices for fixed effects, 
+                        except for cell type-specifc fixed effect, without header
+        random_covars_d:    files of design matrices for random effects,
+                            except for cell type-shared and -specifc random effect, without header
+    Returns
+        estimates of parameters and others
+    '''
     print('Full HE')
     start = time.time()
 
