@@ -115,7 +115,7 @@ def re_optim(out: object, opt: dict, fun: callable, par: list, args: tuple, meth
             #. results of the best optimization
     '''
     rng = default_rng()
-    print( out['fun'] )
+    #print( out['fun'] )
     for i in range(nrep):
         par_ = np.array(par) * rng.gamma(2,1/2,len(par))
         out_, opt_ = optim(fun, par_, args=args, method=method)
@@ -124,7 +124,7 @@ def re_optim(out: object, opt: dict, fun: callable, par: list, args: tuple, meth
             out, opt = out_, opt_
         elif (out['success'] == out_['success']) and (out['fun'] > out_['fun']):
             out, opt = out_, opt_
-    print( out['fun'] )
+    #print( out['fun'] )
     return( out, opt )
 
 def dict2Rlist( X: dict ) -> object:
