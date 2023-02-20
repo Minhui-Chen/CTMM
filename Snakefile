@@ -239,7 +239,7 @@ rule ctp_test:
         ML = True,
         REML = True,
         HE = True,
-        optim_by_r = True,
+        optim_by_R = True,
     resources:
         mem_per_cpu = '5gb',
         time = '48:00:00',
@@ -268,7 +268,7 @@ rule ctp_test_remlJK:
         Free_reml_only = True,
         Free_reml_jk = True,
         HE = False,
-        optim_by_r = True,
+        optim_by_R = True,
     resources:
         mem_per_cpu = '10gb',
         time = '200:00:00',
@@ -562,7 +562,7 @@ rule cuomo_ctp_test:
         jack_knife = True,
         IID = False,
         Hom = False,
-        optim_by_r = True, 
+        optim_by_R = True, 
     resources: 
         mem = '10gb',
         time = '48:00:00',
@@ -587,7 +587,7 @@ use rule cuomo_ctp_test as cuomo_ctp_test2 with:
         jack_knife = True,
         IID = True,
         Hom = True,
-        optim_by_r = True, 
+        optim_by_R = True, 
 
 use rule op_aggReplications as cuomo_ctp_test2_aggReplications with:
     input:
@@ -608,7 +608,7 @@ use rule cuomo_ctp_test as cuomo_ctp_test_remlJK with:
         HE = False, 
         Hom = False,
         IID = False,
-        optim_by_r = True, 
+        optim_by_R = True, 
     resources: 
         mem = '16gb',
         time = '48:00:00',
@@ -740,7 +740,7 @@ use rule ctp_test as cuomo_simulateGene_hom_ctp_test with:
         ML = True,
         REML = True,
         HE = True,
-        optim_by_r = True,
+        optim_by_R = True,
 
 use rule op_aggReplications as cuomo_simulateGene_hom_ctp_aggReplications with:
     input:
@@ -764,7 +764,7 @@ use rule ctp_test as cuomo_simulateGene_hom_ctp_test_remlJK with:
         REML = True,
         Free_reml_jk = True,
         HE = False,
-        optim_by_r = True,
+        optim_by_R = True,
     resources:
         mem_per_cpu = '12gb',
         time = '48:00:00',
@@ -816,7 +816,7 @@ use rule ctp_test as cuomo_simulateGene_Free_ctp_test with:
         ML = True,
         REML = True,
         HE = True,
-        optim_by_r = True,
+        optim_by_R = True,
 
 use rule op_aggReplications as cuomo_simulateGene_Free_ctp_aggReplications with:
     input:
@@ -840,7 +840,7 @@ use rule ctp_test as cuomo_simulateGene_Free_ctp_test_remlJK with:
         REML = True,
         Free_reml_jk = True,
         HE = False,
-        optim_by_r = True,
+        optim_by_R = True,
     resources:
         mem_per_cpu = '12gb',
         time = '48:00:00',
