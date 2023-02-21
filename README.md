@@ -53,7 +53,7 @@ from ctmm import op, ctp, util
 # Fit OP (Overall Pseudobulk)
 OP_f = 'test/OP.gz' # overall pseudobulk
 P_f = 'test/P.gz' # cell type proportions
-nu_f = 'test/nu.gz' # overall variance of measurement noise for each individual
+nu_f = 'test/nu.gz' # variance of measurement noise for each individual
 
 ## fit with REML on Free model
 reml_op, p_op = op.free_REML(y_f=OP_f, P_f=P_f, nu_f=nu_f, method='BFGS', optim_by_R=True) # use BFGS in R optim function for optimization
@@ -76,7 +76,7 @@ free_jk, p_jk = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', 
 ## fit with REML on Hom model
 hom, _ = ctp.hom_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True)
 C = 4 # number of cell types
-p_lrt = util.lrt(free['l'], hom['l'], C) # LRT on variance differentiation (V=0)
+p_lrt = util.lrt(free['l'], hom['l'], C) # LRT on variance differentiation (V=0) # free['l'], hom['l']: loglikelihood
 
 # to include additional fixed (PCA of OP) and random effects (batch effect)
 pca_f = 'test/pca.gz'
