@@ -78,7 +78,7 @@ hom, _ = ctp.hom_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by
 C = 4 # number of cell types
 p_lrt = util.lrt(free['l'], hom['l'], C) # LRT on variance differentiation (V=0)
 
-# to include additional fixed and random effects
+# to include additional fixed (PCA of OP) and random effects (batch effect)
 pca_f = 'test/pca.gz'
 batch_f = 'test/batch.gz'
 free, p_wald = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, 
