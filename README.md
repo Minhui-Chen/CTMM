@@ -59,7 +59,7 @@ nu_f = 'test/nu.gz' # overall variance of measurement noise for each individual
 reml_op, p_op = op.free_REML(y_f=OP_f, P_f=P_f, nu_f=nu_f, method='BFGS', optim_by_R=True) # use BFGS in R optim function for optimization
 print( reml_op['hom2'] )  # variance of cell type-shared random effect (\sigma_\alpha^2)
 print( reml_op['V'] )     # variance of cell type-specific random effect 
-print( reml_op['beta']['ct_beat'] ) # cell type-specific fixed effect i.e. mean expression
+print( reml_op['beta']['ct_beta'] ) # cell type-specific fixed effect i.e. mean expression
 print( p_op['V'] )        # Wald test on expression variance differentiation between cell types (V_1 =V_2 = 0)
 print( p_op['ct_beta'] )  # Wald test on mean expression differentiation between cell types (beta_1 = beta_2)
 
@@ -68,7 +68,7 @@ CTP_f = 'test/CTP.gz' # Cell Type-specific Pseudobulk
 ctnu_f = 'test/ctnu.gz' # variance of measurement noise for each pair of individual and cell type
 
 ## fit with REML on Free model
-free, p_wald = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True) # use BFGS in scipy package
+free, p_wald = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True) 
 ### to conduct jackknife-based Wald test 
 free_jk, p_jk = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True, jack_knife=True)
 
@@ -77,6 +77,13 @@ free_jk, p_jk = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', 
 hom, _ = ctp.hom_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, method='BFGS', optim_by_R=True)
 C = 4 # number of cell types
 p_lrt = util.lrt(free['l'], hom['l'], C) # LRT on variance differentiation (V=0)
+
+# to include additional fixed and random effects
+pca_f = 'test/pca.gz'
+batch_f = 'test/batch.gz'
+free, p_wald = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f, 
+    fixed_covars_d={'pca':pca_f}, random_covars_d={'batch':batch_f}, 
+    method='BFGS', optim_by_R=True)
 ```
 
 
