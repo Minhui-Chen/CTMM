@@ -44,7 +44,7 @@ The output of CTMM have two dictionaries.
 CTMM can be fit using OP and CTP data under hom, iid, free, and full models with ML (maximum likelihood), REML (restricted maximum likelihood), and HE (Haseman-Elston regression, a method-of-moments) methods.
 To fit OP, import the ``op`` module and call the function ``[model]_[method]``. For example, to fit Free model using HE, call ``op.free_HE()``. 
 The only difference to fit CTP is importing the ``ctp`` module. For example, to fit Full model using ML, call ``ctp.full_HE()``. 
-Funcation arguments can be found using the ``help()``, e.g., ``help(ctp.full_HE())``.
+Funcation arguments can be found using the ``help()``, e.g., ``help(ctp.full_HE())``. Some useful arguments like: ``fixed_covars_d``  and ``random_covars_d`` to include additional fixed and random effects; ``jack_knife`` to perform jackknife-based Wald test.
 
 To illustarte the usage of CTMM, here is an example of CTMM on OP and CTP from 50 individuals * 4 cell types:
 ```python
