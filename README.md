@@ -88,5 +88,5 @@ free, p_wald = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f,
 
 # Support
 
-Please report any bugs or feature requests in the [Issue Tracker] (https://github.com/Minhui-Chen/CTMM/issues). 
+Please report any bugs or feature requests in the [Issue Tracker](https://github.com/Minhui-Chen/CTMM/issues). 
 If users have any questions or comments, please contact MinhuiC (minhuic@uchicago.edu).
