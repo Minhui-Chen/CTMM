@@ -8,7 +8,7 @@ from rpy2.robjects.packages import importr, STAP
 from rpy2.robjects.conversion import localconverter
 
 def softimpute(y, scale):
-    softImpute_f = 'bin/my_softImpute.R'
+    softImpute_f = 'bin/cuomo/softImpute.R'
     softImpute_r = STAP( open(softImpute_f).read(), 'softImpute_r' )
     if scale:
         out_ = softImpute_r.my_softImpute( r['as.matrix'](y), scale=ro.vectors.BoolVector([True]) )
@@ -19,7 +19,7 @@ def softimpute(y, scale):
     return( out )
 
 def mvn(y):
-    mvn_f = 'bin/mvn_impute.R'
+    mvn_f = 'bin/cuomo/mvn.R'
     mvn_r = STAP( open(mvn_f).read(), 'mvn_r' )
     out_ = mvn_r.MVN_impute( r['as.matrix'](y) )
     out_ = dict( zip(out_.names, list(out_)) )

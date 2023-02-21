@@ -25,7 +25,7 @@ def main():
     nu_path = os.path.dirname(output.nu)
     if snakemake.wildcards.im_genome in ['Y']:
         if snakemake.wildcards.im_mvn == 'N':
-            softImpute_f = 'bin/my_softImpute.R'
+            softImpute_f = 'bin/cuomo/softImpute.R'
             softImpute_r = STAP( open(softImpute_f).read(), 'softImpute_r' )
             pandas2ri.activate()
             numpy2ri.activate()
