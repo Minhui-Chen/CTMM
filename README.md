@@ -19,6 +19,15 @@ Users can download the latest repository and then use ``pip``:
     cd CTMM
     pip install .
 
+Before installation, we recommend to create a virtual environment using [venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/) module or [conda](https://docs.conda.io/en/latest/) to ensure package compatibility. Take ``venv`` for example, 
+
+    cd CTMM
+    python3 -m venv env
+    source env/bin/activate
+    pip install .
+    (do your work)
+    deactivate
+
 ## Input format
 CTMM can fit two types of pseudobulk gene expression data: Overall Pseudobulk (OP) and Cell Type-specific Pseudobulk (CTP).
 
