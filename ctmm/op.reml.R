@@ -1,5 +1,5 @@
 library(numDeriv)
-library(MASS)
+#library(MASS)
 source('util.R')
 
 LL <- function(y, P, X, C, vs, hom2, V, random_variances=NULL, random_MMT=NULL){

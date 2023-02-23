@@ -1,3 +1,4 @@
+install.packages( setdiff(c('numDeriv','Matrix'), rownames(installed.packages())) )
 library(numDeriv)
 library(Matrix)
 source('util.R')

@@ -1,3 +1,4 @@
+install.packages( setdiff(c('numDeriv','mvtnorm'), rownames(installed.packages())) )
 library(numDeriv)
 library(mvtnorm)
 source('util.R')
