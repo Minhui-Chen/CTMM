@@ -47,7 +47,7 @@ To fit CTP, CTMM needs:
 
 * P: the same as P for fitting OP.
 
-For convenience, we also provide **functions** to generate these files from gene expression data from all cells (see Examples below). 
+For convenience, we also provide ``functions`` to generate these files from gene expression data from all cells (see Examples below). 
 
 ## Output
 The output of CTMM has two dictionaries.
@@ -58,10 +58,15 @@ The output of CTMM has two dictionaries.
 
 ## Running CTMM
 
-CTMM can be fit using OP and CTP data under **hom**, **iid**, **free**, and **full** models with ML (maximum likelihood), REML (restricted maximum likelihood), and HE (Haseman-Elston regression, a method-of-moments) methods.
-To fit OP, import the ``op`` module and call the function ``[model]_[method]``. For example, to fit Free model using HE, call ``op.free_HE()``. 
-The only difference to fit CTP is importing the ``ctp`` module. For example, to fit Full model using ML, call ``ctp.full_HE()``. 
-Funcation arguments can be found using the ``help()``, e.g., ``help(ctp.full_HE())``. Some useful arguments like: ``fixed_covars_d``  and ``random_covars_d`` to include additional fixed and random effects; ``jack_knife`` to perform jackknife-based Wald test.
+CTMM can be fit using OP and CTP data under **hom**, **iid**, **free**, and **full** models with **ML** (maximum likelihood), **REML** (restricted maximum likelihood), and **HE** (Haseman-Elston regression, a method-of-moments) methods.
+The iid model is not introduced in our paper. Unlike the free model, which allows different levels of cell type-specific variance, the iid model allows cell type-specific variance but constrains these values to be contant across cell types. But note, codes for the iid model are not throughly tested. 
+To fit OP, import the ``op`` module and call the function ``[model]_[method]``. For example, call ``op.free_HE()`` to fit the Free model using HE. 
+To fit CTP, import the ``ctp`` module and call the function in the same way. For example, ``ctp.full_ML()`` to fit Full model using ML. 
+Funcation arguments can be found using the ``help()`` (e.g., ``help(ctp.full_HE())``). Some useful arguments
+
+* ``fixed_covars_d``  and ``random_covars_d`` to include additional fixed and random effects
+
+* ``jack_knife`` to perform jackknife-based Wald test.
 
 To illustarte the usage of CTMM, here is an example of CTMM on OP and CTP from 50 individuals * 4 cell types:
 ```python
