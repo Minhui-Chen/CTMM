@@ -5,25 +5,28 @@ import seaborn as sns
 import rpy2.robjects as ro
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr, STAP
-from rpy2.robjects.conversion import localconverter
 
 def softimpute(y, scale):
     softImpute_f = 'bin/cuomo/softImpute.R'
     softImpute_r = STAP( open(softImpute_f).read(), 'softImpute_r' )
+    pandas2ri.activate()
     if scale:
         out_ = softImpute_r.my_softImpute( r['as.matrix'](y), scale=ro.vectors.BoolVector([True]) )
     else:
         out_ = softImpute_r.my_softImpute( r['as.matrix'](y) )
     out_ = dict( zip(out_.names, list(out_)) )
     out = pd.DataFrame(out_['Y'], index=y.index, columns=y.columns)
+    pandas2ri.deactivate()
     return( out )
 
 def mvn(y):
     mvn_f = 'bin/cuomo/mvn.R'
     mvn_r = STAP( open(mvn_f).read(), 'mvn_r' )
+    pandas2ri.activate()
     out_ = mvn_r.MVN_impute( r['as.matrix'](y) )
     out_ = dict( zip(out_.names, list(out_)) )
     out = pd.DataFrame(out_['Y'], index=y.index, columns=y.columns)
+    pandas2ri.deactivate()
     return( out )
 
 def imputeY4eachgene(y, gene, y_path):
