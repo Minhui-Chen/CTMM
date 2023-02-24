@@ -1,5 +1,5 @@
 # CTMM
-Python and R packages to fit CTMM (Cell Type-specific linear Mixed Model). CTMM estimates the variance of gene expression specific to each cell type and shared across cell types. For a full description of CTMM, including strengths and limitations, see:
+Python package to fit CTMM (Cell Type-specific linear Mixed Model). CTMM estimates the variance of gene expression specific to each cell type and shared across cell types. For a full description of CTMM, including strengths and limitations, see:
   
 * M Chen, A Dahl. (2023) A robust model for cell type-specific interindividual variation in single-cell RNA sequencing data. bioRxiv.
 
@@ -10,7 +10,7 @@ This repository contains scripts for simulations and real data analysis for our 
 
 * [sim](bin/sim) in bin/sim contains scripts to perform simulations
 
-* [cuomo](bin/cuomo) in bin/cuomo contains scripts to perform analyses on iPSCs from Cuomo et al. 2020 Nature Communications
+* [cuomo](bin/cuomo) in bin/cuomo contains scripts to analyze iPSCs from Cuomo et al. 2020 Nat Commun
 
 ## Installation
 Users can download the latest repository and then use ``pip``:
@@ -33,24 +33,24 @@ CTMM can fit two types of pseudobulk gene expression data: Overall Pseudobulk (O
 
 To fit OP, CTMM needs:
 
-* OP: Overall Pseudobulk gene expression for each individual. The file should have one column without header. (only needed when fitting OP)
+* OP: Overall Pseudobulk gene expression for each individual. This file should have one column without header. 
 
-* nu: variance of measurement noise for each individual. The file should have one column without header. (only needed when fitting OP)
+* nu: variance of measurement noise for each individual. This file should have one column without header. 
 
-* P: cell type proportions for each individual. The file should have one column for each cell type and without header.
+* P: cell type proportions for each individual. This file should have one column for each cell type and without header.
 
 To fit CTP, CTMM needs:
 
-* CTP: Cell Type-specific Pseudobulk gene expression for each individual. The file should have one column for each cell type and without header. (only needed when fitting CTP)
+* CTP: Cell Type-specific Pseudobulk gene expression for each individual. This file should have one column for each cell type and without header. 
 
-* ctnu: variance of measurement noise for each pair of individual and cell type. The file should have one column for each cell type and without header. (only needed when fitting CTP)
+* ctnu: variance of measurement noise for each pair of individual and cell type. This file should have one column for each cell type and without header.
 
-* P: cell type proportions for each individual. The file should have one column for each cell type and without header.
+* P: the same as P for fitting OP.
 
-We provide codes to generate these files from gene expression data from all cells (see Examples below). 
+For convenience, we also provide **functions** to generate these files from gene expression data from all cells (see Examples below). 
 
 ## Output
-The output of CTMM have two dictionaries.
+The output of CTMM has two dictionaries.
 
 * The first one contains estimates of model parameters, including cell type-specific mean expression (beta), variance of cell type-shared random effect (hom2), variance of cell type-specific random effect (V), and others, e.g. loglikelihood (l).
 
@@ -58,7 +58,7 @@ The output of CTMM have two dictionaries.
 
 ## Running CTMM
 
-CTMM can be fit using OP and CTP data under hom, iid, free, and full models with ML (maximum likelihood), REML (restricted maximum likelihood), and HE (Haseman-Elston regression, a method-of-moments) methods.
+CTMM can be fit using OP and CTP data under **hom**, **iid**, **free**, and **full** models with ML (maximum likelihood), REML (restricted maximum likelihood), and HE (Haseman-Elston regression, a method-of-moments) methods.
 To fit OP, import the ``op`` module and call the function ``[model]_[method]``. For example, to fit Free model using HE, call ``op.free_HE()``. 
 The only difference to fit CTP is importing the ``ctp`` module. For example, to fit Full model using ML, call ``ctp.full_HE()``. 
 Funcation arguments can be found using the ``help()``, e.g., ``help(ctp.full_HE())``. Some useful arguments like: ``fixed_covars_d``  and ``random_covars_d`` to include additional fixed and random effects; ``jack_knife`` to perform jackknife-based Wald test.
