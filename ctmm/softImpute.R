@@ -1,4 +1,6 @@
+install.packages( setdiff(c('softImpute'), rownames(installed.packages())) )
 library(softImpute)
+
 my_softImpute <- function( Y, scale=F, biscale=F, lambda.len=100, maxrank=TRUE, 
                           fixed.maxrank=min(dim(Y))-1, nfolds=10, verbose=T, return_out=TRUE, seed=NULL ){
 
