@@ -31,15 +31,23 @@ Before installation, we recommend to create a virtual environment using [venv](h
 ## Input format
 CTMM can fit two types of pseudobulk gene expression data: Overall Pseudobulk (OP) and Cell Type-specific Pseudobulk (CTP).
 
+To fit OP, CTMM needs:
+
 * OP: Overall Pseudobulk gene expression for each individual. The file should have one column without header. (only needed when fitting OP)
-
-* CTP: Cell Type-specific Pseudobulk gene expression for each individual. The file should have one column for each cell type and without header. (only needed when fitting CTP)
-
-* P: cell type proportions for each individual. The file should have one column for each cell type and without header.
 
 * nu: variance of measurement noise for each individual. The file should have one column without header. (only needed when fitting OP)
 
+* P: cell type proportions for each individual. The file should have one column for each cell type and without header.
+
+To fit CTP, CTMM needs:
+
+* CTP: Cell Type-specific Pseudobulk gene expression for each individual. The file should have one column for each cell type and without header. (only needed when fitting CTP)
+
 * ctnu: variance of measurement noise for each pair of individual and cell type. The file should have one column for each cell type and without header. (only needed when fitting CTP)
+
+* P: cell type proportions for each individual. The file should have one column for each cell type and without header.
+
+We provide codes to generate these files from gene expression data from all cells (see Examples below). 
 
 ## Output
 The output of CTMM have two dictionaries.
@@ -95,6 +103,28 @@ free, p_wald = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f,
     method='BFGS', optim_by_R=True)
 ```
 
+For convience, we also provide functions to generate CTMM input data from cell's gene expressiond data after a thorough process of quality control and normalization :
+
+```python
+from ctmm import preprocess
+
+# We need two input files: counts and meta.
+# counts file contains gene expression level across all cells (from all cell types and individuals). Each row corresponds to a single genes and each column corresponds to a single cell. Use gene names as dataframe row INDEX and cell IDs as dataframe COLUMNS label.
+# meta file contains three columns: cell, ind, ct. 'cell' contains cell IDs, corresponding to column labels in counts. 'ind' contains individual IDs. 'ct' contains cell type, indicating the assignment of cells to cell types.
+counts = pd.read_table('test/counts.gz', index_col=0)
+meta = pd.read_table('test/meta.gz')
+
+# compute ctp (cell type-specific pseudobulk) and ctnu (cell type-specific noise variance) and P (cell type proportions)
+ctp, ctnu, P = preprocess.pseudobulk(counts, meta, ind_cut=100, ct_cut=10) # remove individuals with <= 100 cells, set ctp and ctnu to missing for individual-cell type pairs with <=10 cells 
+
+# imputate ctp and ctnu that were set to missing in the previous step, using the program softImpute
+ctp = preprocess.softimpute( ctp )
+ctnu = preprocess.softimpute( ctnu )
+
+# generate CTMM input data for each gene (here, use FUCA2 as an example).
+op, nu, ctp, ctnu = preprocess.std( ctp, ctnu, P, 'ENSG00000001036_FUCA2' )
+```
+ 
 # Support
 
 Please report any bugs or feature requests in the [Issue Tracker](https://github.com/Minhui-Chen/CTMM/issues). 
