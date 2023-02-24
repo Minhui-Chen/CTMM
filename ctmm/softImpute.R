@@ -1,7 +1,9 @@
 library(softImpute)
-my_softImpute <- function( Y, scale=F, biscale=F, lambda.len=100, maxrank=TRUE, fixed.maxrank=ncol(Y)-1, nfolds=10, verbose=T, return_out=TRUE, seed=NULL ){
+my_softImpute <- function( Y, scale=F, biscale=F, lambda.len=100, maxrank=TRUE, 
+                          fixed.maxrank=min(dim(Y))-1, nfolds=10, verbose=T, return_out=TRUE, seed=NULL ){
 
     options(warn=1)
+	print( 'Start softImpute' )
 
     if ( !is.null( seed ) ) set.seed( seed )
     # Y has to be matrix not data.frame
@@ -10,14 +12,14 @@ my_softImpute <- function( Y, scale=F, biscale=F, lambda.len=100, maxrank=TRUE, 
     Y_original <- Y
     if ( scale ) {
         print('Scaling')
-        print(Y[1:10,1:min(ncol(Y),10)])
+        #print(Y[1:10,1:min(ncol(Y),10)])
         Y <- biScale(Y, row.center = FALSE, row.scale = FALSE)
-        print(Y[1:10,1:min(ncol(Y),10)])
+        #print(Y[1:10,1:min(ncol(Y),10)])
     } else if ( biscale ) {
         print('biScaling')
-        print(Y[1:10,1:min(ncol(Y),10)])
+        #print(Y[1:10,1:min(ncol(Y),10)])
         Y <- biScale(Y)
-        print(Y[1:10,1:min(ncol(Y),10)])
+        #print(Y[1:10,1:min(ncol(Y),10)])
     }
 
 
@@ -69,12 +71,11 @@ my_softImpute <- function( Y, scale=F, biscale=F, lambda.len=100, maxrank=TRUE, 
 	loss		<- rowMeans( cv.loss )
 	lambda	<- lamseq[ which.min(loss) ]
 
-	out			<- softImpute( x=Y, rank.max = ncol(Y), lambda = lambda, maxit=1000 )
-    print( round(out$d, 4) )
-	print( 'Done with impute' )
+	out			<- softImpute( x=Y, rank.max = fixed.maxrank, lambda = lambda, maxit=1000 )
+    #print( round(out$d, 4) )
 	Yhat		<- complete( Y_original, out ) 
-    print( Yhat[1:10,1:min(ncol(Yhat),10)] )
-	print( 'Done with complete' )
+    #print( Yhat[1:10,1:min(ncol(Yhat),10)] )
+	print( 'Done with impute' )
 
 	if( !return_out )
 		out	<- NA
