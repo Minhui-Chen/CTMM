@@ -45,7 +45,7 @@ To fit CTP, CTMM needs:
 
 * ctnu: variance of measurement noise for each pair of individual and cell type. This file should have one column for each cell type and without header.
 
-* P: the same as P for fitting OP.
+* P: cell type proportions for each individual. This file should have one column for each cell type and without header.
 
 For convenience, we also provide ``functions`` to generate these files from gene expression data from all cells (see Examples below). 
 
