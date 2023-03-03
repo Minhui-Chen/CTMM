@@ -11,12 +11,6 @@ os.makedirs('./logs/', exist_ok=True)
 
 mycolors = sns.color_palette()
 pointcolor = 'red' # color for expected values  in estimates plots
-def generate_tmpfn():
-    tmpf = tempfile.NamedTemporaryFile(delete=False)
-    tmpfn = tmpf.name
-    tmpf.close()
-    print(tmpfn)
-    return tmpfn
 
 def get_subspace(arg, model_params):
     ''' model_params df include or not include the column of model, but the first row is the basemodel'''
@@ -466,6 +460,18 @@ rule cuomo_imputeGenome:
         mem = '20gb',
         time = '20:00:00',
     script: 'bin/cuomo/imputeGenome.py'
+
+#rule impute_tst:
+#    input:
+#        y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.filterCTs.pseudobulk.gz',
+#    output:
+#        y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.Gimputed.pseudobulk.tmp.gz',
+#    params:
+#        seed = 123450,
+#    resources:
+#        mem = '20gb',
+#        time = '20:00:00',
+#    script: 'bin/impute_tst.py'
 
 rule cuomo_imputeNinput4OP:
     # also exclude individuals with nu = 0 which cause null model fail (some individuals have enough cells, but all cells have no expression of specific gene)
