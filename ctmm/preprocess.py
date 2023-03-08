@@ -65,13 +65,19 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
         # collect genes 
         genes = data.columns.tolist()
 
-        data = data.reset_index(drop=False, names='cell')
         data['ind'] = ann.obs.ind
         data['ct'] = ann.obs.ct
+        data = data.reset_index(drop=False, names='cell')
 
 
     # group by ind and ct
     data_grouped = data.groupby(['ind','ct'])
+    # exclude groups with only one cell
+    b = len( data_grouped )
+    data_grouped = data_grouped.filter(lambda x: len(x) > 1).groupby(['ind','ct'])
+    a = len( data_grouped )
+    if a != b:
+        print(f'Exclude {b-a} individual-cell type pairs with only one cell')
 
     # compute cell numbers
     P = data_grouped['cell'].count().reset_index(drop=False)
