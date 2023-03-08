@@ -1,7 +1,7 @@
 # CTMM
 Python package to fit CTMM (Cell Type-specific linear Mixed Model). CTMM estimates the variance of gene expression specific to each cell type and shared across cell types. For a full description of CTMM, including strengths and limitations, see:
   
-* M Chen, A Dahl. (2023) A robust model for cell type-specific interindividual variation in single-cell RNA sequencing data. bioRxiv.
+* M Chen, A Dahl. (2023) [A robust model for cell type-specific interindividual variation in single-cell RNA sequencing data](https://www.biorxiv.org/content/10.1101/2023.02.24.529987v1). bioRxiv.
 
 ## Analysis scripts
 This repository contains scripts for simulations and real data analysis for our paper.
@@ -120,7 +120,7 @@ counts = pd.read_table('test/counts.gz', index_col=0)
 meta = pd.read_table('test/meta.gz')
 
 # compute ctp (cell type-specific pseudobulk) and ctnu (cell type-specific noise variance) and P (cell type proportions)
-ctp, ctnu, P = preprocess.pseudobulk(counts, meta, ind_cut=100, ct_cut=10) # remove individuals with <= 100 cells, set ctp and ctnu to missing for individual-cell type pairs with <=10 cells 
+ctp, ctnu, P = preprocess.pseudobulk(counts=counts, meta=meta, ind_cut=100, ct_cut=10) # remove individuals with <= 100 cells, set ctp and ctnu to missing for individual-cell type pairs with <=10 cells 
 
 # imputate ctp and ctnu that were set to missing in the previous step, using the program softImpute
 ctp = preprocess.softimpute( ctp )
