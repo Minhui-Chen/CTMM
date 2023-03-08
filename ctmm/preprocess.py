@@ -52,7 +52,7 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
 
         # collect genes and cell types
         genes = counts.index.tolist()
-        cts = np.unique(meta['ct'].to_numpy())
+        #cts = np.unique(meta['ct'].to_numpy())
 
         # transfrom gene * cell to cell * gene in counts
         counts = counts.transpose()
@@ -61,9 +61,14 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
         data = counts.merge(meta, left_index=True, right_on='cell') # cell * (gene, ind, ct)
     else:
         data = ann.to_df()
+
+        # collect genes 
+        genes = data.columns.tolist()
+
         data = data.reset_index(drop=False, names='cell')
         data['ind'] = ann.obs.ind
         data['ct'] = ann.obs.ct
+
 
     # group by ind and ct
     data_grouped = data.groupby(['ind','ct'])
