@@ -8,7 +8,7 @@ import rpy2.robjects as ro
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
 
-def pseudobulk(counts: pd.DataFrame, meta: pd.DataFrame, ind_cut: int, ct_cut: int
+def pseudobulk(counts: pd.DataFrame, meta: pd.DataFrame, ann: object=None, ind_cut: int, ct_cut: int
         ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
     Compute Cell Type-Specific Pseudobulk and Cell Type-specific noise variance
@@ -24,6 +24,11 @@ def pseudobulk(counts: pd.DataFrame, meta: pd.DataFrame, ind_cut: int, ct_cut: i
                 cell contains cell IDs, corresponding to column labels in counts.
                 ind contains individual IDs.
                 ct contains cell type, indicating the assignment of cells to cell types. 
+        ann:    AnnData object (e.g. data from scanpy)
+                each row corresponds to a cell with cell id, 
+                and each column corresponds to a gene with a gene id.
+                each cell have additional metadata, including cell type (column name: ct) 
+                and donor information (column name: ind) for each cell
         ind_cut:    exclude individuals with # of cells <= ind_cut
         ct_cut: set pairs of individual and cell type with # of cells <= ct_cut to missing
     Returns:
@@ -33,26 +38,34 @@ def pseudobulk(counts: pd.DataFrame, meta: pd.DataFrame, ind_cut: int, ct_cut: i
             #. cell type proportion matrix
     '''
 
-    # sanity check
-    ## missing values
-    if np.any(pd.isna(counts)):
-        sys.exit('Missing values in gene expression!\n')
+    if ann is None:
+        # sanity check
+        ## missing values
+        if np.any(pd.isna(counts)):
+            sys.exit('Missing values in gene expression!\n')
 
-    ## identical unique cell ids
-    if (len(np.unique(meta['cell'])) != meta.shape[0]):
-        sys.exit('Duplicate cells!\n')
-    if (meta.shape[0] != counts.shape[1]) or (len(np.setdiff1d(meta['cell'],counts.columns)) != 0):
-        sys.exit('Cells not matching in counts and meta!\n')
+        ## identical unique cell ids
+        if (len(np.unique(meta['cell'])) != meta.shape[0]):
+            sys.exit('Duplicate cells!\n')
+        if (meta.shape[0] != counts.shape[1]) or (len(np.setdiff1d(meta['cell'],counts.columns)) != 0):
+            sys.exit('Cells not matching in counts and meta!\n')
 
-    # collect genes and cell types
-    genes = counts.index.tolist()
-    cts = np.unique(meta['ct'].to_numpy())
+        # collect genes and cell types
+        genes = counts.index.tolist()
+        cts = np.unique(meta['ct'].to_numpy())
 
-    # transfrom gene * cell to cell * gene in counts
-    counts = counts.transpose()
+        # transfrom gene * cell to cell * gene in counts
+        counts = counts.transpose()
 
-    # merge with meta
-    data = counts.merge(meta, left_index=True, right_on='cell') # cell * (gene, ind, ct)
+        # merge with meta
+        data = counts.merge(meta, left_index=True, right_on='cell') # cell * (gene, ind, ct)
+    else:
+        data = ann.to_df()
+        data = data.reset_index(drop=False, names='cell')
+        data['ind'] = ann.obs.ind
+        data['ct'] = ann.obs.ct
+
+    # group by ind and ct
     data_grouped = data.groupby(['ind','ct'])
 
     # compute cell numbers
