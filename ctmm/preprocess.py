@@ -8,8 +8,8 @@ import rpy2.robjects as ro
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
 
-def pseudobulk(counts: pd.DataFrame, meta: pd.DataFrame, ann: object=None, ind_cut: int, ct_cut: int
-        ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=None, 
+        ind_cut: int=0, ct_cut: int=0) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
     Compute Cell Type-Specific Pseudobulk and Cell Type-specific noise variance
     and remove individuals with # of cells <= ind_cut
