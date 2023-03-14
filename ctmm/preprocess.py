@@ -9,7 +9,8 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
 
 def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=None, 
-        ind_cut: int=0, ct_cut: int=0) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        ind_col: str='ind', ct_col: str='ct', cell_col: str='cell', ind_cut: int=0, ct_cut: int=0
+        ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
     Compute Cell Type-Specific Pseudobulk and Cell Type-specific noise variance
     and remove individuals with # of cells <= ind_cut
@@ -29,6 +30,9 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
                 and each column corresponds to a gene with a gene id.
                 each cell have additional metadata, including cell type (column name: ct) 
                 and donor information (column name: ind) for each cell
+        ind_col:    column name for individual in meta or ann; it's renamed as ind in the output 
+        ct_col: column name for cell type in meta or ann; it's renamed as ct in the output
+        cell_col:   column name for cell in meta 
         ind_cut:    exclude individuals with # of cells <= ind_cut
         ct_cut: set pairs of individual and cell type with # of cells <= ct_cut to missing
     Returns:
@@ -43,6 +47,9 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
         ## missing values
         if np.any(pd.isna(counts)):
             sys.exit('Missing values in gene expression!\n')
+
+        # change column name
+        meta = meta.rename(columns={ind_col:'ind', ct_col:'ct', cell_col:'cell'})
 
         ## identical unique cell ids
         if (len(np.unique(meta['cell'])) != meta.shape[0]):
@@ -59,38 +66,73 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
 
         # merge with meta
         data = counts.merge(meta, left_index=True, right_on='cell') # cell * (gene, ind, ct)
+
+        # group by ind and ct
+        data_grouped = data.groupby(['ind', 'ct'])
+        # exclude groups with only one cell
+        b = len( data_grouped )
+        data_grouped = data_grouped.filter(lambda x: len(x) > 1).groupby(['ind','ct'])
+        a = len( data_grouped )
+        if a != b:
+            print(f'Exclude {b-a} individual-cell type pairs with only one cell')
+
+        # compute cell numbers
+        P = data_grouped['cell'].count().reset_index(drop=False)
+        P = P.pivot(index='ind', columns='ct', values='cell')
+        ## fill NA with 0
+        P = P.fillna( 0 )
+
+        # compute ctp
+        ctp = data_grouped[genes].aggregate(np.mean)
+        
+        # compute ctnu
+        ctnu = data_grouped[genes].aggregate(stats.sem) # need to rm ind-ct pair with only 1 cell
+        ctnu = ctnu**2
+
     else:
-        data = ann.to_df()
+        obs = ann.obs
+        X = ann.X
+        var = ann.var
+        obs = obs.rename(columns={ind_col:'ind', ct_col:'ct'})
 
-        # collect genes 
-        genes = data.columns.tolist()
+        # paires of ind and ct
+        print('Finding ind-ct pairs')
+        sep = '_+_'
+        while np.any( obs['ind'].str.contains(sep) ) or np.any( obs['ct'].str.contains(sep) ):
+            sep = '_' + sep + '_'
+        ind_ct = obs['ind'].astype(str) + sep + obs['ct'].astype(str)
+        # indicator matrix
+        pairs, index = np.unique( ind_ct, return_index=True )
+        raw_order = pairs[np.argsort( index )]
+        ind_ct = pd.Categorical(ind_ct, categories=raw_order)
+        indicator = pd.get_dummies( ind_ct )
+        print( indicator.iloc[:10,:10] )
+        indicator_prop = indicator / indicator.sum()
 
-        data['ind'] = ann.obs.ind
-        data['ct'] = ann.obs.ct
-        data = data.reset_index(drop=False, names='cell')
+        # compute ctp
+        print('Computing CTP')
+        print( X[:5,:].toarray() )
+        ctp = indicator_prop.to_numpy().T @ X
+        print( ctp[:10,:10] )
 
+        # compute ctnu
+        print('Computing CTNU')
+        ctp2 = indicator_prop.to_numpy().T @ X.power(2)
+        ctnu = (ctp2 - ctp**2) / (indicator.sum().to_numpy()**2).reshape(-1,1)
 
-    # group by ind and ct
-    data_grouped = data.groupby(['ind','ct'])
-    # exclude groups with only one cell
-    b = len( data_grouped )
-    data_grouped = data_grouped.filter(lambda x: len(x) > 1).groupby(['ind','ct'])
-    a = len( data_grouped )
-    if a != b:
-        print(f'Exclude {b-a} individual-cell type pairs with only one cell')
+        # convert to df
+        ctp_index = pd.MultiIndex.from_frame(indicator.columns.to_series().str.split(sep, expand=True, regex=False), 
+                names=['ind', 'ct'])
+        ctp = pd.DataFrame(ctp, index=ctp_index, columns=var.index)
+        print( ctp.head() )
+        ctnu = pd.DataFrame(ctnu, index=ctp_index, columns=var.index)
 
-    # compute cell numbers
-    P = data_grouped['cell'].count().reset_index(drop=False)
-    P = P.pivot(index='ind',columns='ct', values='cell')
-    ## fill NA with 0
-    P = P.fillna( 0 )
-
-    # compute ctp
-    ctp = data_grouped[genes].aggregate(np.mean)
-    
-    # compute ctnu
-    ctnu = data_grouped[genes].aggregate(stats.sem) # need to rm ind-ct pair with only 1 cell
-    ctnu = ctnu**2
+        # compute cell numbers
+        obs_grouped = obs.reset_index(drop=False,names='cell').groupby(['ind', 'ct'])
+        P = obs_grouped['cell'].count().reset_index(drop=False)
+        P = P.pivot(index='ind', columns='ct', values='cell')
+        ## fill NA with 0
+        P = P.fillna( 0 )
 
     # filter individuals
     inds = P.index[P.sum(axis=1) > ind_cut].tolist()
