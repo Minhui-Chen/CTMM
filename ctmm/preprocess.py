@@ -193,17 +193,16 @@ def softimpute(data: pd.DataFrame, seed: int=None) -> pd.DataFrame:
 
     return( out )
 
-def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame, gene:str
-        ) -> Tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
+def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
+        ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
-    For one Gene, stardardize Overall Pseudobulk (OP) to mean 0 and std 1, and scale ctp, 
+    For each Gene, stardardize Overall Pseudobulk (OP) to mean 0 and std 1, and scale ctp, 
     overall noise variance (nu), ct-specific noise variance (ctnu) correspondingly.
 
     Parameters:
         ctp:    imputed ctp with shape index: (ind, ct) * columns: genes
         ctnu:   imputed ctnu with shape index: (ind, ct) * columns: genes
         P:  cell type proportions matrix of shape ind * ct
-        gene:   target gene
     Returns:
         A tuple of 
             #. op
@@ -211,45 +210,64 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame, gene:str
             #. ctp
             #. ctnu
     '''
-    # extract gene and transform to ind * ct
-    ctp = ctp[gene].unstack()
-    ctnu = ctnu[gene].unstack()
-    
-    # sanity reorder inds and cts in ctp, ctnu, and P
-    ctp = ctp.sort_index().sort_index(axis=1)
-    ctnu = ctnu.sort_index().sort_index(axis=1)
-    P = P.sort_index().sort_index(axis=1)
+    genes = ctp.columns.list
 
-    # santity check inds and cts matching between ctp, ctnu, and P
-    inds = ctp.index.to_numpy()
-    cts = ctp.columns.to_numpy()
-    if np.any( ctnu.index.to_numpy() != inds ) or np.any( P.index.to_numpy() != inds ):
-        sys.exit('Individuals not matching!')
-    if np.any( ctnu.columns.to_numpy() != cts ) or np.any( P.columns.to_numpy() != cts ):
-        sys.exit('Cell types not matching!')
+    ops = []
+    nus = []
+    ctps = []
+    ctnus = []
+    for gene in genes:
+        # extract gene and transform to ind * ct
+        ctp = ctp[gene].unstack()
+        ctnu = ctnu[gene].unstack()
+        
+        # sanity reorder inds and cts in ctp, ctnu, and P
+        ctp = ctp.sort_index().sort_index(axis=1)
+        ctnu = ctnu.sort_index().sort_index(axis=1)
+        P = P.sort_index().sort_index(axis=1)
 
-    # compute op and nu
-    op = (ctp * P).sum(axis=1)
-    nu = ( ctnu.mask(ctnu<0, 0) * (P**2) ).sum(axis=1) # set negative ctnu to 0 for OP data
+        # santity check inds and cts matching between ctp, ctnu, and P
+        if gene == genes[0]:
+            inds = ctp.index.to_numpy()
+            cts = ctp.columns.to_numpy()
+            if np.any( ctnu.index.to_numpy() != inds ) or np.any( P.index.to_numpy() != inds ):
+                sys.exit('Individuals not matching!')
+            if np.any( ctnu.columns.to_numpy() != cts ) or np.any( P.columns.to_numpy() != cts ):
+                sys.exit('Cell types not matching!')
 
-    # set negative ctnu to max for CTP data
-    ctnu = ctnu.mask(ctnu<0, ctnu.max(), axis=1)
+        # compute op and nu
+        op = (ctp * P).sum(axis=1)
+        nu = ( ctnu.mask(ctnu<0, 0) * (P**2) ).sum(axis=1) # set negative ctnu to 0 for OP data
 
-    # standardize op
-    mean, std, var = op.mean(), op.std(), op.var()
-    op = (op - mean) / std
-    nu = nu / var
-    ctp = (ctp - mean) / std 
-    ctnu = ctnu / var
+        # set negative ctnu to max for CTP data
+        ctnu = ctnu.mask(ctnu<0, ctnu.max(), axis=1)
 
-    # transform back to series
-    ctp = ctp.stack()
-    ctnu = ctnu.stack()
+        # standardize op
+        mean, std, var = op.mean(), op.std(), op.var()
+        op = (op - mean) / std
+        nu = nu / var
+        ctp = (ctp - mean) / std 
+        ctnu = ctnu / var
 
-    # add gene name
-    op.name = gene
-    nu.name = gene
-    ctp.name = gene
-    ctnu.name = gene 
+        # transform back to series
+        ctp = ctp.stack()
+        ctnu = ctnu.stack()
+
+        # add gene name
+        op.name = gene
+        nu.name = gene
+        ctp.name = gene
+        ctnu.name = gene 
+
+        # 
+        ops.append( op )
+        nus.append( nu )
+        ctps.append( ctp )
+        ctnus.append( ctnu )
+
+    op = pd.concat( ops )
+    nu = pd.concat( nus )
+    ctp = pd.concat( ctps )
+    ctnu = pd.concat( ctnus )
 
     return( op, nu, ctp, ctnu )
