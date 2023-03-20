@@ -193,7 +193,8 @@ def softimpute(data: pd.DataFrame, seed: int=None) -> pd.DataFrame:
 
     return( out )
 
-def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame, gene:str) -> Tuple[pd.Series, pd.Series, pd.DataFrame, pd.DataFrame]:
+def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame, gene:str
+        ) -> Tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
     '''
     For one Gene, stardardize Overall Pseudobulk (OP) to mean 0 and std 1, and scale ctp, 
     overall noise variance (nu), ct-specific noise variance (ctnu) correspondingly.
@@ -240,5 +241,15 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame, gene:str) -> Tup
     nu = nu / var
     ctp = (ctp - mean) / std 
     ctnu = ctnu / var
+
+    # transform back to series
+    ctp = ctp.stack()
+    ctnu = ctnu.stack()
+
+    # add gene name
+    op.name = gene
+    nu.name = gene
+    ctp.name = gene
+    ctnu.name = gene 
 
     return( op, nu, ctp, ctnu )
