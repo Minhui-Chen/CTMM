@@ -4,9 +4,9 @@ import re, sys
 import numpy as np, pandas as pd
 from scipy import stats, sparse
 import pkg_resources
-#import rpy2.robjects as ro
-#from rpy2.robjects import r, pandas2ri, numpy2ri
-#from rpy2.robjects.packages import STAP
+import rpy2.robjects as ro
+from rpy2.robjects import r, pandas2ri, numpy2ri
+from rpy2.robjects.packages import STAP
 
 def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=None, 
         ind_col: str='ind', ct_col: str='ct', cell_col: str='cell', ind_cut: int=0, ct_cut: int=0
