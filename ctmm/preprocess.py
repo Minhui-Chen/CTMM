@@ -2,11 +2,11 @@ from typing import Tuple, Optional, Union
 
 import re, sys
 import numpy as np, pandas as pd
-from scipy import stats
+from scipy import stats, sparse
 import pkg_resources
-import rpy2.robjects as ro
-from rpy2.robjects import r, pandas2ri, numpy2ri
-from rpy2.robjects.packages import STAP
+#import rpy2.robjects as ro
+#from rpy2.robjects import r, pandas2ri, numpy2ri
+#from rpy2.robjects.packages import STAP
 
 def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=None, 
         ind_col: str='ind', ct_col: str='ct', cell_col: str='cell', ind_cut: int=0, ct_cut: int=0
@@ -91,7 +91,7 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
 
     else:
         obs = ann.obs
-        X = ann.X
+        X = ann.X if sparse.issparse(ann.X) else ann.X[:,:] # convert sparse dataset to sparse matrix
         var = ann.var
         obs = obs.rename(columns={ind_col:'ind', ct_col:'ct'})
 
@@ -101,31 +101,39 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
         while np.any( obs['ind'].str.contains(sep) ) or np.any( obs['ct'].str.contains(sep) ):
             sep = '_' + sep + '_'
         ind_ct = obs['ind'].astype(str) + sep + obs['ct'].astype(str)
+
         # indicator matrix
         pairs, index = np.unique( ind_ct, return_index=True )
         raw_order = pairs[np.argsort( index )]
         ind_ct = pd.Categorical(ind_ct, categories=raw_order)
-        indicator = pd.get_dummies( ind_ct )
-        print( indicator.iloc[:10,:10] )
-        indicator_prop = indicator / indicator.sum()
+        indicator = pd.get_dummies( ind_ct, sparse=True, dtype='int8' )
+        ind_ct = indicator.columns
+        cell_num =  indicator.sum().to_numpy()
+        print( indicator.shape )
+        print( indicator.iloc[:3,:3] )
+
+        ## convert to sparse matrix
+        #indicator = sparse.csr_matrix( indicator.to_numpy() )
+        indicator = indicator.sparse.to_coo().tocsr()
+
+        # inverse indicator matrix
+        indicator_inv = indicator.multiply( 1/cell_num )
+        print( indicator_inv.getrow(0)[0,0] )
 
         # compute ctp
         print('Computing CTP')
-        print( X[:5,:].toarray() )
-        ctp = indicator_prop.to_numpy().T @ X
-        print( ctp[:10,:10] )
+        ctp = indicator_inv.T @ X
 
         # compute ctnu
         print('Computing CTNU')
-        ctp2 = indicator_prop.to_numpy().T @ X.power(2)
-        ctnu = (ctp2 - ctp**2) / (indicator.sum().to_numpy()**2).reshape(-1,1)
+        ctp2 = indicator_inv.T @ X.power(2)
+        ctnu = (ctp2 - ctp.power(2)).multiply( 1 / (cell_num**2).reshape(-1,1) )
 
         # convert to df
-        ctp_index = pd.MultiIndex.from_frame(indicator.columns.to_series().str.split(sep, expand=True, regex=False), 
+        ctp_index = pd.MultiIndex.from_frame(ind_ct.to_series().str.split(sep, expand=True, regex=False), 
                 names=['ind', 'ct'])
-        ctp = pd.DataFrame(ctp, index=ctp_index, columns=var.index)
-        print( ctp.head() )
-        ctnu = pd.DataFrame(ctnu, index=ctp_index, columns=var.index)
+        ctp = pd.DataFrame(ctp.toarray(), index=ctp_index, columns=var.index)
+        ctnu = pd.DataFrame(ctnu.toarray(), index=ctp_index, columns=var.index)
 
         # compute cell numbers
         obs_grouped = obs.reset_index(drop=False,names='cell').groupby(['ind', 'ct'])
