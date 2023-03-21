@@ -120,7 +120,7 @@ counts = pd.read_table('test/counts.gz', index_col=0)
 meta = pd.read_table('test/meta.gz')
 
 # compute ctp (cell type-specific pseudobulk) and ctnu (cell type-specific noise variance) and P (cell type proportions)
-ctp, ctnu, P = preprocess.pseudobulk(counts=counts, meta=meta, ind_cut=100, ct_cut=10) # remove individuals with <= 100 cells, set ctp and ctnu to missing for individual-cell type pairs with <=10 cells 
+ctp, ctnu, P, _ = preprocess.pseudobulk(counts=counts, meta=meta, ind_cut=100, ct_cut=10) # remove individuals with <= 100 cells, set ctp and ctnu to missing for individual-cell type pairs with <=10 cells 
 
 # imputate ctp and ctnu that were set to missing in the previous step, using the program softImpute
 ctp = preprocess.softimpute( ctp )

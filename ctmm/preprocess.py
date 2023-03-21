@@ -10,7 +10,7 @@ from rpy2.robjects.packages import STAP
 
 def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=None, 
         ind_col: str='ind', ct_col: str='ct', cell_col: str='cell', ind_cut: int=0, ct_cut: int=0
-        ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
     Compute Cell Type-Specific Pseudobulk and Cell Type-specific noise variance
     and remove individuals with # of cells <= ind_cut
@@ -40,6 +40,7 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
             #. Cell Type-specific Pseudobulk of index: (ind, ct) * columns: genes
             #. Cell Type-specific noise variance of idnex: (ind, ct) * columns: genes
             #. cell type proportion matrix
+            #. number of cells in each (ind, ct) before filtering
     '''
 
     if ann is None:
@@ -75,12 +76,6 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
         a = len( data_grouped )
         if a != b:
             print(f'Exclude {b-a} individual-cell type pairs with only one cell')
-
-        # compute cell numbers
-        P = data_grouped['cell'].count().reset_index(drop=False)
-        P = P.pivot(index='ind', columns='ct', values='cell')
-        ## fill NA with 0
-        P = P.fillna( 0 )
 
         # compute ctp
         ctp = data_grouped[genes].aggregate(np.mean)
@@ -135,18 +130,20 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
         ctp = pd.DataFrame(ctp.toarray(), index=ctp_index, columns=var.index)
         ctnu = pd.DataFrame(ctnu.toarray(), index=ctp_index, columns=var.index)
 
-        # compute cell numbers
-        obs_grouped = obs.reset_index(drop=False,names='cell').groupby(['ind', 'ct'])
-        P = obs_grouped['cell'].count().reset_index(drop=False)
-        P = P.pivot(index='ind', columns='ct', values='cell')
-        ## fill NA with 0
-        P = P.fillna( 0 )
+        # group by ind-ct to compute cell numbers
+        data_grouped = obs.reset_index(drop=False,names='cell').groupby(['ind', 'ct'])
+
+    # compute cell numbers
+    cell_counts = data_grouped['cell'].count().reset_index(drop=False)
+    cell_counts = cell_counts.pivot(index='ind', columns='ct', values='cell')
+    ## fill NA with 0
+    cell_counts = cell_counts.fillna( 0 )
 
     # filter individuals
-    inds = P.index[P.sum(axis=1) > ind_cut].tolist()
-    P = P.loc[P.index.isin(inds)]
-    ctp = ctp.loc[ctp.index.get_level_values('ind').isin(inds)]
-    ctnu = ctnu.loc[ctnu.index.get_level_values('ind').isin(inds)]
+    inds = cell_counts.index[cell_counts.sum(axis=1) > ind_cut].tolist()
+    P = cell_counts.loc[cell_counts.index.isin(inds)]
+    #ctp = ctp.loc[ctp.index.get_level_values('ind').isin(inds)]
+    #ctnu = ctnu.loc[ctnu.index.get_level_values('ind').isin(inds)]
 
     # filter cts
     P2 = P.stack()
@@ -159,7 +156,7 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
 
     #print(ctp.shape, ctnu.shape, P.shape)
 
-    return( ctp, ctnu, P )
+    return( ctp, ctnu, P, cell_counts )
 
 def softimpute(data: pd.DataFrame, seed: int=None) -> pd.DataFrame:
     '''
