@@ -9,6 +9,7 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
 
 def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=None, 
+        X: scipy.sparse.csr.csr_matrix=None, obs: pd.DataFrame=None, var: pd.DataFrame=None,
         ind_col: str='ind', ct_col: str='ct', cell_col: str='cell', ind_cut: int=0, ct_cut: int=0
         ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
@@ -30,6 +31,9 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
                 and each column corresponds to a gene with a gene id.
                 each cell have additional metadata, including cell type (column name: ct) 
                 and donor information (column name: ind) for each cell
+        X:  ann.X
+        obs:    ann.obs 
+        var:    ann.var
         ind_col:    column name for individual in meta or ann; it's renamed as ind in the output 
         ct_col: column name for cell type in meta or ann; it's renamed as ct in the output
         cell_col:   column name for cell in meta 
@@ -43,7 +47,7 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
             #. number of cells in each (ind, ct) before filtering
     '''
 
-    if ann is None:
+    if ann is None and X is None:
         # sanity check
         ## missing values
         if np.any(pd.isna(counts)):
@@ -85,9 +89,10 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
         ctnu = ctnu**2
 
     else:
-        obs = ann.obs
-        X = ann.X if sparse.issparse(ann.X) else ann.X[:,:] # convert sparse dataset to sparse matrix
-        var = ann.var
+        if ann is not None:
+            obs = ann.obs
+            X = ann.X if sparse.issparse(ann.X) else ann.X[:,:] # convert sparse dataset to sparse matrix
+            var = ann.var
         obs = obs.rename(columns={ind_col:'ind', ct_col:'ct'})
 
         # paires of ind and ct
