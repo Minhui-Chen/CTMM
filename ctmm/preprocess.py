@@ -9,7 +9,7 @@ from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
 
 def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=None, 
-        X: scipy.sparse.csr.csr_matrix=None, obs: pd.DataFrame=None, var: pd.DataFrame=None,
+        X: sparse.csr.csr_matrix=None, obs: pd.DataFrame=None, var: pd.DataFrame=None,
         ind_col: str='ind', ct_col: str='ct', cell_col: str='cell', ind_cut: int=0, ct_cut: int=0
         ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
