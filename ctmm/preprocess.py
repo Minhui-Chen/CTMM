@@ -139,10 +139,7 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
         data_grouped = obs.reset_index(drop=False,names='cell').groupby(['ind', 'ct'])
 
     # compute cell numbers
-    cell_counts = data_grouped['cell'].count().reset_index(drop=False)
-    cell_counts = cell_counts.pivot(index='ind', columns='ct', values='cell')
-    ## fill NA with 0
-    cell_counts = cell_counts.fillna( 0 )
+    cell_counts = data_grouped['cell'].count().unstack(fill_value=0).astype('int')
 
     # filter individuals
     inds = cell_counts.index[cell_counts.sum(axis=1) > ind_cut].tolist()
