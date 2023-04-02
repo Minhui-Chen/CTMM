@@ -17,7 +17,6 @@ my_softImpute <- function( Y, scale=F, biscale=F, lambda.len=100, maxrank=TRUE,
         #print(Y[1:10,1:min(ncol(Y),10)])
         Y <- scale(Y)
         #print(Y[1:10,1:min(ncol(Y),10)])
-        print('Scaling')
     } else if ( biscale ) {
         print('biScaling')
         #print(Y[1:10,1:min(ncol(Y),10)])
