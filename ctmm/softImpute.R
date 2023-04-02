@@ -15,12 +15,13 @@ my_softImpute <- function( Y, scale=F, biscale=F, lambda.len=100, maxrank=TRUE,
     if ( scale ) {
         print('Scaling')
         #print(Y[1:10,1:min(ncol(Y),10)])
-        Y <- biScale(Y, row.center = FALSE, row.scale = FALSE)
+        Y <- scale(Y)
         #print(Y[1:10,1:min(ncol(Y),10)])
+        print('Scaling')
     } else if ( biscale ) {
         print('biScaling')
         #print(Y[1:10,1:min(ncol(Y),10)])
-        Y <- biScale(Y)
+        Y <- biScale(Y) # biScale not working well in midway, don't know why
         #print(Y[1:10,1:min(ncol(Y),10)])
     }
 
