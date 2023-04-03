@@ -192,6 +192,42 @@ def softimpute(data: pd.DataFrame, seed: int=None) -> pd.DataFrame:
 
     return( out )
 
+def mvn(data: pd.DataFrame) -> pd.DataFrame:
+    '''
+    Impute missing ctp or ctnu
+
+    Parameters:
+        data:   ctp or ctnu of shape index: (ind, ct) * columns: genes
+    Results:
+        imputed dataset
+    '''
+    
+    # load softImpute r package
+    rf = pkg_resources.resource_filename(__name__, 'mvn.R')
+    mvn_r = STAP( open(rf).read(), 'mvn_r' )
+    pandas2ri.activate()
+
+    imputed = []
+    for gene in data.columns:
+        # transform to index: ind * columns: (cts)
+        Y = data[gene].unstack()
+
+        # Impute
+        out = mvn_r.MVN_impute( r['as.matrix'](Y) )
+        out = dict( zip(out.names, list(out)) )
+        out = pd.DataFrame(out['Y'], index=Y.index, columns=Y.columns)
+
+        # transform back
+        out = out.stack()
+        out.name = gene 
+
+        imputed.append( out )
+
+    pandas2ri.deactivate()
+    imputed = pd.concat(imputed, axis=1)
+
+    return( imputed )
+
 def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
         ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
