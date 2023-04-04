@@ -209,6 +209,7 @@ def mvn(data: pd.DataFrame) -> pd.DataFrame:
 
     imputed = []
     for gene in data.columns:
+        print(gene)
         # transform to index: ind * columns: (cts)
         Y = data[gene].unstack()
 
@@ -245,64 +246,63 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
             #. ctp
             #. ctnu
     '''
-    genes = ctp.columns.list
+    genes = ctp.columns.tolist()
 
-    ops = []
-    nus = []
-    ctps = []
-    ctnus = []
+    op_genes = []
+    nu_genes = []
+    ctp_genes = []
+    ctnu_genes = []
+    P = P.sort_index().sort_index(axis=1)
+    inds = P.index.to_numpy()
+    cts = P.columns.to_numpy()
     for gene in genes:
         # extract gene and transform to ind * ct
-        ctp = ctp[gene].unstack()
-        ctnu = ctnu[gene].unstack()
+        gene_ctp = ctp[gene].unstack()
+        gene_ctnu = ctnu[gene].unstack()
         
         # sanity reorder inds and cts in ctp, ctnu, and P
-        ctp = ctp.sort_index().sort_index(axis=1)
-        ctnu = ctnu.sort_index().sort_index(axis=1)
-        P = P.sort_index().sort_index(axis=1)
+        gene_ctp = gene_ctp.sort_index().sort_index(axis=1)
+        gene_ctnu = gene_ctnu.sort_index().sort_index(axis=1)
 
         # santity check inds and cts matching between ctp, ctnu, and P
-        if gene == genes[0]:
-            inds = ctp.index.to_numpy()
-            cts = ctp.columns.to_numpy()
-            if np.any( ctnu.index.to_numpy() != inds ) or np.any( P.index.to_numpy() != inds ):
-                sys.exit('Individuals not matching!')
-            if np.any( ctnu.columns.to_numpy() != cts ) or np.any( P.columns.to_numpy() != cts ):
-                sys.exit('Cell types not matching!')
+        if np.any( gene_ctnu.index.to_numpy() != inds ) or np.any( gene_ctp.index.to_numpy() != inds ):
+            sys.exit('Individuals not matching!')
+        if np.any( gene_ctnu.columns.to_numpy() != cts ) or np.any( gene_ctp.columns.to_numpy() != cts ):
+            sys.exit('Cell types not matching!')
 
         # compute op and nu
-        op = (ctp * P).sum(axis=1)
-        nu = ( ctnu.mask(ctnu<0, 0) * (P**2) ).sum(axis=1) # set negative ctnu to 0 for OP data
+        gene_op = (gene_ctp * P).sum(axis=1)
+        gene_nu = ( gene_ctnu.mask(gene_ctnu<0, 0) * (P**2) ).sum(axis=1) # set negative ctnu to 0 for OP data
 
         # set negative ctnu to max for CTP data
-        ctnu = ctnu.mask(ctnu<0, ctnu.max(), axis=1)
+        gene_ctnu = gene_ctnu.mask(gene_ctnu<0, gene_ctnu.max(), axis=1)
 
         # standardize op
-        mean, std, var = op.mean(), op.std(), op.var()
-        op = (op - mean) / std
-        nu = nu / var
-        ctp = (ctp - mean) / std 
-        ctnu = ctnu / var
+        mean, std, var = gene_op.mean(), gene_op.std(), gene_op.var()
+        gene_op = (gene_op - mean) / std
+        gene_nu = gene_nu / var
+        gene_ctp = (gene_ctp - mean) / std 
+        gene_ctnu = gene_ctnu / var
 
         # transform back to series
-        ctp = ctp.stack()
-        ctnu = ctnu.stack()
+        gene_ctp = gene_ctp.stack()
+        gene_ctnu = gene_ctnu.stack()
 
         # add gene name
-        op.name = gene
-        nu.name = gene
-        ctp.name = gene
-        ctnu.name = gene 
+        gene_op.name = gene
+        gene_nu.name = gene
+        gene_ctp.name = gene
+        gene_ctnu.name = gene 
 
         # 
-        ops.append( op )
-        nus.append( nu )
-        ctps.append( ctp )
-        ctnus.append( ctnu )
+        op_genes.append( gene_op )
+        nu_genes.append( gene_nu )
+        ctp_genes.append( gene_ctp )
+        ctnu_genes.append( gene_ctnu )
 
-    op = pd.concat( ops )
-    nu = pd.concat( nus )
-    ctp = pd.concat( ctps )
-    ctnu = pd.concat( ctnus )
+    op = pd.concat( op_genes )
+    nu = pd.concat( nu_genes )
+    ctp = pd.concat( ctp_genes )
+    ctnu = pd.concat( ctnu_genes )
 
     return( op, nu, ctp, ctnu )
