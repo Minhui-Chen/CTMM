@@ -252,9 +252,10 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
     nu_genes = []
     ctp_genes = []
     ctnu_genes = []
+    # sanity reorder inds and cts in ctp, ctnu, and P
     P = P.sort_index().sort_index(axis=1)
-    inds = P.index.to_numpy()
-    cts = P.columns.to_numpy()
+    inds = P.index
+    cts = P.columns
     for gene in genes:
         # extract gene and transform to ind * ct
         gene_ctp = ctp[gene].unstack()
@@ -265,9 +266,9 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
         gene_ctnu = gene_ctnu.sort_index().sort_index(axis=1)
 
         # santity check inds and cts matching between ctp, ctnu, and P
-        if np.any( gene_ctnu.index.to_numpy() != inds ) or np.any( gene_ctp.index.to_numpy() != inds ):
+        if not ( gene_ctnu.index.equals(inds)  or gene_ctp.index.equals(inds) ):
             sys.exit('Individuals not matching!')
-        if np.any( gene_ctnu.columns.to_numpy() != cts ) or np.any( gene_ctp.columns.to_numpy() != cts ):
+        if not ( gene_ctnu.columns.equals(cts) or gene_ctp.columns.equals(cts) ):
             sys.exit('Cell types not matching!')
 
         # compute op and nu
@@ -300,9 +301,9 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
         ctp_genes.append( gene_ctp )
         ctnu_genes.append( gene_ctnu )
 
-    op = pd.concat( op_genes )
-    nu = pd.concat( nu_genes )
-    ctp = pd.concat( ctp_genes )
-    ctnu = pd.concat( ctnu_genes )
+    op = pd.concat( op_genes, axis=1 )
+    nu = pd.concat( nu_genes, axis=1 )
+    ctp = pd.concat( ctp_genes, axis=1 )
+    ctnu = pd.concat( ctnu_genes, axis=1 )
 
     return( op, nu, ctp, ctnu )
