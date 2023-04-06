@@ -22,7 +22,7 @@ def get_X(fixed_covars: dict, N: int, C: int) -> np.ndarray:
         Design matrix for fixed effects
     '''
 
-    X = np.kron( np.ones((N,1)), np.eye(C) )
+    X = np.kron( np.ones((N,1), dtype='int8'), np.eye(C, dtype='int8') )
     fixed_covars = util.read_covars(fixed_covars)[0]
     for key in np.sort(list(fixed_covars.keys())):
         m = fixed_covars[key]
