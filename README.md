@@ -6,6 +6,8 @@ Python package to fit CTMM (Cell Type-specific linear Mixed Model). CTMM estimat
 ## Analysis scripts
 This repository contains scripts for simulations and real data analysis for our paper.
 
+* [ctmm](ctmm) contains CTMM python package
+
 * [Snakefile](Snakefile) contains steps for perform simulations and iPSCs analyses
 
 * [sim](bin/sim) in bin/sim contains scripts to perform simulations
