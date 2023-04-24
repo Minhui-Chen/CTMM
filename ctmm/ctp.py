@@ -7,7 +7,7 @@ import rpy2.robjects as robjects
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
 
-from . import util, wald
+from . import util, wald, log
 
 def get_X(fixed_covars: dict, N: int, C: int) -> np.ndarray:
     '''
@@ -160,7 +160,7 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, random_covars: dict, mo
     for key in np.sort( list(random_covars.keys()) ):
         R = random_covars[key]
         m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-        print( proj )
+        #print( proj )
         random_MMT.append( m )
         Q.append( proj @ m )
 
@@ -488,8 +488,7 @@ def hom_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
             #.  p values for hom2 (\sigma_hom^2 = 0) and
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Hom ML', flush=True)
-    start = time.time()
+    log.logger.info('Fitting Hom ML')
 
     def extract(out, C, X, P, fixed_covars, random_covars):
         hom2, beta, r2 = out['x'][0], out['x'][1:(1+X.shape[1])], out['x'][(1+X.shape[1]):]
@@ -559,7 +558,7 @@ def hom_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
     # wald test beta1 = beta2 = beta3
     p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], D[:C,:C], n=N, P=n_par)
 
-    print( time.time() - start, flush=True )
+    log.logger.info('Finishing Hom ML')
     return(ml, p)
 
 def hom_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, random_MMT: list
@@ -611,8 +610,7 @@ def hom_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: di
             #.  p values for hom2 (\sigma_hom^2 = 0) and
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Hom REML', flush=True)
-    start = time.time()
+    log.logger.info('Fitting Hom REML')
     
     def extract(out, Y, X, P, vs, fixed_covars, random_covars, random_MMT):
         N, C = P.shape
@@ -730,7 +728,7 @@ def hom_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: di
         # wald test beta1 = beta2 = beta3
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
-    print( time.time() - start, flush=True )
+    log.logger.info('Finishing Hom REML')
     return(reml, p)
 
 def hom_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
@@ -755,8 +753,7 @@ def hom_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
                 ct_beta (no mean expression difference between cell types)
     '''
 
-    print('Hom HE', flush=True )
-    start = time.time()
+    log.logger.info('Fitting Hom HE')
 
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
@@ -814,7 +811,7 @@ def hom_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
 
-    print( time.time() - start )
+    log.logger.info('Finishing Hom HE')
     return(he, p)
 
 def iid_ML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, random_MMT: list
@@ -865,7 +862,7 @@ def iid_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0) and
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('IID ML', flush=True) 
+    log.logger.info('Fitting IID ML') 
     start = time.time()
 
     def extract(out, X, P, fixed_covars, random_covars):
@@ -942,7 +939,7 @@ def iid_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
     p['V'] = wald.wald_test(V[0,0], 0, D[X.shape[1]+1,X.shape[1]+1], N-n_par)
     p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], D[:C,:C], n=N, P=n_par)
 
-    print( time.time() - start, flush=True )
+    log.logger.info('Finishing IID ML') 
     return(ml, p)
 
 def iid_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, random_MMT: list
@@ -994,7 +991,7 @@ def iid_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: di
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0)
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('IID REML', flush=True)
+    log.logger.info('Fitting IID REML')
     start = time.time()
 
     def extract(out, Y, X, P, vs, fixed_covars, random_covars, random_MMT):
@@ -1119,7 +1116,7 @@ def iid_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: di
         # wald test beta1 = beta2 = beta3
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
-    print( time.time() - start, flush=True )
+    log.logger.info('Finishing IID REML')
     return(reml, p)
 
 def iid_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
@@ -1143,8 +1140,7 @@ def iid_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0) and
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('IID HE', flush=True )
-    start = time.time()
+    log.logger.info('Fitting IID HE')
 
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
@@ -1207,7 +1203,7 @@ def iid_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
         p['V'] = wald.wald_test(V[0,0], 0, var_het, N-n_par)
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
-    print( time.time() - start )
+    log.logger.info('Finishing IID HE')
     return(he, p)
 
 def free_ML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, random_MMT: list
@@ -1258,8 +1254,7 @@ def free_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0) and
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Free ML', flush=True)
-    start = time.time()
+    log.logger.info('Fitting Free ML')
 
     def extract(out, X, P, fixed_covars, random_covars):
         N, C = P.shape
@@ -1342,7 +1337,7 @@ def free_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     #p['Vi'] = [wald.wald_test(V[i,i], 0, D[X.shape[1]+i+1,X.shape[1]+i+1], N-n_par) for i in range(C)]
     p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], D[:C,:C], n=N, P=n_par)
 
-    print( time.time() - start, flush=True )
+    log.logger.info('Finishing Free ML')
     return(ml, p)
 
 def free_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, random_MMT: list
@@ -1394,8 +1389,7 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0)
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Free REML', flush=True)
-    start = time.time()
+    log.logger.info('Fitting Free REML')
 
     def extract(out, Y, X, P, vs, fixed_covars, random_covars, random_MMT):
         N, C = P.shape
@@ -1528,7 +1522,7 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
         # wald test beta1 = beta2 = beta3
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
 
-    print( time.time() - start, flush=True )
+    log.logger.info('Finishing Free REML')
     return(reml, p)
 
 def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
@@ -1552,8 +1546,7 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0) and
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Free HE', flush=True )
-    start = time.time()
+    log.logger.info('Fitting Free HE')
 
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
@@ -1616,7 +1609,7 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
         p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
         p['ct_beta'] = util.wald_ct_beta( beta['ct_beta'], var_ct_beta, n=N, P=n_par )
 
-    print( time.time() - start , flush=True )
+    log.logger.info('Finishing Free HE')
     return(he, p)
 
 def full_ML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, random_MMT: list
@@ -1667,8 +1660,7 @@ def full_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     Returns
         estimates of parameters and others
     '''
-    print('Full ML', flush=True)
-    start = time.time()
+    log.logger.info('Fitting Full ML')
 
     def extract(out, X, P, fixed_covars, random_covars):
         N, C = P.shape
@@ -1732,7 +1724,7 @@ def full_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     if nu_f:
         ml['nu'] = np.mean(np.loadtxt(nu_f))
 
-    print( time.time() - start, flush=True )
+    log.logger.info('Finishing Full ML')
     return(ml)
 
 def full_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, random_MMT: list
@@ -1782,8 +1774,7 @@ def full_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
     Returns
         estimates of parameters and others
     '''
-    print('Full REML', flush=True)
-    start = time.time()
+    log.logger.info('Fitting Full REML')
 
     def extract(out, X, P, fixed_covars, random_covars, random_MMT):
         N, C = P.shape
@@ -1864,7 +1855,7 @@ def full_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
     if nu_f:
         reml['nu'] = np.mean( np.loadtxt(nu_f) )
     
-    print( time.time() - start, flush=True )
+    log.logger.info('Finishing Full REML')
     return(reml)
 
 def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
@@ -1884,8 +1875,7 @@ def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     Returns
         estimates of parameters and others
     '''
-    print('Full HE', flush=True )
-    start = time.time()
+    log.logger.info('Fitting Full HE')
 
     def he_f(Y, vs, P, fixed_covars, random_covars):
         N, C = Y.shape
@@ -1927,7 +1917,7 @@ def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     if nu_f:
         he['nu'] = np.mean( np.loadtxt(nu_f) )
 
-    print( time.time() - start )
+    log.logger.info('Finishing Full HE')
 
     return( he )
 
