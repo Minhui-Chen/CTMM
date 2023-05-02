@@ -3,6 +3,8 @@ import os, sys, re, time
 import pkg_resources
 import numpy as np
 from scipy import linalg, optimize, stats
+from memory_profiler import profile
+import cProfile, pstats
 import rpy2.robjects as robjects
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
@@ -108,8 +110,65 @@ def cal_Vy(A: np.ndarray, vs: np.ndarray, r2: list=[], random_MMT: list=[]) -> n
 #
 #    return( stats )
 #
-def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, random_covars: dict, model: str
-        ) -> Tuple[np.ndarray, list]:
+
+def _pMp(X:np.ndarray, XTX_inv: np.ndarray, N: int, F:np.ndarray,
+        fixed_covars: dict) -> np.ndarray:
+    '''
+    Compute proj @ M @ proj
+    '''
+    B = np.eye(N)
+    if len(fixed_covars) == 0:
+        C = X.shape[1]
+        if N * C != X.shape[0]:
+            log.logger.error('Wrong dimension')
+            sys.exit(1)
+        M = np.kron( (B - (1/N) * np.ones((N,N))), F )
+    else:
+        M = np.kron(B,F)
+        p_M = M - X @ XTX_inv @ (X.T @ M)
+        M = p_M - p_M @ X @ XTX_inv @ X.T
+    return( M.flatten('F') )
+
+def _make_Q(X:np.ndarray, XTX_inv:np.ndarray, N:int, C:int, fixed_covars:dict, random_covars:dict, 
+        model:str) -> Tuple[np.ndarray, list]:
+    if model == 'hom':
+        Q = [ _pMp( X, XTX_inv, N, np.ones((C,C)), fixed_covars ) ] # M (I_N \otimes J_C) M
+    elif model == 'iid':
+        Q = [ _pMp( X, XTX_inv, N, np.ones((C,C)), fixed_covars ) ] # M (I_N \otimes J_C) M
+        Q.append( _pMp( X, XTX_inv, N, np.eye(C), fixed_covars ) ) 
+    elif model == 'free':
+        Q = [ _pMp( X, XTX_inv, N, np.ones((C,C)), fixed_covars ) ] # M (I_N \otimes J_C) M
+        for i in range(C):
+            L = np.zeros((C,C))
+            L[i,i] = 1
+            Q.append( _pMp( X, XTX_inv, N, L, fixed_covars ) )
+    elif model == 'full':
+        Q = []
+        for i in range(C):
+            L = np.zeros((C,C))
+            L[i,i] = 1
+            Q.append( _pMp( X, XTX_inv, N, L, fixed_covars ) )
+        for i in range(1,C):
+            for j in range(i):
+                L = np.zeros((C,C))
+                L[i,j] = 1
+                Q.append( _pMp( X, XTX_inv, N, L+L.T, fixed_covars ) )
+
+    # for extra random effects
+    random_MMT = []
+    for key in np.sort( list(random_covars.keys()) ):
+        R = random_covars[key]
+        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
+        random_MMT.append( m )
+        p_m = m - X @ XTX_inv @ (X.T @ m)
+        Q.append( p_m - p_m @ X @ XTX_inv @ X.T)
+
+    Q = np.array(Q).T
+
+    return( Q, random_MMT )
+
+def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, fixed_covars: dict, 
+        random_covars: dict, model: str) -> Tuple[np.ndarray, list]:
     '''
     Perform OLS in HE
 
@@ -117,6 +176,8 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, random_covars: dict, mo
         Y:  matrix of shape N * C of Cell Type-specific Pseudobulk
         X:  design matrix for fixed effects
         vs: cell type-specific noise variance
+        fixed_covars:   a dict of design matrices for each feature of fixed effect,
+                        except for cell type fixed effects
         random_covars:  a dict of design matrices for each feature of random effect,
                         except for shared and cell type-specific random effects
         model:  hom/iid/free/full
@@ -125,54 +186,36 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, random_covars: dict, mo
             #. estimates of random effect variances, e.g., \sigma_hom^2, V
             #. list of M @ M^T
     '''
-    
+    profiler = cProfile.Profile()
+    profiler.enable()
+
     N, C = Y.shape
     y = Y.flatten()
-    proj = np.eye(N * C) - X @ np.linalg.inv(X.T @ X) @ X.T
+    D = np.diag( vs.flatten() )
 
-    # vec(M @ A @ M)^T @ vec(M @ B M) = vec(M @ A)^T @ vec((M @ B)^T), when A, B, and M are symmetric #
-    t = np.outer( proj @ y, y ) - proj * vs.flatten()  # proj @ y @ y^T @ proj - proj @ D @ proj
+    if len(fixed_covars) == 0:
+        XTX_inv = np.eye(C) / N
+        proj = np.eye(N * C) - np.kron(np.ones((N,N)), np.eye(C)/N)
 
-    if model == 'hom':
-        Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
-    elif model == 'iid':
-        Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
-        Q.append( proj ) 
-    elif model == 'free':
-        Q = [ np.hstack( np.hsplit(proj, N) @ np.ones((C,C)) ) ] # M (I_N \otimes J_C)
-        for i in range(C):
-            L = np.zeros((C,C))
-            L[i,i] = 1
-            Q.append( np.hstack( np.hsplit(proj, N) @ L ) )
-    elif model == 'full':
-        Q = []
-        for i in range(C):
-            L = np.zeros((C,C))
-            L[i,i] = 1
-            Q.append( np.hstack( np.hsplit(proj, N) @ L ) )
-        for i in range(1,C):
-            for j in range(i):
-                L = np.zeros((C,C))
-                L[i,j] = 1
-                Q.append( np.hstack( np.hsplit(proj, N) @ (L+L.T) ) )
+    else:
+        XTX_inv = np.linalg.inv(X.T @ X)
+        proj = np.eye(N * C) - X @ XTX_inv @ X.T
 
-    random_MMT = []
-    for key in np.sort( list(random_covars.keys()) ):
-        R = random_covars[key]
-        m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-        #print( proj )
-        random_MMT.append( m )
-        Q.append( proj @ m )
+    # project y and D
+    y_p = y - X @ (XTX_inv @ (X.T @ y))
+    pD = proj * vs.flatten()
+    pDp = pD - pD @ X @ XTX_inv @ X.T
+    t = np.outer( y_p, y_p ) - pDp     # proj @ y @ y^T @ proj - proj @ D @ proj
 
-    QTQ = np.array([m.flatten('F') for m in Q]) @ np.array([m.flatten() for m in Q]).T
-    QTQt = np.array([m.flatten('F') for m in Q]) @ t.flatten()
-    theta = np.linalg.inv(QTQ) @ QTQt
+    # Q matrix
+    Q, random_MMT = _make_Q(X, XTX_inv, N, C, fixed_covars, random_covars, model)
 
-    #if return_QTQQT:
-        #return( theta, sigma_y2, random_vars, QTQ, QTQQT )
-        #return( theta, random_MMT, QTQQT )
-    #else:
-        #return( theta, sigma_y2, random_vars, QTQ )
+    theta = np.linalg.inv(Q.T @ Q) @ (Q.T @ t.flatten())
+
+    profiler.disable()
+    stats = pstats.Stats(profiler)
+    stats.print_stats()
+
     return( theta, random_MMT )
 
 def ML_LL(Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, hom2: float, 
@@ -760,7 +803,7 @@ def hom_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
         y = Y.flatten()
         X = get_X(fixed_covars, N, C)
 
-        theta, random_MMT = he_ols(Y, X, vs, random_covars, model='hom')
+        theta, random_MMT = he_ols(Y, X, vs, fixed_covars, random_covars, model='hom')
         hom2, r2 = theta[0], theta[1:]
 
         # beta
@@ -1147,7 +1190,7 @@ def iid_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict
         y = Y.flatten()
         X = get_X(fixed_covars, N, C)
 
-        theta, random_MMT = he_ols(Y, X, vs, random_covars, model='iid')
+        theta, random_MMT = he_ols(Y, X, vs, fixed_covars, random_covars, model='iid')
         hom2, het, r2 = theta[0], theta[1], theta[2:]
         V = np.eye(C) * het
 
@@ -1553,7 +1596,7 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
         y = Y.flatten()
         X = get_X(fixed_covars, N, C)
 
-        theta, random_MMT = he_ols(Y, X, vs, random_covars, model='free')
+        theta, random_MMT = he_ols(Y, X, vs, fixed_covars, random_covars, model='free')
         hom2, r2 = theta[0], theta[(1+C):]
         V = np.diag( theta[1:(C+1)] )
 
@@ -1883,7 +1926,7 @@ def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
         y = Y.flatten()
         X = get_X(fixed_covars, N, C)
 
-        theta, random_MMT = he_ols(Y, X, vs, random_covars, model='full')
+        theta, random_MMT = he_ols(Y, X, vs, fixed_covars, random_covars, model='full')
         r2 = theta[ngam:]
         V = np.diag( theta[:C] )
         V[np.tril_indices(C,k=-1)] = theta[C:ngam]

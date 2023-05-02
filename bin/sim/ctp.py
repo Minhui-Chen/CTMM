@@ -1,4 +1,4 @@
-import os, sys, re, time
+import os, sys, re
 import numpy as np
 from scipy import linalg, optimize, stats
 import rpy2.robjects as robjects
