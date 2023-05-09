@@ -1,5 +1,5 @@
 from typing import Optional, Tuple
-import os, sys, re, time
+import os, sys, re, time, timeit
 import pkg_resources
 import numpy as np
 from scipy import linalg, optimize, stats
@@ -122,12 +122,13 @@ def _pMp(X:np.ndarray, XTX_inv: np.ndarray, N: int, F:np.ndarray,
         if N * C != X.shape[0]:
             log.logger.error('Wrong dimension')
             sys.exit(1)
-        M = np.kron( (B - (1/N) * np.ones((N,N))), F )
+        M = np.kron( B - (1/N), F )
+        #print( timeit.timeit(lambda: np.kron(np.ones((1000,1000)),np.eye(4)), number=10) )
     else:
         M = np.kron(B,F)
         p_M = M - X @ XTX_inv @ (X.T @ M)
         M = p_M - p_M @ X @ XTX_inv @ X.T
-    return( M.flatten('F') )
+    return( M )
 
 def _make_Q(X:np.ndarray, XTX_inv:np.ndarray, N:int, C:int, fixed_covars:dict, random_covars:dict, 
         model:str) -> Tuple[np.ndarray, list]:
@@ -162,8 +163,6 @@ def _make_Q(X:np.ndarray, XTX_inv:np.ndarray, N:int, C:int, fixed_covars:dict, r
         random_MMT.append( m )
         p_m = m - X @ XTX_inv @ (X.T @ m)
         Q.append( p_m - p_m @ X @ XTX_inv @ X.T)
-
-    Q = np.array(Q).T
 
     return( Q, random_MMT )
 
@@ -210,7 +209,11 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, fixed_covars: dict,
     # Q matrix
     Q, random_MMT = _make_Q(X, XTX_inv, N, C, fixed_covars, random_covars, model)
 
-    theta = np.linalg.inv(Q.T @ Q) @ (Q.T @ t.flatten())
+    # theta
+    QTQ = np.tensordot(Q, Q, axes=([1,2],[1,2]))
+    QTt = np.tensordot(Q, t, axes=([1,2],[0,1]))
+    #QTt = (Q * t).sum(axis=(1,2))
+    theta = np.linalg.inv(QTQ) @ QTt
 
     profiler.disable()
     stats = pstats.Stats(profiler)
