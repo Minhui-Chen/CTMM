@@ -16,14 +16,15 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
 
         for (i in 1:N) {
             AD <- A + diag(vs[i,])
-            #print(vs[i,])
 
-            eval   <- eigen(AD, symmetric=TRUE)$values
+            e  <- eigen(AD, symmetric=TRUE)
+            eval <- e$values
+            evec <- e$vectors
             if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
-            if( any( diag(AD) < 0 ) ) return(1e12)
+            if( any( diag(AD) < 0 ) ) return(1e12) 
 
-            AD_inv <- solve(AD)
-            AD_det <- determinant(AD, logarithm=TRUE)$modulus
+            AD_inv <- evec %*% diag(1/eval) %*% t(evec)
+            AD_det <- sum(log(eval))
             yADy <- Y[i,] %*% AD_inv %*% Y[i,]
             ADy <- AD_inv %*% Y[i,]
 
@@ -54,7 +55,9 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
         for (i in 1:N) {
             AD <- A + diag(vs[i,])
 
-            eval   <- eigen(AD, symmetric=TRUE)$values
+            e  <- eigen(AD, symmetric=TRUE)
+            eval <- e$values
+            evec <- e$vectors
             if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
             if( any( diag(AD) < 0 ) ) return(1e12)
 
@@ -63,9 +66,9 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
                 Xi <- cbind( Xi, kronecker(t(M[i,]),rep(1,C)) )
             }
 
-            AD_inv <- solve(AD)
+            AD_inv <- evec %*% diag(1/eval) %*% t(evec)
             XADX <- t(Xi) %*% AD_inv %*% Xi
-            AD_det <- determinant(AD, logarithm=TRUE)$modulus
+            AD_det <- sum(log(eval))
             yADy <- Y[i,] %*% AD_inv %*% Y[i,]
             XADy <- t(Xi) %*% AD_inv %*% Y[i,]
 
@@ -105,13 +108,14 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
                 j <- i + sum(random_MMT[[1]][,i]) - 1
                 sig2s_k <- sig2s[i:j, i:j]
 
-                eval <- eigen(sig2s_k, symmetric=TRUE)$values
+                e <- eigen(sig2s_k, symmetric=TRUE)
+                eval <- e$values
+                evec <- e$vectors
                 if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval) < 0) return(1e12)
-                #print( min(eval) )
                 if( any( diag(sig2s_k) < 0 ) ) return(1e12)
 
-                det_sig2s <- det_sig2s + determinant(sig2s_k, logarithm=TRUE)$modulus
-                sig2s_inv[[k]] <- solve(sig2s_k)
+                det_sig2s <- det_sig2s + sum(log(eval))
+                sig2s_inv[[k]] <- evec %*% diag(1/eval) %*% t(evec)
 
                 i <- j+1
                 k <- k+1
@@ -119,10 +123,12 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
             sig2s_inv <- as.matrix( bdiag(sig2s_inv) )
 
         } else {
-            det_sig2s <- determinant(sig2s, logarithm=TRUE)$modulus
-            eval   <- eigen(sig2s,symmetric=TRUE)$values
+            e  <- eigen(sig2s,symmetric=TRUE)
+            eval <- e$values
+            evec <- e$vectors
             if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
-            sig2s_inv <- solve( sig2s )
+            sig2s_inv <- evec %*% diag(1/eval) %*% t(evec)
+            det_sig2s <- sum(log(eval))
         }
 
         F <- t(X) %*% sig2s_inv
