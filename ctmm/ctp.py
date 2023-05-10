@@ -185,8 +185,8 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, fixed_covars: dict,
             #. estimates of random effect variances, e.g., \sigma_hom^2, V
             #. list of M @ M^T
     '''
-    profiler = cProfile.Profile()
-    profiler.enable()
+    #profiler = cProfile.Profile()
+    #profiler.enable()
 
     N, C = Y.shape
     y = Y.flatten()
@@ -215,9 +215,9 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, fixed_covars: dict,
     #QTt = (Q * t).sum(axis=(1,2))
     theta = np.linalg.inv(QTQ) @ QTt
 
-    profiler.disable()
-    stats = pstats.Stats(profiler)
-    stats.print_stats()
+    #profiler.disable()
+    #stats = pstats.Stats(profiler)
+    #stats.print_stats()
 
     return( theta, random_MMT )
 
@@ -1409,7 +1409,7 @@ def free_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, v
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
 def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={},
-        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, jack_knife: bool=False, optim_by_R: bool=False
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, jack_knife: Union[bool, int]=False, optim_by_R: bool=False
         ) -> Tuple[dict, dict]:
     '''
     Perform REML on Free model
@@ -1427,7 +1427,8 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
         method: optimization algorithms provided by R optim function if optim_by_R is True,
                 or provided by scipy.optimize in optim_by_R if False
         nrep:   number of repeats if initinal optimization failed
-        jack_knife: perform jackknife-based Wald test
+        jack_knife: perform jackknife-based Wald test. When it's int, conduct delete-m jackknife 
+                    with jack_knife=number of blocks
         optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
     Returns
         A tuple of
@@ -1451,7 +1452,7 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
         return(hom2, V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy)
 
     def reml_f(Y, X, N, C, vs, P, fixed_covars, random_covars, method):
-        ''' wrapper for iid reml '''
+        ''' wrapper for free reml '''
         random_MMT = get_MMT(random_covars, C)
            
         out, opt = util.optim(free_REML_loglike, par, args=(Y, X, N, C, vs, random_MMT), method=method)
@@ -1542,25 +1543,49 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
                 n=N, P=n_par)
     else:
         jacks = { 'ct_beta':[], 'hom2':[], 'V':[] }
-        for i in range(N):
-            Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
-                    i, Y, vs, fixed_covars, random_covars, P)
-            if optim_by_R:
-                out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 
-                        'reml', 'free', method)
-                hom2_jk, V_jk, beta_jk = extract_R(out_jk)[:3]
-            else:
-                X_jk = get_X(fixed_covars_jk, N-1, C)
-                hom2_jk, V_jk, _, beta_jk, _, _, _, _, _, _ = reml_f(
-                        Y_jk, X_jk, N-1, C, vs_jk, P_jk, fixed_covars_jk, random_covars_jk, method)
+        if isinstance(jack_knife, bool):
+            for i in range(N):
+                Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
+                        i, Y, vs, fixed_covars, random_covars, P)
+                if optim_by_R:
+                    out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 
+                            'reml', 'free', method)
+                    hom2_jk, V_jk, beta_jk = extract_R(out_jk)[:3]
+                else:
+                    X_jk = get_X(fixed_covars_jk, N-1, C)
+                    hom2_jk, V_jk, _, beta_jk, _, _, _, _, _, _ = reml_f(
+                            Y_jk, X_jk, N-1, C, vs_jk, P_jk, fixed_covars_jk, random_covars_jk, method)
 
-            jacks['ct_beta'].append( beta_jk['ct_beta'] )
-            jacks['hom2'].append( hom2_jk )
-            jacks['V'].append( np.diag(V_jk) )
+                jacks['ct_beta'].append( beta_jk['ct_beta'] )
+                jacks['hom2'].append( hom2_jk )
+                jacks['V'].append( np.diag(V_jk) )
 
-        var_hom2 = (len(jacks['hom2']) - 1.0) * np.var(jacks['hom2'])
-        var_V = (len(jacks['V']) - 1.0) * np.cov( np.array(jacks['V']).T, bias=True )
-        var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov( np.array(jacks['ct_beta']).T, bias=True )
+            var_hom2 = (len(jacks['hom2']) - 1.0) * np.var(jacks['hom2'])
+            var_V = (len(jacks['V']) - 1.0) * np.cov( np.array(jacks['V']).T, bias=True )
+            var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov( np.array(jacks['ct_beta']).T, bias=True )
+        else:
+            # block jackknife
+            ms = np.split(np.arange(N), jack_knife)
+            tau = lambda g, theta, theta_jk: g * theta - (g-1) * theta_jk
+            for m in ms:
+                Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
+                        m, Y, vs, fixed_covars, random_covars, P)
+                if optim_by_R:
+                    out_jk = r_optim(Y_jk, P_jk, vs_jk, fixed_covars_jk, random_covars_jk, par, nrep, 
+                            'reml', 'free', method)
+                    hom2_jk, V_jk, beta_jk = extract_R(out_jk)[:3]
+                else:
+                    X_jk = get_X(fixed_covars_jk, N-1, C)
+                    hom2_jk, V_jk, _, beta_jk, _, _, _, _, _, _ = reml_f(
+                            Y_jk, X_jk, N-1, C, vs_jk, P_jk, fixed_covars_jk, random_covars_jk, method)
+
+                jacks['ct_beta'].append( tau(jack_knife, beta['ct_beta'], beta_jk['ct_beta']) )
+                jacks['hom2'].append( tau(jack_knife, hom2, hom2_jk) )
+                jacks['V'].append( tau(jack_knife, np.diag(V), np.diag(V_jk)) )
+
+            var_hom2 = np.var(jacks['hom2'], ddof=1)/jack_knife
+            var_V = np.cov( np.array(jacks['V']).T )/jack_knife
+            var_ct_beta = np.cov( np.array(jacks['ct_beta']).T )/jack_knife
 
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
