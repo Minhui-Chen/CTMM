@@ -503,7 +503,7 @@ def order_by_randomcovariate(R: np.ndarray, Xs: list=[], Ys: dict={}
 
     return(index, R, new_Xs, new_Ys)
 
-def jk_rmInd(i: int, Y: np.ndarray, vs: np.ndarray, fixed_covars: dict={}, random_covars: dict={}, P: Optional[np.ndarray]=None
+def jk_rmInd(i: Union[int, np.ndarray], Y: np.ndarray, vs: np.ndarray, fixed_covars: dict={}, random_covars: dict={}, P: Optional[np.ndarray]=None
         ) -> tuple:
     '''
     Remove one individual from the matrices for jackknife
