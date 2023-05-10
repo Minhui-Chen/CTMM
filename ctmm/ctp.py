@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 import os, sys, re, time, timeit
 import pkg_resources
 import numpy as np
