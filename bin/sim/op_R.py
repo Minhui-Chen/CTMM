@@ -13,7 +13,7 @@ def main():
     params = snakemake.params
     input = snakemake.input
     output = snakemake.output
-    optim_method = 'BFGS' if 'method' not in params.keys() else params.method
+    optim_method = params.get('method', 'BFGS')
 
     #
     batch = params.batch
@@ -35,9 +35,9 @@ def main():
 
         out = {}
         ## HE
-        if 'HE_as_initial' not in snakemake.params.keys():
-            snakemake.params.HE_as_initial = False
-        if snakemake.params.HE_as_initial:
+        ## use HE as initial for ML/REML
+        HE_as_initial = params.get('HE_as_initial', False)
+        if HE_as_initial:
             snakemake.params.HE = True
 
         if snakemake.params.HE:
@@ -50,7 +50,7 @@ def main():
 
         ## ML
         if snakemake.params.ML:
-            if not snakemake.params.HE_as_initial:
+            if not HE_as_initial:
                 hom_ml, hom_ml_p = op.hom_ML(y_f, P_f, nu_f, method=optim_method, optim_by_R=True)
                 free_ml, free_ml_p = op.free_ML(y_f, P_f, nu_f, method=optim_method, optim_by_R=True)
                 full_ml = op.full_ML(y_f, P_f, nu_f, method=optim_method, optim_by_R=True)
@@ -75,10 +75,9 @@ def main():
 
         ## REML
         if snakemake.params.REML:
-            if 'Free_reml_only' not in snakemake.params.keys():
-                snakemake.params.Free_reml_only = False
+            Free_reml_only = params.get('Free_reml_only', False)
 
-            if not snakemake.params.HE_as_initial:
+            if not HE_as_initial:
                 if 'Free_reml_jk' in snakemake.params.keys():
                     free_reml, free_reml_p = op.free_REML(y_f, P_f, nu_f, method=optim_method,
                             jack_knife=snakemake.params.Free_reml_jk, optim_by_R=True)
@@ -86,7 +85,7 @@ def main():
                     free_reml, free_reml_p = op.free_REML(y_f, P_f, nu_f, method=optim_method, 
                             optim_by_R=True)
 
-                if snakemake.params.Free_reml_only:
+                if Free_reml_only:
                     hom_reml, hom_reml_p = free_reml, free_reml_p
                     full_reml = free_reml
                 else:
