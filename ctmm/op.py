@@ -1,6 +1,6 @@
 from typing import Optional, Tuple
 
-import os, sys, re, time
+import os, sys, re
 import pkg_resources
 from scipy import stats, linalg, optimize
 import numpy as np, pandas as pd
@@ -11,7 +11,7 @@ from rpy2.robjects.packages import importr
 from rpy2.robjects.packages import STAP
 from rpy2.robjects.conversion import localconverter
 
-from . import wald, util
+from . import wald, util, log
 
 def get_X(P: np.ndarray, fixed_covars: dict) -> np.ndarray:
     '''
@@ -327,7 +327,7 @@ def hom_ML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covars
             #.  p values for hom2 (\sigma_hom^2 = 0) and 
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Hom ML')
+    log.logger.info('Hom ML')
 
     if not optim_by_R:
         def extract( out, C, X, P, fixed_covars, random_covars ):
@@ -461,7 +461,7 @@ def hom_REML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_cova
             #.  p values for hom2 (\sigma_hom^2 = 0) and 
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Hom REML')
+    log.logger.info('Hom REML')
     
     if not optim_by_R:
         def extract(out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT):
@@ -576,8 +576,7 @@ def hom_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covars
             #.  p values for hom2 (\sigma_hom^2 = 0) and 
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Hom HE')
-    start = time.time()
+    log.logger.info('Hom HE')
 
     def he_f(y, P, vs, fixed_covars, random_covars):
         N, C = P.shape
@@ -629,7 +628,6 @@ def hom_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covars
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         p['ct_beta'] = util.wald_ct_beta( beta['ct_beta'], var_beta, n=N, P=n_par )
 
-    print( time.time() - start )
     return( he, p )
 
 def iid_ML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
@@ -679,7 +677,7 @@ def iid_ML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covars
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0)
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('IID ML')
+    log.logger.info('IID ML')
 
     if not optim_by_R:
         def extract( out, C, X, P, fixed_covars, random_covars ):
@@ -823,7 +821,7 @@ def iid_REML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_cova
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V=0)
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('IID REML')
+    log.logger.info('IID REML')
 
     if not optim_by_R:
         def extract(out, C, y, X, P, vs, fixed_covars, random_covars, random_MMT):
@@ -948,8 +946,7 @@ def iid_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covars
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V=0) and
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('IID HE')
-    start = time.time()
+    log.logger.info('IID HE')
 
     def he_f(y, P, vs, fixed_covars, random_covars):
         N, C = P.shape
@@ -1007,7 +1004,6 @@ def iid_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covars
         p['V'] = wald.wald_test(V[0,0], 0, var_het, N-n_par)
         p['ct_beta'] = util.wald_ct_beta( beta['ct_beta'], var_beta, n=N, P=n_par )
 
-    print( time.time() - start )
     return( he, p )
 
 def free_ML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
@@ -1057,7 +1053,7 @@ def free_ML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covar
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0) and 
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Free ML')
+    log.logger.info('Free ML')
 
     if not optim_by_R:
         def extract( out, C, X, P, fixed_covars, random_covars ):
@@ -1211,7 +1207,7 @@ def free_REML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_cov
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0) and 
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Free REML')
+    log.logger.info('Free REML')
 
     if not optim_by_R:
         def reml_f(y, P, vs, fixed_covars, random_covars, par, method):
@@ -1398,8 +1394,7 @@ def free_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covar
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0)
                 ct_beta (no mean expression difference between cell types)
     '''
-    print('Free HE')
-    start = time.time()
+    log.logger.info('Free HE')
 
     def he_f(y, P, vs, fixed_covars, random_covars):
         N, C = P.shape
@@ -1458,7 +1453,6 @@ def free_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covar
         p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
         p['ct_beta'] = util.wald_ct_beta( beta['ct_beta'], var_beta, n=N, P=n_par )
 
-    print( time.time() - start )
     return( he, p )
 
 def full_ML_loglike(par: list, y: np.ndarray, P: np.ndarray, X: np.ndarray, C: int, vs: np.ndarray, 
@@ -1508,7 +1502,7 @@ def full_ML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covar
     Returns
         estimates of parameters and others
     '''
-    print('Full ML')
+    log.logger.info('Full ML')
 
     if not optim_by_R:
         def extract( out, C, X, P, fixed_covars, random_covars ):
@@ -1626,7 +1620,7 @@ def full_REML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_cov
     Returns
         estimates of parameters and others
     '''
-    print('Full REML')
+    log.logger.info('Full REML')
 
     if not optim_by_R:
         def extract(out, C, X, P, fixed_covars, random_covars):
@@ -1721,8 +1715,7 @@ def full_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covar
     Returns
         estimates of parameters and others
     '''
-    print('Full HE')
-    start = time.time()
+    log.logger.info('Full HE')
 
     def he_f(y, P, vs, fixed_covars, random_covars):
         N, C = P.shape
@@ -1761,6 +1754,5 @@ def full_HE(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covar
             'fixedeffect_vars':fixed_vars, 'randomeffect_vars':random_vars,
             'ct_random_var':ct_overall_var, 'ct_specific_random_var':ct_specific_var}
 
-    print( time.time() - start )
     return( he )
 
