@@ -14,7 +14,7 @@ LL <- function(y, P, X, C, vs, hom2, V, random_variances=NULL, random_MMT=NULL){
         eval <- eigen(B,symmetric=TRUE)$values
         if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
         yA <- as.vector( y %*% t(A) )
-        yPy <- (y * sig2s_inv) %*% y + yA %*% solve(B) %*% yA
+        yPy <- (y * sig2s_inv) %*% y - yA %*% solve(B) %*% yA
         L <- sum(log( sig2s )) + yPy
     } else {
         sig2s <- diag(sig2s)
@@ -32,7 +32,7 @@ LL <- function(y, P, X, C, vs, hom2, V, random_variances=NULL, random_MMT=NULL){
         eval <- eigen(B,symmetric=TRUE)$values
         if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
         yA <- as.vector( y %*% t(A) )
-        yPy <- y %*% sig2s_inv %*% y + yA %*% solve(B) %*% yA
+        yPy <- y %*% sig2s_inv %*% y - yA %*% solve(B) %*% yA
         L <- determinant(sig2s, logarithm=TRUE)$modulus + yPy
     }
 
