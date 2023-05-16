@@ -1,4 +1,4 @@
-import os, tempfile
+import os
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
