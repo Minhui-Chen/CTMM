@@ -283,28 +283,34 @@ def _std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
     Returns:
         A tuple of 
             #. op
-            #. nu
+            #. nu_op: negative ctnu set to 0
+            #. ctnu_op: negative ctnu set to 0
             #. ctp
-            #. ctnu
+            #. nu_ctp: negative ctnu set to max
+            #. ctnu_ctp: negative ctnu set to max
     '''
 
     # compute op and nu
     op = (ctp * P).sum(axis=1)
-    nu = ( ctnu.mask(ctnu<0, 0) * (P**2) ).sum(axis=1) # set negative ctnu to 0 for OP data
+    ctnu_op = ctnu.mask(ctnu<0, 0) # set negative ctnu to 0 for OP data
+    nu_op = ( ctnu_op * (P**2) ).sum(axis=1) 
 
     # set negative ctnu to max for CTP data
-    ctnu = ctnu.mask(ctnu<0, ctnu.max(), axis=1)
+    ctnu_ctp = ctnu.mask(ctnu<0, ctnu.max(), axis=1)
+    nu_ctp = ( ctnu_ctp * (P**2) ).sum(axis=1)
 
     # standardize op
     mean, std, var = op.mean(), op.std(), op.var()
     op = (op - mean) / std
-    nu = nu / var
     ctp = (ctp - mean) / std 
-    ctnu = ctnu / var
+    nu_op = nu_op / var
+    nu_ctp = nu_ctp / var
+    ctnu_op = ctnu_op / var
+    ctnu_ctp = ctnu_ctp / var
 
-    return(op, nu, ctp, ctnu)
+    return(op, nu_op, ctnu_op, ctp, nu_ctp, ctnu_ctp)
 
-def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
+def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame, return_all: bool=False
         ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
     For each Gene, stardardize Overall Pseudobulk (OP) to mean 0 and std 1, and scale ctp, 
@@ -314,19 +320,24 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
         ctp:    imputed ctp with shape index: (ind, ct) * columns: genes
         ctnu:   imputed ctnu with shape index: (ind, ct) * columns: genes
         P:  cell type proportions matrix of shape ind * ct
+        return_all: return ctnu for OP and nu for CTP
     Returns:
         A tuple of 
             #. op
             #. nu
+            #. ctnu_op (optional)
             #. ctp
+            #. nu_ctp (optional)
             #. ctnu
     '''
     genes = ctp.columns.tolist()
 
     op_genes = []
-    nu_genes = []
+    nu_op_genes = []
+    ctnu_op_genes = []
     ctp_genes = []
-    ctnu_genes = []
+    nu_ctp_genes = []
+    ctnu_ctp_genes = []
     # sanity reorder inds and cts in ctp, ctnu, and P
     P = P.sort_index().sort_index(axis=1)
     inds = P.index
@@ -347,27 +358,38 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
             sys.exit('Cell types not matching!')
 
         # standardization
-        gene_op, gene_nu, gene_ctp, gene_ctnu = _std(gene_ctp, gene_ctnu, P)
+        gene_op, gene_nu_op, gene_ctnu_op, gene_ctp, gene_nu_ctp, gene_ctnu_ctp = _std(
+            gene_ctp, gene_ctnu, P)
 
         # transform back to series
         gene_ctp = gene_ctp.stack()
-        gene_ctnu = gene_ctnu.stack()
+        gene_ctnu_op = gene_ctnu_op.stack()
+        gene_ctnu_ctp = gene_ctnu_ctp.stack()
 
         # add gene name
         gene_op.name = gene
-        gene_nu.name = gene
+        gene_nu_op.name = gene
+        gene_ctnu_op.name = gene
         gene_ctp.name = gene
-        gene_ctnu.name = gene 
+        gene_nu_ctp.name = gene 
+        gene_ctnu_ctp.name = gene 
 
         # 
         op_genes.append( gene_op )
-        nu_genes.append( gene_nu )
+        nu_op_genes.append( gene_nu_op )
+        ctnu_op_genes.append( gene_ctnu_op )
         ctp_genes.append( gene_ctp )
-        ctnu_genes.append( gene_ctnu )
+        nu_ctp_genes.append( gene_nu_ctp )
+        ctnu_ctp_genes.append( gene_ctnu_ctp )
 
     op = pd.concat( op_genes, axis=1 )
-    nu = pd.concat( nu_genes, axis=1 )
+    nu_op = pd.concat( nu_op_genes, axis=1 )
+    ctnu_op = pd.concat( ctnu_op_genes, axis=1 )
     ctp = pd.concat( ctp_genes, axis=1 )
-    ctnu = pd.concat( ctnu_genes, axis=1 )
+    nu_ctp = pd.concat( nu_ctp_genes, axis=1 )
+    ctnu_ctp = pd.concat( ctnu_ctp_genes, axis=1 )
 
-    return( op, nu, ctp, ctnu )
+    if return_all:
+        return( op, nu_op, ctnu_op, ctp, nu_ctp, ctnu_ctp )
+    else:
+        return( op, nu_op, ctp, ctnu_ctp )
