@@ -5,29 +5,7 @@ import seaborn as sns
 import rpy2.robjects as ro
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import importr, STAP
-
-def softimpute(y, scale):
-    softImpute_f = 'bin/cuomo/softImpute.R'
-    softImpute_r = STAP( open(softImpute_f).read(), 'softImpute_r' )
-    pandas2ri.activate()
-    if scale:
-        out_ = softImpute_r.my_softImpute( r['as.matrix'](y), scale=ro.vectors.BoolVector([True]) )
-    else:
-        out_ = softImpute_r.my_softImpute( r['as.matrix'](y) )
-    out_ = dict( zip(out_.names, list(out_)) )
-    out = pd.DataFrame(out_['Y'], index=y.index, columns=y.columns)
-    pandas2ri.deactivate()
-    return( out )
-
-def mvn(y):
-    mvn_f = 'bin/cuomo/mvn.R'
-    mvn_r = STAP( open(mvn_f).read(), 'mvn_r' )
-    pandas2ri.activate()
-    out_ = mvn_r.MVN_impute( r['as.matrix'](y) )
-    out_ = dict( zip(out_.names, list(out_)) )
-    out = pd.DataFrame(out_['Y'], index=y.index, columns=y.columns)
-    pandas2ri.deactivate()
-    return( out )
+from ctmm import util, preprocess
 
 def imputeY4eachgene(y, gene, y_path):
     y_before = y
@@ -35,9 +13,9 @@ def imputeY4eachgene(y, gene, y_path):
     y.to_csv(f'{y_path}/rep{gene}/y.before_imputation.txt', sep='\t')
 
     if snakemake.wildcards.im_mvn == 'N':
-        y = softimpute(y, True)
+        y = preprocess._softimpute(y, True)
     else:
-        y = mvn( y )
+        y = preprocess._mvn( y )
 
     y.to_csv(f'{y_path}/rep{gene}/y.imputed.txt', sep='\t')
 
@@ -50,20 +28,13 @@ def imputeNU4eachgene(nu, nu_path, gene):
     nu.to_csv(f'{nu_path}/rep{gene}/nu.before_imputation.txt', sep='\t')
 
     if snakemake.wildcards.im_mvn == 'N':
-        nu = softimpute( nu, True )
+        nu = preprocess._softimpute( nu, True )
     else:
-        nu = mvn( nu )
+        nu = preprocess._mvn( nu )
 
     nu.to_csv(f'{nu_path}/rep{gene}/nu.imputed.txt', sep='\t')
 
     return( nu )
-
-def generate_tmpfn():
-    tmpf = tempfile.NamedTemporaryFile(delete=False)
-    tmpfn = tmpf.name
-    tmpf.close()
-    print(tmpfn)
-    return tmpfn
 
 def main():
     pandas2ri.activate()
@@ -102,7 +73,7 @@ def main():
     nu_imputed_indXct_ctng = pd.DataFrame()
 
     ## for each gene
-    tmpfn = generate_tmpfn()
+    tmpfn = util.generate_tmpfn()
     for i, gene in enumerate(genes):
         print(gene)
         ### for y
