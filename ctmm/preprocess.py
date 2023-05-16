@@ -341,9 +341,9 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
         gene_ctnu = gene_ctnu.sort_index().sort_index(axis=1)
 
         # santity check inds and cts matching between ctp, ctnu, and P
-        if not ( gene_ctnu.index.equals(inds)  or gene_ctp.index.equals(inds) ):
+        if not ( gene_ctnu.index.equals(inds) and gene_ctp.index.equals(inds) ):
             sys.exit('Individuals not matching!')
-        if not ( gene_ctnu.columns.equals(cts) or gene_ctp.columns.equals(cts) ):
+        if not ( gene_ctnu.columns.equals(cts) and gene_ctp.columns.equals(cts) ):
             sys.exit('Cell types not matching!')
 
         # standardization
