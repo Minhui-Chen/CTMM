@@ -7,6 +7,7 @@ import pkg_resources
 import rpy2.robjects as ro
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.packages import STAP
+from . import log
 
 def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=None, 
         X: sparse.csr.csr_matrix=None, obs: pd.DataFrame=None, var: pd.DataFrame=None,
@@ -212,6 +213,32 @@ def softimpute(data: pd.DataFrame, seed: int=None, scale: bool->True) -> pd.Data
 
     return( out )
 
+def _mvn(data: pd.DataFrame) -> pd.DataFrame:
+    '''
+    Impute missing ctp or ctnu
+
+    Parameters:
+        data:   ctp or ctnu of shape index: ind * columns: ct
+    Results:
+        imputed dataset
+    '''
+    
+    # load softImpute r package
+    not_sourced =robjects.r['MVN_impute']
+    if not_sourced:
+        rf = pkg_resources.resource_filename(__name__, 'mvn.R')
+        mvn_r = STAP( open(rf).read(), 'mvn_r' )
+    pandas2ri.activate()
+
+    # impute
+    out = mvn_r.MVN_impute( r['as.matrix'](data) )
+    out = dict( zip(out.names, list(out)) )
+    out = pd.DataFrame(out['Y'], index=data.index, columns=data.columns)
+
+    pandas2ri.deactivate()
+
+    return( out )
+
 def mvn(data: pd.DataFrame) -> pd.DataFrame:
     '''
     Impute missing ctp or ctnu
@@ -222,21 +249,16 @@ def mvn(data: pd.DataFrame) -> pd.DataFrame:
         imputed dataset
     '''
     
-    # load softImpute r package
-    rf = pkg_resources.resource_filename(__name__, 'mvn.R')
-    mvn_r = STAP( open(rf).read(), 'mvn_r' )
-    pandas2ri.activate()
-
     imputed = []
-    for gene in data.columns:
-        print(gene)
+    for i, gene in enumerate(data.columns):
+        if i%100 == 0:
+            log.logger.info(f'MVN imputing {gene}')
+
         # transform to index: ind * columns: (cts)
         Y = data[gene].unstack()
 
         # Impute
-        out = mvn_r.MVN_impute( r['as.matrix'](Y) )
-        out = dict( zip(out.names, list(out)) )
-        out = pd.DataFrame(out['Y'], index=Y.index, columns=Y.columns)
+        out = _mvn(Y)
 
         # transform back
         out = out.stack()
@@ -244,7 +266,6 @@ def mvn(data: pd.DataFrame) -> pd.DataFrame:
 
         imputed.append( out )
 
-    pandas2ri.deactivate()
     imputed = pd.concat(imputed, axis=1)
 
     return( imputed )
