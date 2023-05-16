@@ -270,6 +270,40 @@ def mvn(data: pd.DataFrame) -> pd.DataFrame:
 
     return( imputed )
 
+def _std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
+        ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    '''
+    For each Gene, stardardize Overall Pseudobulk (OP) to mean 0 and std 1, and scale ctp, 
+    overall noise variance (nu), ct-specific noise variance (ctnu) correspondingly.
+
+    Parameters:
+        ctp:    imputed ctp for each gene with shape index: ind * ct
+        ctnu:   imputed ctnu for each gene with shape index: ind * ct
+        P:  cell type proportions matrix of shape ind * ct
+    Returns:
+        A tuple of 
+            #. op
+            #. nu
+            #. ctp
+            #. ctnu
+    '''
+
+    # compute op and nu
+    op = (ctp * P).sum(axis=1)
+    nu = ( ctnu.mask(ctnu<0, 0) * (P**2) ).sum(axis=1) # set negative ctnu to 0 for OP data
+
+    # set negative ctnu to max for CTP data
+    ctnu = ctnu.mask(ctnu<0, ctnu.max(), axis=1)
+
+    # standardize op
+    mean, std, var = op.mean(), op.std(), op.var()
+    op = (op - mean) / std
+    nu = nu / var
+    ctp = (ctp - mean) / std 
+    ctnu = ctnu / var
+
+    return(op, nu, ctp, ctnu)
+
 def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
         ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     '''
@@ -312,19 +346,8 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
         if not ( gene_ctnu.columns.equals(cts) or gene_ctp.columns.equals(cts) ):
             sys.exit('Cell types not matching!')
 
-        # compute op and nu
-        gene_op = (gene_ctp * P).sum(axis=1)
-        gene_nu = ( gene_ctnu.mask(gene_ctnu<0, 0) * (P**2) ).sum(axis=1) # set negative ctnu to 0 for OP data
-
-        # set negative ctnu to max for CTP data
-        gene_ctnu = gene_ctnu.mask(gene_ctnu<0, gene_ctnu.max(), axis=1)
-
-        # standardize op
-        mean, std, var = gene_op.mean(), gene_op.std(), gene_op.var()
-        gene_op = (gene_op - mean) / std
-        gene_nu = gene_nu / var
-        gene_ctp = (gene_ctp - mean) / std 
-        gene_ctnu = gene_ctnu / var
+        # standardization
+        gene_op, gene_nu, gene_ctp, gene_ctnu = _std(gene_ctp, gene_ctnu, P)
 
         # transform back to series
         gene_ctp = gene_ctp.stack()
