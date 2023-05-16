@@ -160,7 +160,7 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
 
     return( ctp, ctnu, P, cell_counts )
 
-def softimpute(data: pd.DataFrame, seed: int=None, scale: bool->True) -> pd.DataFrame:
+def _softimpute(data: pd.DataFrame, seed: int=None, scale: bool->True) -> pd.DataFrame:
     '''
     Impute missing ctp or ct-specific noise variance (ctnu)
 
@@ -171,9 +171,6 @@ def softimpute(data: pd.DataFrame, seed: int=None, scale: bool->True) -> pd.Data
     Results:
         imputed dataset
     '''
-    # transform to index: ind * columns: (genes: cts)
-    data = data.unstack()
-
     # load softImpute r package
     rf = pkg_resources.resource_filename(__name__, 'softImpute.R')
     softImpute = STAP( open(rf).read(), 'softImpute' )
@@ -191,6 +188,25 @@ def softimpute(data: pd.DataFrame, seed: int=None, scale: bool->True) -> pd.Data
     out = pd.DataFrame(out['Y'], index=data.index, columns=data.columns)
     pandas2ri.deactivate()
 
+    return( out )
+
+def softimpute(data: pd.DataFrame, seed: int=None, scale: bool->True) -> pd.DataFrame:
+    '''
+    Impute missing ctp or ct-specific noise variance (ctnu)
+
+    Parameters:
+        data:   ctp or ctnu of shape index: (ind, ct) * columns: genes
+        seed:   seed for softImpute, only needed to be replicate imputation
+        scale:  scale before imputation
+    Results:
+        imputed dataset
+    '''
+    # transform to index: ind * columns: (genes: cts)
+    data = data.unstack()
+
+    # impute
+    out = _softimpute(data, seed, scale)
+    
     # transform back
     out = out.stack()
 
