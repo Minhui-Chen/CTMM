@@ -224,7 +224,7 @@ def _mvn(data: pd.DataFrame) -> pd.DataFrame:
     '''
     
     # load softImpute r package
-    not_sourced =robjects.r['MVN_impute']
+    not_sourced = r['MVN_impute']
     if not_sourced:
         rf = pkg_resources.resource_filename(__name__, 'mvn.R')
         mvn_r = STAP( open(rf).read(), 'mvn_r' )
