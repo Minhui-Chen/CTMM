@@ -166,7 +166,7 @@ def _softimpute(data: pd.DataFrame, seed: int=None, scale: bool->True) -> pd.Dat
     Impute missing ctp or ct-specific noise variance (ctnu)
 
     Parameters:
-        data:   ctp or ctnu of shape index: ind * columns: (genes, cts)
+        data:   ctp or ctnu of shape index: ind * columns: (genes, cts) (or cts when impute for one gene)
         seed:   seed for softImpute, only needed to be replicate imputation
         scale:  scale before imputation
     Results:
