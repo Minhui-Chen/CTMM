@@ -362,24 +362,21 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame, return_all: bool
     ctp_genes = []
     nu_ctp_genes = []
     ctnu_ctp_genes = []
-    # sanity reorder inds and cts in ctp, ctnu, and P
-    P = P.sort_index().sort_index(axis=1)
+    # sanity check order of inds and cts in ctp, ctnu, and P
     inds = P.index
     cts = P.columns
-    for gene in genes:
+
+    for i, gene in enumerate(genes):
         # extract gene and transform to ind * ct
         gene_ctp = ctp[gene].unstack()
         gene_ctnu = ctnu[gene].unstack()
         
-        # sanity reorder inds and cts in ctp, ctnu, and P
-        gene_ctp = gene_ctp.sort_index().sort_index(axis=1)
-        gene_ctnu = gene_ctnu.sort_index().sort_index(axis=1)
-
-        # santity check inds and cts matching between ctp, ctnu, and P
-        if not ( gene_ctnu.index.equals(inds) and gene_ctp.index.equals(inds) ):
-            sys.exit('Individuals not matching!')
-        if not ( gene_ctnu.columns.equals(cts) and gene_ctp.columns.equals(cts) ):
-            sys.exit('Cell types not matching!')
+        if i == 0:
+            # santity check inds and cts matching between ctp, ctnu, and P
+            if not ( gene_ctnu.index.equals(inds) and gene_ctp.index.equals(inds) ):
+                sys.exit('Individuals not matching!')
+            if not ( gene_ctnu.columns.equals(cts) and gene_ctp.columns.equals(cts) ):
+                sys.exit('Cell types not matching!')
 
         # standardization
         gene_op, gene_nu_op, gene_ctnu_op, gene_ctp, gene_nu_ctp, gene_ctnu_ctp = _std(
@@ -406,14 +403,18 @@ def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame, return_all: bool
         nu_ctp_genes.append( gene_nu_ctp )
         ctnu_ctp_genes.append( gene_ctnu_ctp )
 
-    op = pd.concat( op_genes, axis=1 )
+    std_op = pd.concat( op_genes, axis=1 )
     nu_op = pd.concat( nu_op_genes, axis=1 )
     ctnu_op = pd.concat( ctnu_op_genes, axis=1 )
-    ctp = pd.concat( ctp_genes, axis=1 )
+    std_ctp = pd.concat( ctp_genes, axis=1 )
     nu_ctp = pd.concat( nu_ctp_genes, axis=1 )
     ctnu_ctp = pd.concat( ctnu_ctp_genes, axis=1 )
 
+    # santity check order of inds and cts doesn't change after standardization
+    if not ( std_ctp.index.equals(ctp.index) and std_ctp.columns.equals(ctp.columns) ):
+        sys.exit('Orders of individuals and cell types changed after standardization!')
+
     if return_all:
-        return( op, nu_op, ctnu_op, ctp, nu_ctp, ctnu_ctp )
+        return( std_op, nu_op, ctnu_op, std_ctp, nu_ctp, ctnu_ctp )
     else:
-        return( op, nu_op, ctp, ctnu_ctp )
+        return( std_op, nu_op, std_ctp, ctnu_ctp )
