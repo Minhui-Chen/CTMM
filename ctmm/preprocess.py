@@ -173,8 +173,8 @@ def _softimpute(data: pd.DataFrame, seed: int=None, scale: bool=True) -> pd.Data
         imputed dataset
     '''
     # load softImpute r package
-    not_sourced = r['my_softImpute']
-    if not_sourced:
+    is_sourced = r("exists('my_softImpute')")[0]
+    if not is_sourced:
         rf = pkg_resources.resource_filename(__name__, 'softImpute.R')
         softImpute = STAP( open(rf).read(), 'softImpute' )
 
@@ -193,8 +193,8 @@ def _softimpute(data: pd.DataFrame, seed: int=None, scale: bool=True) -> pd.Data
 
     return( out )
 
-def softimpute(data: pd.DataFrame, seed: int=None, scale: bool->True, 
-    per_gene: bool->False) -> pd.DataFrame:
+def softimpute(data: pd.DataFrame, seed: int=None, scale: bool=True, 
+    per_gene: bool=False) -> pd.DataFrame:
     '''
     Impute missing ctp or ct-specific noise variance (ctnu)
 
@@ -248,8 +248,8 @@ def _mvn(data: pd.DataFrame) -> pd.DataFrame:
     '''
     
     # load MVN r package
-    not_sourced = r['MVN_impute']
-    if not_sourced:
+    is_sourced = r("exists('MVN_impute')")[0]
+    if not is_sourced:
         rf = pkg_resources.resource_filename(__name__, 'mvn.R')
         mvn_r = STAP( open(rf).read(), 'mvn_r' )
     pandas2ri.activate()
