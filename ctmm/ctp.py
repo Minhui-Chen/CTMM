@@ -1545,6 +1545,8 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
         jacks = { 'ct_beta':[], 'hom2':[], 'V':[] }
         if isinstance(jack_knife, bool):
             for i in range(N):
+                if i % 100 == 0:
+                    log.logger.info( str(i) )
                 Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                         i, Y, vs, fixed_covars, random_covars, P)
                 if optim_by_R:
@@ -1564,10 +1566,14 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
             var_V = (len(jacks['V']) - 1.0) * np.cov( np.array(jacks['V']).T, bias=True )
             var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov( np.array(jacks['ct_beta']).T, bias=True )
         else:
-            # block jackknife
+            # block jackknife (not tested)
             ms = np.split(np.arange(N), jack_knife)
             tau = lambda g, theta, theta_jk: g * theta - (g-1) * theta_jk
             for m in ms:
+                #profiler = cProfile.Profile()
+                #profiler.enable()
+
+                log.logger.info('Block Jackknifing')
                 Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                         m, Y, vs, fixed_covars, random_covars, P)
                 if optim_by_R:
@@ -1582,6 +1588,10 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
                 jacks['ct_beta'].append( tau(jack_knife, beta['ct_beta'], beta_jk['ct_beta']) )
                 jacks['hom2'].append( tau(jack_knife, hom2, hom2_jk) )
                 jacks['V'].append( tau(jack_knife, np.diag(V), np.diag(V_jk)) )
+                #profiler.disable()
+                #stats = pstats.Stats(profiler)
+                #stats.print_stats()
+                #sys.exit()
 
             var_hom2 = np.var(jacks['hom2'], ddof=1)/jack_knife
             var_V = np.cov( np.array(jacks['V']).T )/jack_knife
@@ -1661,8 +1671,11 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     # p values
     p = {}
     if jack_knife:
+        log.logger.info('Jackknifing')
         jacks = { 'ct_beta':[], 'hom2':[], 'V':[] }
         for i in range(N):
+            if i %% 10 == 0:
+                log.logger.info(f'{i}')
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
             hom2_jk, V_jk, _, beta_jk, _, _, _, _ = he_f(
