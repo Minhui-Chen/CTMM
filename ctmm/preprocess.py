@@ -161,7 +161,7 @@ def pseudobulk(counts: pd.DataFrame=None, meta: pd.DataFrame=None, ann: object=N
 
     return( ctp, ctnu, P, cell_counts )
 
-def _softimpute(data: pd.DataFrame, seed: int=None, scale: bool->True) -> pd.DataFrame:
+def _softimpute(data: pd.DataFrame, seed: int=None, scale: bool=True) -> pd.DataFrame:
     '''
     Impute missing ctp or ct-specific noise variance (ctnu)
 
