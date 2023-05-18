@@ -1674,7 +1674,7 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
         log.logger.info('Jackknifing')
         jacks = { 'ct_beta':[], 'hom2':[], 'V':[] }
         for i in range(N):
-            if i %% 10 == 0:
+            if i % 10 == 0:
                 log.logger.info(f'{i}')
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
