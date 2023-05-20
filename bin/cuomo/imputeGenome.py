@@ -20,7 +20,7 @@ def main():
             ### softimpute y
             y = preprocess.softimpute( y, seed=seed, scale=True )
             ### softimpute nu
-            nu = preproces.softimpute( nu, seed=seed, scale=True )
+            nu = preprocess.softimpute( nu, seed=seed, scale=True )
         else:
             sys.exit('Impute Genome only support softImpute!\n')
 
