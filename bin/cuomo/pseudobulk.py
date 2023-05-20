@@ -36,7 +36,9 @@ def main():
 
     # merge
     print( counts.shape[0])
-    counts = counts.merge(meta, left_index=True, right_on='cell_name') #  cell * (gene, donor, day)
+    meta = meta.drop('experiment', axis=1)
+    meta.set_index('cell_name', inplace=True)
+    counts = counts.merge(meta, left_index=True, right_index=True) #  cell * (gene, donor, day)
     if meta.shape[0] != counts.shape[0]:
         print(meta.shape[0], counts.shape[0])
         sys.exit('Missing cells?\n')
