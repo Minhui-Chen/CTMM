@@ -6,33 +6,33 @@ import seaborn as sns
 
 def main():
     # read
-    ong = np.load(snakemake.input.ong, allow_pickle=True).item()
-    ctng = np.load(snakemake.input.ctng, allow_pickle=True).item()
+    op = np.load(snakemake.input.op, allow_pickle=True).item()
+    ctp = np.load(snakemake.input.ctp, allow_pickle=True).item()
 
     #
     method = 'reml'
-    V = ong['reml']['free']['V']
+    V = op['reml']['free']['V']
     n = V.shape[0]
     C = V.shape[1]
     CTs = [f'CT{i}' for i in range(1,C+1)]
 
-    ong_data = pd.DataFrame()
-    ctng_data = pd.DataFrame()
+    op_data = pd.DataFrame()
+    ctp_data = pd.DataFrame()
     # Free model
     ## hom2
-    ong_data['hom2'] = ong[method]['free']['hom2']
-    ctng_data['hom2'] = ctng[method]['free']['hom2']
+    op_data['hom2'] = op[method]['free']['hom2']
+    ctp_data['hom2'] = ctp[method]['free']['hom2']
     ## V
-    V = [np.diag(x) for x in ong[method]['free']['V']]
+    V = [np.diag(x) for x in op[method]['free']['V']]
     V = pd.DataFrame(V, columns=[f'V-{ct}' for ct in CTs])
-    ong_data = pd.concat( (ong_data, V), axis=1)
-    V = [np.diag(x) for x in ctng[method]['free']['V']]
+    op_data = pd.concat( (op_data, V), axis=1)
+    V = [np.diag(x) for x in ctp[method]['free']['V']]
     V = pd.DataFrame(V, columns=[f'V-{ct}' for ct in CTs])
-    ctng_data = pd.concat( (ctng_data, V), axis=1)
+    ctp_data = pd.concat( (ctp_data, V), axis=1)
 
     for ct in CTs:
-        ong_data[f'V-{ct}-hom'] = ong_data[f'V-{ct}']+ong_data['hom2']
-        ctng_data[f'V-{ct}-hom'] = ctng_data[f'V-{ct}']+ctng_data['hom2']
+        op_data[f'V-{ct}-hom'] = op_data[f'V-{ct}']+op_data['hom2']
+        ctp_data[f'V-{ct}-hom'] = ctp_data[f'V-{ct}']+ctp_data['hom2']
 
     # plot
     mpl.rcParams.update({'font.size': 11})
@@ -45,7 +45,7 @@ def main():
         data[data > r] = r
         return data
 
-    data = cut_data(ctng_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy())
+    data = cut_data(ctp_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy())
     sns.violinplot(data=data, ax=axes[0], cut=0, color=color)
     axes[0].axhline(0, ls='--', color='0.8', zorder=0)
     axes[0].set_xlabel('')
@@ -68,16 +68,16 @@ def main():
 
     ## Full model
     m = 'reml'
-    V = ctng[m]['full']['V']
+    V = ctp[m]['full']['V']
     n, C = V.shape[:2]
     CT_pairs = [f'CT{i}-CT{j}' for i in range(1,C) for j in range(i+1,C+1)]
     print(CT_pairs)
     # plot cov or cor
     show = 'cor'
     if show == 'cov':
-        ctng_cov = [x[np.triu_indices(C,1)] for x in V]
-        ctng_cov = pd.DataFrame(ctng_cov, columns=CT_pairs)
-        data = pd.melt( ctng_cov )
+        ctp_cov = [x[np.triu_indices(C,1)] for x in V]
+        ctp_cov = pd.DataFrame(ctp_cov, columns=CT_pairs)
+        data = pd.melt( ctp_cov )
 
         threshold = [-1.0, 1.5]
         data.loc[data['value'] > threshold[1], 'value'] = threshold[1]
@@ -85,7 +85,7 @@ def main():
 
         ylab = 'Covariance between CTs in Full model'
     else:
-        ctng_cor = []
+        ctp_cor = []
         k = 0
         for x in V:
             if np.any(np.diag(x) < 0):
@@ -99,10 +99,10 @@ def main():
                     except:
                         print( x )
                         sys.exit()
-            ctng_cor.append( cor )
+            ctp_cor.append( cor )
         print( k )
-        ctng_cor = pd.DataFrame(ctng_cor, columns=CT_pairs)
-        data = pd.melt( ctng_cor )
+        ctp_cor = pd.DataFrame(ctp_cor, columns=CT_pairs)
+        data = pd.melt( ctp_cor )
 
         threshold = [-1.5, 1.5]
         data.loc[data['value'] > threshold[1], 'value'] = threshold[1]
