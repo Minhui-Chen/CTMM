@@ -757,7 +757,7 @@ def iid_ML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_covars
 
         # wald
         Vy = np.diag(hom2 + np.diag(P @ V @ P.T) + vs)
-        Z = [np.identity(len(y)), scipy.linalg.khatri_rao(np.identity(len(y)), P.T).T]
+        Z = [np.identity(len(y)), linalg.khatri_rao(np.identity(len(y)), P.T).T]
         if len(r2_d.keys()) > 0:
             for key in np.sort( list(r2_d.keys()) ):
                 M_ = random_covars[key]
@@ -906,7 +906,7 @@ def iid_REML(y_f: str, P_f: str, nu_f: str, fixed_covars_d: dict={}, random_cova
 
         # wald
         Vy = np.diag(hom2 + np.diag(P @ V @ P.T) + vs)
-        Z = [np.identity(len(y)), scipy.linalg.khatri_rao(np.identity(len(y)), P.T).T]
+        Z = [np.identity(len(y)), linalg.khatri_rao(np.identity(len(y)), P.T).T]
         if len(r2_d.keys()) > 0:
             for key in np.sort( list(r2_d.keys()) ):
                 M_ = random_covars[key]
