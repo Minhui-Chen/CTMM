@@ -1,5 +1,5 @@
 from snakemake.utils import Paramspace
-import re, sys, os, gzip, math, time, scipy, tempfile, copy
+import shutil, re, sys, os, gzip, math, scipy, copy
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
@@ -92,10 +92,6 @@ op_plot_order = {
             },
         }
 
-op_excluderareCT_plot_order = copy.deepcopy(op_plot_order)
-for model in op_excluderareCT_plot_order.keys():
-    op_excluderareCT_plot_order[model]['a'].remove('0.5_2_2_2')
-
 rule op_parameters:
     output:
         pi = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/PI.txt',
@@ -148,7 +144,8 @@ rule op_test:
         HE = True,
         method = 'BFGS',
     resources:
-        mem_per_cpu = '5000',
+        mem_mb = '5G',
+        time = '50:00:00',
     script: 'bin/sim/op_R.py'
 
 rule op_aggReplications:
@@ -159,7 +156,7 @@ rule op_aggReplications:
         out = f'analysis/op/{{model}}/{op_paramspace.wildcard_pattern}/out.npy',
     script: 'bin/mergeBatches.py'
 
-rule op_test_remlJK:
+use rule op_test as op_test_remlJK with:
     input:
         y = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/y.batch{{i}}.txt',
         P = f'staging/op/{{model}}/{op_paramspace.wildcard_pattern}/P.batch{{i}}.txt',
@@ -175,9 +172,8 @@ rule op_test_remlJK:
         Free_reml_jk = True,
         HE = False,
     resources:
-        mem_per_cpu = '10gb',
-        time = '18:00:00',
-    script: 'bin/sim/op_R.py'
+        mem_mb = '10gb',
+        time = '400:00:00',
 
 use rule op_aggReplications as op_remlJK_aggReplications with:
     input:
@@ -191,7 +187,7 @@ use rule op_aggReplications as op_remlJK_aggReplications with:
 #########################################################################################
 # par
 ctp_replicates = 1000
-ctp_batch_no = 100
+ctp_batch_no = 250
 ctp_batches = np.array_split(range(ctp_replicates), ctp_batch_no)
 
 use rule op_simulation as ctp_simulation with:
@@ -235,7 +231,7 @@ rule ctp_test:
         HE = True,
         optim_by_R = True,
     resources:
-        mem_per_cpu = '5gb',
+        mem_mb = '5gb',
         time = '48:00:00',
     priority: 1
     script: 'bin/sim/ctp.py'
@@ -257,17 +253,11 @@ rule ctp_test_remlJK:
     params:
         out = f'staging/ctp/{{model}}/{op_paramspace.wildcard_pattern}/rep/out.remlJK.npy',
         batch = lambda wildcards: ctp_batches[int(wildcards.i)],
-        ML = False,
-        REML = True,
-        Free_reml_only = True,
-        Free_reml_jk = True,
-        HE = False,
         optim_by_R = True,
     resources:
-        mem_per_cpu = '10gb',
+        mem_mb = '10gb',
         time = '200:00:00',
-    priority: 1
-    script: 'bin/sim/ctp.py'
+    script: 'bin/sim/ctp.remlJK.py'
 
 use rule op_aggReplications as ctp_remlJK_aggReplications with:
     input:
@@ -307,6 +297,10 @@ rule paper_opNctp_power:
 #########################################################################################
 # Cuomo et al 2020 Nature Communications
 #########################################################################################
+cuomo_ind_col = 'donor'
+cuomo_ct_col = 'day'
+cuomo_cell_col = 'cell_name'
+
 ####################### data ###########################
 rule cuomo_data_download:
     output:
@@ -457,7 +451,7 @@ rule cuomo_imputeGenome:
     params:
         seed = 123450, # seed for softimpute
     resources: 
-        mem = '20gb',
+        mem_mb = '20gb',
         time = '20:00:00',
     script: 'bin/cuomo/imputeGenome.py'
 
@@ -469,7 +463,7 @@ rule cuomo_imputeGenome:
 #    params:
 #        seed = 123450,
 #    resources:
-#        mem = '20gb',
+#        mem_mb = '20gb',
 #        time = '20:00:00',
 #    script: 'bin/impute_tst.py'
 
@@ -483,14 +477,14 @@ rule cuomo_imputeNinput4OP:
         nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.Gimputed.nu.gz', # donor - day * gene
         y_batch = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/y/batch{{i}}.txt', # genes
     output:
-        y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/y.txt', # list # y for each gene is sorted by ind order
-        nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.txt', # list
-        nu_ctp = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctp.txt', # list
-        P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/P.txt', # list
+        y = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/y.txt', # y for each gene is sorted by ind order
+        nu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.txt',
+        nu_ctp = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/nu.ctp.txt', 
+        P = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/P.txt', 
         imputed_cty = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.y.txt', # donor - day * gene
         imputed_ctnu = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.txt', #donor-day * gene # negative ct_nu set to 0
         imputed_ctnu_ctp = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{{i}}/ct.nu.ctp.txt', #donor-day * gene # negative ct_nu set to max(ct_nu)
-    resources: mem = '10gb',
+    resources: mem_mb = '10gb',
     script: 'bin/cuomo/imputeNinput4OP.py'
 
 rule cuomo_y_collect:
@@ -536,7 +530,7 @@ rule cuomo_op_test:
         genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
     resources:
         time = '48:00:00',
-        mem = '8gb',
+        mem_mb = '8gb',
     priority: -1
     script: 'bin/cuomo/op.py'
 
@@ -570,7 +564,7 @@ rule cuomo_ctp_test:
         Hom = False,
         optim_by_R = True, 
     resources: 
-        mem = '10gb',
+        mem_mb = '10gb',
         time = '48:00:00',
     script: 'bin/cuomo/ctp.py'
 
@@ -616,7 +610,7 @@ use rule cuomo_ctp_test as cuomo_ctp_test_remlJK with:
         IID = False,
         optim_by_R = True, 
     resources: 
-        mem = '16gb',
+        mem_mb = '16gb',
         time = '48:00:00',
 
 use rule op_aggReplications as cuomo_ctp_remlJK_aggReplications with:
@@ -667,6 +661,7 @@ rule cuomo_all:
                 params=cuomo_paramspace.instance_patterns),
         ctp_v = expand('results/cuomo/{params}/ctp.freeNfull.Variance.paper.png',
                 params=cuomo_paramspace.instance_patterns),
+
 ###########################################################################################
 # simulate Cuomo genes: a random gene's hom2, ct main variance, nu
 ###########################################################################################
@@ -880,6 +875,205 @@ rule cuomo_simulateGene_ctp_test_powerplot_paper:
         nu_noises = nu_noises,
         V3 = V3,
     script: 'bin/cuomo/simulateGene_ctp_test_powerplot_paper.py'
+
+#########################################################################################
+# Yazar et al 2022 Science
+#########################################################################################
+yazar_ind_col = 'individual'
+yazar_ct_col = 'cell_label'
+yazar_cell_col = 'cell'
+
+# read parameters
+yazar_params = pd.read_table('yazar.params.txt', dtype="str", comment='#')
+yazar_paramspace = Paramspace(yazar_params, filename_params="*")
+
+include: 'yazar.snake'
+
+rule yazar_rm_rareINDnCT_filterGenes:
+    input:
+        ctp = 'data/Yazar2022Science/ctp.gz',
+        ctnu = 'data/Yazar2022Science/ctnu.gz',
+        n = 'data/Yazar2022Science/n.gz',
+    output:
+        ctp = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.gz',
+        ctnu = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.gz',
+        P = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/P.gz',
+        n = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/n.gz',
+    resources:
+        mem_mb = '10G',
+    script: 'bin/yazar/rm_rareINDnCT.py'
+
+rule yazar_mvn_ctp:
+    input:
+        data = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.gz',
+    output:
+        data = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.mvn.gz',
+    resources:
+        mem_mb = '10G',
+    run:
+        from ctmm import preprocess
+        data = pd.read_table(input.data, index_col=(0,1)).astype('float32')
+        preprocess.mvn(data).to_csv(output.data, sep='\t')
+
+use rule yazar_mvn_ctp as yazar_mvn_ctnu with:
+    input:
+        data = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.gz',
+    output:
+        data = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.gz',
+
+rule yazar_std_op:
+    input:
+        ctp = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.mvn.gz',
+        ctnu = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.gz',
+        P = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/P.gz',
+    output:
+        op = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/op.mvn.gz',
+        nu = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/nu.mvn.gz',
+        ctp = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctp.mvn.gz',
+        ctnu = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.gz',
+    resources:
+        mem_mb = '10G',
+    run:
+        from ctmm import preprocess
+        ctp = pd.read_table(input.ctp, index_col=(0,1)).astype('float32')
+        ctnu = pd.read_table(input.ctnu, index_col=(0,1)).astype('float32')
+        P = pd.read_table(input.P, index_col=0)
+
+        op, nu, ctp, ctnu = preprocess.std(ctp, ctnu, P)
+
+        op.to_csv(output.op, sep='\t')
+        nu.to_csv(output.nu, sep='\t')
+        ctp.to_csv(output.ctp, sep='\t')
+        ctnu.to_csv(output.ctnu, sep='\t')
+
+rule yazar_op_pca:
+    input:
+        op = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/op.mvn.gz',
+    output:
+        evec = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/evec.txt',
+        eval = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/eval.txt',
+        pca = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/pca.txt',
+        png = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/pca.png',
+    resources:
+        mem_mb = '4G',
+    script: 'bin/yazar/pca.py'
+
+yazar_batch_no = 1000
+use rule cuomo_split2batches as yazar_split2batches with:
+    input:
+        y = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctp.mvn.gz',
+    output:
+        y_batch = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/y/batch{i}.txt' 
+                for i in range(cuomo_batch_no)],
+
+rule yazar_split_ctp:
+    input:
+        ctp = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctp.mvn.gz',
+        ctnu = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.gz',
+        y_batch = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/y/batch{i}.txt' 
+                for i in range(cuomo_batch_no)],
+        P = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/P.gz',
+        pca = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/pca.txt',
+        meta = 'data/Yazar2022Science/meta.txt',
+    output:
+        ctp = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/ctp.mvn.gz' 
+                for i in range(cuomo_batch_no)],
+        ctnu = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/ctnu.mvn.gz' 
+                for i in range(cuomo_batch_no)],
+        P = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/P.gz'
+                for i in range(cuomo_batch_no)],
+        pca = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/pca.txt'
+                for i in range(cuomo_batch_no)],
+        meta = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/meta.txt'
+                for i in range(cuomo_batch_no)],
+    resources:
+        mem_mb = '20gb',
+    run:
+        ctp = pd.read_table(input.ctp, index_col=(0,1))
+        ctnu = pd.read_table(input.ctnu, index_col=(0,1))
+        for batch, ctp_f, ctnu_f, P_f, pca_f, meta_f in zip(
+                input.y_batch, output.ctp, output.ctnu, output.P, output.pca, output.meta):
+            genes = np.loadtxt(batch, dtype='str')
+            ctp[genes].to_csv(ctp_f, sep='\t')
+            ctnu[genes].to_csv(ctnu_f, sep='\t')
+            shutil.copy(input.P, P_f)
+            shutil.copy(input.pca, pca_f)
+            shutil.copy(input.meta, meta_f)
+
+rule yazar_ctp_HE:
+    input:
+        y_batch = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/y/batch{{i}}.txt', # genes
+        ctp = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/ctp.mvn.gz', 
+        ctnu = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/ctnu.mvn.gz', 
+        P = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/P.gz', 
+        pca = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/pca.txt', 
+        meta = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/meta.txt', 
+    output:
+        out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/ctp.HE.txt',
+    params:
+        out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/rep/ctp.HE.npy',
+        genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
+        test = 'he',
+    resources:
+        mem_mb = '20gb',
+        time = '248:00:00',
+        partition = 'tier3q',
+    script: 'bin/yazar/ctp.py'
+
+use rule op_aggReplications as yazar_ctp_HE_aggReplications with:
+    input:
+        out = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/ctp.HE.txt'
+                for i in range(yazar_batch_no)],
+    output:
+        out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.HE.npy',
+
+use rule yazar_ctp_HE as yazar_ctp_REML with:
+    output:
+        out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/ctp.REML.txt',
+    params:
+        out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/rep/ctp.REML.npy',
+        genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
+        test = 'reml',
+    resources:
+        mem_mb = '10gb',
+        time = '248:00:00',
+
+use rule op_aggReplications as yazar_ctp_REML_aggReplications with:
+    input:
+        out = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/ctp.REML.txt'
+                for i in range(yazar_batch_no)],
+    output:
+        out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.REML.npy',
+
+rule yazar_merge:
+    input:
+        he = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.HE.npy',
+        reml = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.REML.npy',
+    output:
+        out = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctp.npy',
+    run:
+        he = np.load(input.he, allow_pickle=True).item()
+        reml = np.load(input.reml, allow_pickle=True).item()
+        # sanity check
+        if np.any(he['gene'] != reml['gene']):
+            sys.exit('Genes not matching!')
+        reml['he'] = he['he']
+        np.save(output.out, reml)
+
+rule yazar_ctp_freeNfull_Variance_paper:
+    input:
+        P = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/P.gz',
+        ctp = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctp.npy',
+    output:
+        png = f'results/yazar/{yazar_paramspace.wildcard_pattern}/ctp.freeNfull.Variance.paper.png',
+    script: 'bin/yazar/ctp_freeNfull_Variance.paper.py'
+
+rule yazar_all:
+    input:
+        ctp = expand('results/yazar/{params}/ctp.freeNfull.Variance.paper.png', 
+                params=yazar_paramspace.instance_patterns),
+
+
 
 ###########
 # OTHERS
