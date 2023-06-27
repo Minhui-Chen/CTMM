@@ -1,6 +1,5 @@
 import time
 import numpy as np, pandas as pd
-from memory_profiler import profile
 
 def count_expressed(x, threshold=0.1):
     x = x.unstack()
@@ -10,7 +9,6 @@ def count_expressed(x, threshold=0.1):
     else:
         return False
 
-@profile
 def main():
     # read
     ctp = pd.read_table(snakemake.input.ctp, index_col=(0,1)).astype('float32')
