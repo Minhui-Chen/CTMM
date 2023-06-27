@@ -1,0 +1,10 @@
+.snakemake/
+scripts/
+logs/
+data/
+analysis/
+analysis_20230510/
+results/
+results_20230510/
+randi/
+
