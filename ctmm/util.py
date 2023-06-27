@@ -2,13 +2,14 @@ from typing import Tuple, Optional, Union
 
 import os, tempfile, sys
 import numpy as np, pandas as pd
+import numpy.typing as npt
 import rpy2.robjects as ro
 from rpy2.robjects import r, pandas2ri, numpy2ri
 from rpy2.robjects.conversion import localconverter
 from scipy import stats, linalg, optimize
 from numpy.random import default_rng
 
-from . import wald
+from . import wald, log
 
 def read_covars(fixed_covars: dict = {}, random_covars: dict = {}, C: Optional[int] = None) -> tuple:
     '''
@@ -535,11 +536,156 @@ def lrt(l: float, l0: float, k: int) -> float:
 
     Lambda = 2 * (l-l0)
     p = stats.chi2.sf(Lambda, k)
-    return(p)
+    return p
 
 def generate_tmpfn():
     tmpf = tempfile.NamedTemporaryFile(delete=False)
     tmpfn = tmpf.name
     tmpf.close()
-    print(tmpfn)
+    log.logger.info(tmpfn)
     return tmpfn
+
+
+def sim_pseudobulk(beta: np.ndarray, hom2: float, ctnu: np.ndarray, n: int, C: int, V: np.ndarray=None, seed: int=None) -> np.ndarray:
+    """
+    Simulate CTP from model
+
+    Parameters:
+        beta:   cell type fixed effect
+        hom2:   variance of homogeneous effect
+        ctnu:   variance of residual effect of shape n X C
+        n:  number of simulated individuals
+        C:  number of simulated CTs
+        seed:   seed for generating random effect
+    
+    Returns:
+        CTP
+    """
+
+    rng = np.random.default_rng(seed)
+
+    # homogeneous effect
+    if hom2 < 0:
+        hom2 = 0
+    alpha = rng.normal(scale=np.sqrt(hom2), size=n)
+
+    # residual effect
+    delta = rng.normal(np.zeros_like(ctnu), np.sqrt(ctnu))
+
+    # pseudobulk
+    ctp = beta[np.newaxis, :] + alpha[:, np.newaxis] + delta
+
+    if V:
+        ctp += rng.multivariate_normal(np.zeros(C), V, size=(n, C))
+
+    return ctp
+
+
+def sim_sc(beta: np.ndarray, hom2: float, V: np.ndarray, n: int, C: int, k: float, d: float, depth: float, 
+           cell_no: int, seed: int=None) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Simulate gene expression for single cells
+
+    Parameters:
+        beta:   cell type fixed effect
+        hom2:   variance of homogeneous effect
+        V:  covariance of cell type specific effect
+        n:  number of simulated individuals
+        C:  number of simulated CTs
+        k:  CTP was scaled to OP mean 0 var 1, now scale back by sim_CTP * k + d
+        d:  CTP was scaled to OP mean 0 var 1, now scale back by sim_CTP * k + d
+        depth:  simulate read depth relative to 1M reads. e.g. depth = 0.1 -> 0.1M reads per cell
+        cell_no:    number of cells to simulate per individual-cell type pair
+        seed:   seed for generating random effect
+    
+    Returns:
+        CTP
+    """
+
+    rng = np.random.default_rng(seed)
+
+    # homogeneous effect
+    if hom2 < 0:
+        hom2 = 0
+    alpha = rng.normal(scale=np.sqrt(hom2), size=n)
+
+    cty = alpha[:, np.newaxis] + beta[np.newaxis, :]
+
+    if np.any(V != 0):
+        cty += rng.multivariate_normal(np.zeros(C), V, size=(n, C))
+
+    # scale back
+    cty = cty * k + d
+
+    # set negative to 0
+    cty[cty < 0] = 0
+
+    # trans to count per million
+    cpm = 2 ** cty - 1
+
+    # read depth
+    counts = cpm * depth
+
+    # poisson distribution to simulate counts
+    cell_counts = rng.poisson(counts[:, :, np.newaxis], (counts.shape[0], counts.shape[1], cell_no))
+
+    # transform counts to cpm
+    cpm = cell_counts / depth
+
+    # gene expression
+    cell_y = np.log2(cpm + 1)
+    cty = np.mean(cell_y, axis=2)
+
+    # use a large number of cells to compute real ctnu
+    tmp_cell_counts = rng.poisson(counts[:, :, np.newaxis], (counts.shape[0], counts.shape[1], 10000))
+    tmp_cpm = tmp_cell_counts / depth
+    tmp_cell_y = np.log2(tmp_cpm + 1)
+    cell_var = np.var(tmp_cell_y, axis=2)
+    ctnu = cell_var / cell_no
+
+    # scale back
+    cty = (cty - d) / k
+    ctnu = ctnu / (k**2)
+    #ctnu[ctnu == 0] = 1e-10  # TODO: give a small value to avoid hom break
+
+    return cty, ctnu
+
+
+def age_group(age: pd.Series):
+    """
+    Separate age groups
+    """
+    bins = np.arange(25, 91, 5)
+    new = pd.Series(np.digitize(age, bins), index=age.index)
+    if age.name is None:
+        return new
+    else:
+        return new.rename(age.name)
+
+
+def design(inds: npt.ArrayLike, pca: pd.DataFrame = None, PC: int = None, cat: pd.Series = None,
+           con: pd.Series = None, drop_first: bool = True) -> np.ndarray:
+    """
+    Construct design matrix
+
+    Parameters:
+        inds:   order of individuals
+        pca:    dataframe of pcs, with index: individuals (sort not required) and columns (PC1-PCx)
+        PC: number to PC to adjust
+        cat:    series of category elements e.g. sex: male and female
+        con:    series of continuous elements e.g. age
+        drop_first: drop the first column
+
+    Returns:
+        a design matrix
+    """
+
+    # pca
+    if pca is not None:
+        pcs = [f'PC{i}' for i in range(1, int(PC) + 1)]
+        return pca.loc[inds, pcs].to_numpy()
+    elif cat is not None:
+        return pd.get_dummies(cat, drop_first=drop_first).loc[inds, :].to_numpy()
+    elif con is not None:
+        return con[inds].to_numpy()
+
