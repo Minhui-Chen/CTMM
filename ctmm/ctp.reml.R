@@ -1,6 +1,8 @@
 install.packages( setdiff(c('numDeriv','Matrix'), rownames(installed.packages())) )
 library(numDeriv)
 library(Matrix)
+library(tensor)
+library(abind)
 source('util.R')
 
 LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
@@ -42,16 +44,10 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
         L <- 0.5 * L
 
     } else if ( !is.null(fixed) & is.null(random_MMT) ) {
+        fixed <- do.call(cbind, fixed)
+
         AD_det_sum <- 0
-        yADy_sum <- 0
-        XADy_sum <- rep(0, C)
-
-        Xi <- diag(C)
-        for (M in fixed) {
-            Xi <- cbind( Xi, kronecker(t(M[1,]),rep(1,C)) )
-        }
-        XADX_sum <- matrix(rep(0, ncol(Xi) * ncol(Xi)), nrow=ncol(Xi))
-
+        AD_inv_list <- list()
         for (i in 1:N) {
             AD <- A + diag(vs[i,])
 
@@ -61,30 +57,47 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
             if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
             if( any( diag(AD) < 0 ) ) return(1e12)
 
-            Xi <- diag(C)
-            for (M in fixed) {
-                Xi <- cbind( Xi, kronecker(t(M[i,]),rep(1,C)) )
-            }
-
-            AD_inv <- evec %*% diag(1/eval) %*% t(evec)
-            XADX <- t(Xi) %*% AD_inv %*% Xi
-            AD_det <- sum(log(eval))
-            yADy <- Y[i,] %*% AD_inv %*% Y[i,]
-            XADy <- t(Xi) %*% AD_inv %*% Y[i,]
-
-            XADX_sum <- XADX_sum + XADX
-            AD_det_sum <- AD_det_sum + AD_det
-            yADy_sum <- yADy_sum + yADy
-            XADy_sum <- XADy_sum + XADy
+            AD_inv_list[[i]] <- evec %*% diag(1/eval) %*% t(evec)
+            AD_det_sum <- AD_det_sum + sum(log(eval))
         }
+
+        X <- cbind(do.call(rbind, replicate(N, diag(C), simplify=FALSE)), fixed[rep(1:N, each=C),])
+        X_l <- lapply(split(X, rep(1:N, each=C)), matrix, nrow=C)
+        print(dim(X_l[[1]]))
+
+        XAD <- mapply(function(x, y) {
+            t(x) %*% y
+        }, X_l, AD_inv_list, SIMPLIFY=FALSE)
+        XAD <- do.call(cbind, XAD)
+        XADX <- XAD %*% X
+
+        e <- eigen(XADX, symmetric=TRUE)
+        eval <- e$values
+        evec <- e$vectors
+        if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
+        XADX_det <- sum(log(eval))
+        XADX_inv <- evec %*% diag(1/eval) %*% t(evec)
+
+        y <- as.vector(t(Y))
+        Y <- split(Y, row(Y))
+        # yAD <- y %*% AD_inv
+        yAD <- mapply(function(x, y) {
+            c(x %*% y)
+        }, Y, AD_inv_list, SIMPLIFY=FALSE)
+        yAD <- unlist(yAD)
+        yADX <- as.vector(yAD %*% X)
+
+        L <- AD_det_sum + XADX_det + yAD %*% y - yADX %*% XADX_inv %*% yADX
+        L <- as.numeric(0.5 * L)
 
         eval   <- eigen(XADX_sum, symmetric=TRUE)$values
         if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
         XADX_sum_det <- determinant(XADX_sum, logarithm=TRUE)$modulus
         XADX_sum_inv <- solve(XADX_sum)
 
-        L <- AD_det_sum + XADX_sum_det + yADy_sum - t(XADy_sum) %*% XADX_sum_inv %*% XADy_sum
+        L <- AD_det_sum + XADX_sum_det + yADy_sum - XADy_sum %*% XADX_sum_inv %*% XADy_sum
         L <- 0.5 * L
+
     } else if ( !is.null(random_MMT) ) {
         X <- kronecker( rep(1,N), diag(C) )
         if ( !is.null(fixed) ) {
@@ -310,6 +323,7 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
     }
 
     args <- list( Y=Y, vs=vs, fixed=fixed, random_MMT=random_MMT )
+
     out <- optim_wrap( par, screml_free_loglike, args, method, FALSE)
 
 	hom2 <- out$par[1]
