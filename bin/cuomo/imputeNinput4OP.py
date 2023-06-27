@@ -83,7 +83,7 @@ def main():
         os.makedirs(os.path.join(nu_path,f'rep{gene}'), exist_ok=True)
         os.makedirs(os.path.join(P_path,f'rep{gene}'), exist_ok=True)
 
-        np.savetxt(y_path+f'{y_path}/rep{gene}/y.gz', op[gene].to_numpy(), delimiter='\t')
+        np.savetxt(f'{y_path}/rep{gene}/y.gz', op[gene].to_numpy(), delimiter='\t')
         np.savetxt(f'{nu_path}/rep{gene}/nu.gz', nu_op[gene].to_numpy(), delimiter='\t')
         np.savetxt(f'{nu_path}/rep{gene}/nu.ctng.gz', nu_ctp[gene].to_numpy(), delimiter='\t')
 
