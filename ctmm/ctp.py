@@ -1514,15 +1514,21 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
                 Y, X, N, C, vs, P, fixed_covars, random_covars, method)
 
     # wald
-    Z = [np.repeat(np.eye(N), C, axis=0)]
-    for i in range(C):
-        m = np.zeros(C)
-        m[i] = 1
-        Z.append(np.kron(np.eye(N), m.reshape(-1,1)))
-    for key in random_covars.keys():
-        m = np.repeat( random_covars[key], C, axis=0 )
-        Z.append( m )
-    D = wald.reml_asymptotic_dispersion_matrix(X, Z, Vy)
+    # TODO: temp use hessian matrix to calculate covariance matrix
+    hess = np.array(out['hess'])
+    w, v = linalg.eigh(hess)
+    if np.all(w > 0) and (w[-1]/w[0] > 1e10):
+        D = linalg.inv(hess)
+    else:
+        Z = [np.repeat(np.eye(N), C, axis=0)]
+        for i in range(C):
+            m = np.zeros(C)
+            m[i] = 1
+            Z.append(np.kron(np.eye(N), m.reshape(-1,1)))
+        for key in random_covars.keys():
+            m = np.repeat( random_covars[key], C, axis=0 )
+            Z.append( m )
+        D = wald.reml_asymptotic_dispersion_matrix(X, Z, Vy)
 
     reml = {'beta':beta, 'hom2':hom2, 'V':V, 'fixedeffect_vars':fixed_vars,
             'ct_random_var':ct_overall_var, 'ct_specific_random_var':ct_specific_var,
