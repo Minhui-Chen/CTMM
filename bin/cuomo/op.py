@@ -1,6 +1,7 @@
 import os, sys, re
 import numpy as np, pandas as pd
-from ctmm import wald, util, op, cuomo_ctp
+import ctp as cuomo_ctp
+from ctmm import wald, util, op
 
 def main():
     # par
@@ -28,7 +29,7 @@ def main():
         # celltype specific mean nu
         ctnu = pd.read_table( ctnu_f )
         cts = np.unique( ctnu['day'] )
-        ctnu_grouped = ctnu.groupby('day').mean()
+        ctnu_grouped = ctnu.groupby('day')[gene].mean()
 
         ## HE
         hom_he, hom_he_wald = op.hom_HE(y_f, P_f, nu_f,
@@ -71,7 +72,7 @@ def main():
                     'wald':{'hom':hom_reml_wald, 'iid':iid_reml_wald, 'free':free_reml_wald} },
                 'he': {'hom': hom_he, 'iid': iid_he, 'free': free_he, 'full':full_he,
                     'wald':{'hom':hom_he_wald, 'iid': iid_he_wald, 'free': free_he_wald} },
-                'ct_mean_nu': {ct:ctnu_grouped.loc[ct, gene] for ct in cts},
+                'ct_mean_nu': {ct:ctnu_grouped.loc[ct] for ct in cts},
                 'gene': gene
                 }
 
