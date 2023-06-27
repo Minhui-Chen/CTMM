@@ -15,5 +15,8 @@ for f in nu_fs:
     else:
         genes.append( gene )
 
-np.savetxt(snakemake.output.genes, np.random.default_rng().choice(genes, snakemake.params.gene_no, replace=False), 
-        fmt='%s')
+seed = int(snakemake.params.seed)
+
+genes = np.random.default_rng(seed).choice(genes, snakemake.params.gene_no, replace=False)
+
+np.savetxt(snakemake.output.genes, genes, fmt='%s')
