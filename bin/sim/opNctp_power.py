@@ -4,6 +4,35 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+def get_power(outs, labels, arg, method):
+    power = {'Method':[method] * len(labels), 'Positive rate':[], 'label': labels}
+    if method == 'REML (LRT)':
+        for out in outs:
+            out = out['reml']['lrt'] 
+            power['Positive rate'].append(np.sum(out['free_hom'] < 0.05) / out['free_hom'].shape[0])
+    elif method in ['REML (Wald)', 'REML (JK)']:
+        for out in outs:
+            out = out['reml']['wald']
+            power['Positive rate'].append(np.sum(out['free']['V'] < 0.05) / out['free']['V'].shape[0])
+    elif method == 'HE':
+        for out in outs:
+            out = out['he']['wald']
+            power['Positive rate'].append(np.sum(out['free']['V'] < 0.05) / out['free']['V'].shape[0])
+    power = pd.DataFrame(power)
+
+    plot_order = np.array(snakemake.params.plot_order['free'][arg])
+    try:
+        power['label'] = power.apply(lambda x: str(int(float(x['label']))), axis=1)
+        plot_order = np.array( [str(int(float(x))) for x in plot_order] )
+        print('transform labels')
+    except:
+        pass
+    plot_order = plot_order[np.isin(plot_order, power['label'])]
+    power['label'] = pd.Categorical(power['label'], plot_order)
+
+    print(power)
+    return power
+
 def main():
     # par
 
@@ -20,35 +49,6 @@ def main():
     free_labels = snakemake.params.free
     hom_remlJK_labels = snakemake.params.hom_remlJK
     free_remlJK_labels = snakemake.params.free_remlJK
-
-    def get_power(outs, labels, arg, method):
-        power = {'Method':[method] * len(labels), 'Positive rate':[], 'label': labels}
-        if method == 'REML (LRT)':
-            for out in outs:
-                out = out['reml']['lrt'] 
-                power['Positive rate'].append(np.sum(out['free_hom'] < 0.05) / out['free_hom'].shape[0])
-        elif method in ['REML (Wald)', 'REML (JK)']:
-            for out in outs:
-                out = out['reml']['wald']
-                power['Positive rate'].append(np.sum(out['free']['V'] < 0.05) / out['free']['V'].shape[0])
-        elif method == 'HE':
-            for out in outs:
-                out = out['he']['wald']
-                power['Positive rate'].append(np.sum(out['free']['V'] < 0.05) / out['free']['V'].shape[0])
-        power = pd.DataFrame(power)
-
-        plot_order = np.array(snakemake.params.plot_order['free'][arg])
-        try:
-            power['label'] = power.apply(lambda x: str(int(float(x['label']))), axis=1)
-            plot_order = np.array( [str(int(float(x))) for x in plot_order] )
-            print('transform labels')
-        except:
-            pass
-        plot_order = plot_order[np.isin(plot_order, power['label'])]
-        power['label'] = pd.Categorical(power['label'], plot_order)
-
-        print(power)
-        return power
 
     reml_wald_op_hom_power = get_power(op_hom, hom_labels, 'ss', 'REML (Wald)')
     reml_wald_op_hom_power['Framework'] = 'OP'
@@ -81,7 +81,8 @@ def main():
     except:
         pass
     plot_order = plot_order[np.isin(plot_order, reml_hom_power['label'])]
-    reml_hom_power['label'] = pd.Categorical(reml_hom_power['label'], plot_order)
+    #reml_hom_power['label'] = pd.Categorical(reml_hom_power['label'], plot_order)
+    reml_hom_power['label'] = reml_hom_power['label'].astype('int')
 
     reml_hom_power = reml_hom_power.rename( columns={'label':'sample size'} )
 
@@ -110,7 +111,8 @@ def main():
         he_op_free_power, he_ctp_free_power], 
         ignore_index=True )
 
-    reml_free_power['label'] = pd.Categorical(reml_free_power['label'], plot_order)
+    #reml_free_power['label'] = pd.Categorical(reml_free_power['label'], plot_order)
+    reml_free_power['label'] = reml_free_power['label'].astype('int')
 
     reml_free_power = reml_free_power.rename( columns={'label':'sample size'} )
 
@@ -124,6 +126,7 @@ def main():
     sns.lineplot(data=reml_hom_power, x='sample size', y='Positive rate', hue='Method', 
             style='Framework', dashes={'OP':(3,2), 'CTP':''}, ax=axes[0], markers={'OP':'X', 'CTP':'o'},
             alpha=alpha, lw=lw, legend=False)
+    print(reml_hom_power)
     axes[0].set_ylabel('False positive rate', fontsize=9)
     axes[0].set_xlabel('Sample size', fontsize=9)
     axes[0].text(-0.10, 1.05, '(A)', fontsize=10, transform=axes[0].transAxes)
