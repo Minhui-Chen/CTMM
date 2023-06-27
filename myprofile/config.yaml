@@ -1,7 +1,7 @@
 cluster: "pbs-submit.py -o logs -e logs -N screml.{rule}.{wildcards}"
 cluster-status: "pbs-status.py"
 jobscript: "pbs-jobscript.sh"
-jobs: 600
+jobs: 200
 restart-times: 0
 immediate-submit: false
 verbose: false
