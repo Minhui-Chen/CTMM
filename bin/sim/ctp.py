@@ -1,11 +1,7 @@
 import os, sys, re
 import numpy as np
-from scipy import linalg, optimize, stats
-import rpy2.robjects as robjects
-from rpy2.robjects import r, pandas2ri, numpy2ri
-from rpy2.robjects.packages import STAP
 from ctmm import util, wald, ctp, log
-import cProfile, pstats
+
 
 def main():
     # par
@@ -87,9 +83,11 @@ def main():
 
         ## REML
         if snakemake.params.REML:
+            Free_reml_jk = snakemake.params.get('Free_reml_jk', False)
+
             if not HE_as_initial:
                 free_reml, free_reml_wald = ctp.free_REML(y_f, P_f, nu_f, method=method,  
-                        jack_knife=False, optim_by_R=optim_by_R)
+                        jack_knife=Free_reml_jk, optim_by_R=optim_by_R)
                 hom_reml, hom_reml_wald = ctp.hom_REML(y_f, P_f, nu_f, method=method, optim_by_R=optim_by_R)
                 iid_reml, iid_reml_wald = ctp.iid_REML(y_f, P_f, nu_f, method=method, optim_by_R=optim_by_R)
                 full_reml = ctp.full_REML(y_f, P_f, nu_f, method=method, optim_by_R=optim_by_R)
