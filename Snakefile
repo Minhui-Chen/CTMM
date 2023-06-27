@@ -348,9 +348,18 @@ rule cuomo_pseudobulk:
         y = 'analysis/cuomo/data/log/day.raw.pseudobulk.gz', # donor - day * gene
         nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
     resources: 
-        mem_per_cpu = '10gb',
+        mem_mb = '10gb',
         time = '24:00:00',
     script: 'bin/cuomo/pseudobulk.py'
+
+rule cuomo_day_pseudobulk_log_splitCounts:
+    input:
+        counts = 'data/cuomo2020natcommun/log_normalised_counts.csv.gz',
+    output:
+        counts = expand('staging/cuomo/bootstrapedNU/data/counts{i}.txt.gz', i=range(100)),
+    resources:
+        mem_mb = '10gb',
+    script: 'bin/cuomo/day_pseudobulk_log_splitCounts.py'
 
 rule cuomo_varNU:
     input:
@@ -359,13 +368,9 @@ rule cuomo_varNU:
     output:
         var_nu = 'staging/cuomo/bootstrapedNU/data/counts{i}.var_nu.gz',
     resources: 
-        mem_per_cpu = '10gb',
+        mem_mb = '10gb',
         time = '48:00:00',
-    shell: 
-        '''
-        module load python/3.8.1
-        python3 bin/cuomo/varNU.py {input.meta} {input.counts} {output.var_nu}
-        '''
+    script: 'bin/cuomo/varNU.py'
 
 rule cuomo_varNU_merge:
     input:
@@ -662,47 +667,57 @@ rule cuomo_all:
         ctp_v = expand('results/cuomo/{params}/ctp.freeNfull.Variance.paper.png',
                 params=cuomo_paramspace.instance_patterns),
 
+
 ###########################################################################################
 # simulate Cuomo genes: a random gene's hom2, ct main variance, nu
 ###########################################################################################
-cuomo_simulateGene_gene_no = 1000
-cuomo_simulateGene_batch_no = 100
+cuomo_simulateGene_gene_no = 200
+cuomo_simulateGene_batch_no = 50
 cuomo_simulateGene_batches = np.array_split(range(cuomo_simulateGene_gene_no), cuomo_simulateGene_batch_no)
+
+
 nu_noises = ['1_0_0', '1_2_20', '1_2_10', '1_2_5', '1_2_3', '1_2_2']
+V3 = ['0_0_0_0', '0.05_0.1_0.1_0.1', '0.1_0.1_0.1_0.1', '0.2_0.1_0.1_0.1', '0.5_0.1_0.1_0.1']
+
 
 rule cuomo_simulateGene_randompickgene:
     input:
-        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
         imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.ctp.txt'
                 for i in range(cuomo_batch_no)], #donor-day * gene 
     output:
         genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/genes.txt',
-    params: gene_no = cuomo_simulateGene_gene_no,
+    params: 
+        gene_no = cuomo_simulateGene_gene_no,
+        seed = 23456,
     script: 'bin/cuomo/simulateGene_randompickgene.py'
 
+
+###################### simulate pseudobulk ###################
 rule cuomo_simulateGene_hom:
     input:
         out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
         genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/genes.txt',
         imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.ctp.txt'
-                for i in range(cuomo_batch_no)], #donor-day * gene 
+                for i in range(cuomo_batch_no)], #donor-day * gene
         P = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/P.txt'
                 for i in range(cuomo_batch_no)], # list
     output:
-        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/P.batch{{i}}.txt',
-        ctnu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/ctnu.batch{{i}}.txt',
-        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/cty.batch{{i}}.txt',
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/genes.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/P.batch{{i}}.txt',
+        ctnu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/ctnu.batch{{i}}.txt',
+        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/cty.batch{{i}}.txt',
     params:
         batch = lambda wildcards: cuomo_simulateGene_batches[int(wildcards.i)],
-        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/rep/cty.txt' 
+        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/rep/cty.txt',
+        seed = lambda wildcards: 2468 + int(wildcards.i) * 10000,
     script: 'bin/cuomo/simulateGene_hom.py'
+
 
 rule cuomo_simulateGene_hom_addUncertainty:
     input:
-        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/ctnu.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/ctnu.batch{{i}}.txt',
     output:
-        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctnu.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctnu.batch{{i}}.txt',
     run:
         output_nus = open(output.nu, 'w')
         rng = np.random.default_rng()
@@ -727,40 +742,43 @@ rule cuomo_simulateGene_hom_addUncertainty:
             output_nus.write(uncertain_nu_f+'\n')
         output_nus.close()
 
+
 use rule ctp_test as cuomo_simulateGene_hom_ctp_test with:
     input:
-        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctnu.batch{{i}}.txt',
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctnu.batch{{i}}.txt',
     output:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.batch{{i}}.out',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctp.npy',
-        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/rep/ctp.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
         ML = True,
         REML = True,
         HE = True,
         optim_by_R = True,
 
+
 use rule op_aggReplications as cuomo_simulateGene_hom_ctp_aggReplications with:
     input:
-        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.batch{i}.out'
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.npy',
+
 
 use rule ctp_test as cuomo_simulateGene_hom_ctp_test_remlJK with:
     input:
-        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctnu.batch{{i}}.txt',
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctnu.batch{{i}}.txt',
     output:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/rep/ctp.remlJK.npy',
-        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/rep/ctp.remlJK.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
         ML = False,
         REML = True,
         Free_reml_jk = True,
@@ -770,22 +788,27 @@ use rule ctp_test as cuomo_simulateGene_hom_ctp_test_remlJK with:
         mem_per_cpu = '12gb',
         time = '48:00:00',
 
+
 use rule op_aggReplications as cuomo_simulateGene_hom_ctp_remlJK_aggReplications with:
     input:
-        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.batch{i}.out'
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.remlJK.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctp.remlJK.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.remlJK.npy',
+
 
 rule cuomo_simulateGene_Free_addV:
     input:
-        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/cty.batch{{i}}.txt',
+        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/cty.batch{{i}}.txt',
     output:
-        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/cty.batch{{i}}.txt',
+        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/cty.batch{{i}}.txt',
     params:
-        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/rep/cty.txt' 
+        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/rep/cty.txt',
+        seed = 987,
     run:
         free_fs = open(output.cty, 'w')
+        rng = np.random.default_rng(params.seed)
+        V = np.diag([float(x) for x in wildcards.V.split('_')])
         for line in open(input.cty):
             hom_f = line.strip()
             rep = re.findall('/rep[^/]+/', hom_f)[0]
@@ -793,8 +816,6 @@ rule cuomo_simulateGene_Free_addV:
 
             cty = np.loadtxt( hom_f )
             
-            rng = np.random.default_rng()
-            V = np.diag([float(x) for x in wildcards.V.split('_')])
             gamma_b = rng.multivariate_normal(np.zeros(cty.shape[1]), V, size=cty.shape[0])
             cty = cty + gamma_b
 
@@ -803,40 +824,43 @@ rule cuomo_simulateGene_Free_addV:
             free_fs.write(free_f + '\n')
         free_fs.close()
 
+
 use rule ctp_test as cuomo_simulateGene_Free_ctp_test with:
     input:
-        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctnu.batch{{i}}.txt',
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctnu.batch{{i}}.txt',
     output:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.batch{{i}}.out',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctp.npy',
-        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/rep/ctp.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
         ML = True,
         REML = True,
         HE = True,
         optim_by_R = True,
 
+
 use rule op_aggReplications as cuomo_simulateGene_Free_ctp_aggReplications with:
     input:
-        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.batch{i}.out'
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.npy',
+
 
 use rule ctp_test as cuomo_simulateGene_Free_ctp_test_remlJK with:
     input:
-        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{nu_noise}}/ctnu.batch{{i}}.txt',
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctnu.batch{{i}}.txt',
     output:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
     params:
-        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/rep/ctp.remlJK.npy',
-        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str'),
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/rep/ctp.remlJK.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
         ML = False,
         REML = True,
         Free_reml_jk = True,
@@ -846,35 +870,223 @@ use rule ctp_test as cuomo_simulateGene_Free_ctp_test_remlJK with:
         mem_per_cpu = '12gb',
         time = '48:00:00',
 
+
 use rule op_aggReplications as cuomo_simulateGene_Free_ctp_remlJK_aggReplications with:
     input:
-        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{i}.out'
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{i}.out'
                 for i in range(cuomo_simulateGene_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{{V}}/{{nu_noise}}/ctp.remlJK.npy',
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.remlJK.npy',
 
-V1 = ['0_0_0_0', '0.05_0_0_0','0.1_0_0_0', '0.2_0_0_0', '0.5_0_0_0']
-V2 = ['0.05_0.05_0.05_0.05', '0.1_0.1_0.1_0.1', '0.2_0.2_0.2_0.2', '0.5_0.5_0.5_0.5']
-V3 = ['0_0_0_0', '0.05_0.1_0.1_0.1', '0.1_0.1_0.1_0.1', '0.2_0.1_0.1_0.1', '0.5_0.1_0.1_0.1']
+
 rule cuomo_simulateGene_ctp_test_powerplot_paper:
     input:
-        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.npy'
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{nu_noise}/ctp.npy'
                 for nu_noise in nu_noises],
-        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{nu_noise}/ctp.remlJK.npy'
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/pseudo/{nu_noise}/ctp.remlJK.npy'
                 for nu_noise in nu_noises],
         nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
         var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
-        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.npy'
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{V}/1_2_5/ctp.npy'
                 for V in V3],
-        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/V_{V}/1_2_5/ctp.remlJK.npy'
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/pseudo/V_{V}/1_2_5/ctp.remlJK.npy'
                 for V in V3],
     output:
-        png1 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.power.paper.supp.png',
-        png2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.power.paper.png',
+        png1 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.pseudo.power.paper.supp.png',
+        png2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.pseudo.power.paper.png',
     params:
         nu_noises = nu_noises,
         V3 = V3,
     script: 'bin/cuomo/simulateGene_ctp_test_powerplot_paper.py'
+
+
+rule cuomo_simulateGene_pseudo_all:
+    input:
+        png2 = expand('results/cuomo/{params}/simulateGene/ctp.pseudo.power.paper.png',
+                params=cuomo_paramspace.instance_patterns)
+
+
+################### simulate single cells #############################
+# wildcard constraints
+wildcard_constraints: cell_no='\d+' 
+wildcard_constraints: depth='[\d\.]+' 
+
+
+rule cuomo_simulateGene_sc_hom:
+    input:
+        raw_cty = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/day.Gimputed.pseudobulk.gz', # imputed cty before std
+        std_cty = [f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.y.txt'
+                for i in range(cuomo_batch_no)], # cty after std
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/genes.txt',
+        imputed_ct_nu = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/ct.nu.ctp.txt'
+                for i in range(cuomo_batch_no)], #donor-day * gene 
+        P = [f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/batch{i}/P.txt'
+                for i in range(cuomo_batch_no)], # list
+    output:
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/genes.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/P.batch{{i}}.txt',
+        ctnu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/ctnu.batch{{i}}.txt',
+        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/cty.batch{{i}}.txt',
+    params:
+        batch = lambda wildcards: cuomo_simulateGene_batches[int(wildcards.i)],
+        cty = lambda wildcards, output: os.path.dirname(output.cty),
+        params = 9807,
+    resources:
+        mem_mb = '10gb',
+        burden = 10,
+    script: 'bin/cuomo/simulateGene_sc.py'
+
+use rule cuomo_simulateGene_hom_addUncertainty as cuomo_simulateGene_sc_hom_addUncertainty with:
+    input:
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/ctnu.batch{{i}}.txt',
+    output:
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctnu.batch{{i}}.txt',
+
+
+use rule ctp_test as cuomo_simulateGene_sc_hom_ctp_test with:
+    input:
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.batch{{i}}.out',
+    params:
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/rep/ctp.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',  # TODO, weird, snakemake evaluate the lambda func during DAG
+        ML = True,
+        REML = True,
+        HE = True,
+        optim_by_R = True,
+
+use rule op_aggReplications as cuomo_simulateGene_sc_hom_ctp_aggReplications with:
+    input:
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.batch{i}.out'
+                for i in range(cuomo_simulateGene_batch_no)],
+    output:
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.npy',
+
+use rule ctp_test_remlJK as cuomo_simulateGene_sc_hom_ctp_test_remlJK with:
+    input:
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
+    params:
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/rep/ctp.remlJK.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready', # TODO, weird, snakemake evaluate the lambda func during DAG
+        optim_by_R = True,
+    resources:
+        mem_mb = '12gb',
+        time = '48:00:00',
+        partition = 'tier1q',
+
+
+use rule op_aggReplications as cuomo_simulateGene_sc_hom_ctp_remlJK_aggReplications with:
+    input:
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.remlJK.batch{i}.out'
+                for i in range(cuomo_simulateGene_batch_no)],
+    output:
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.remlJK.npy',
+
+
+use rule cuomo_simulateGene_sc_hom as cuomo_simulateGene_sc_free with:
+    output:
+        genes = temp(f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/genes.batch{{i}}.txt'),
+        P = temp(f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/P.batch{{i}}.txt'),
+        ctnu = temp(f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/ctnu.batch{{i}}.txt'),
+        cty = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/cty.batch{{i}}.txt',
+    params:
+        batch = lambda wildcards: cuomo_simulateGene_batches[int(wildcards.i)],
+        cty = lambda wildcards, output: os.path.dirname(output.cty), 
+        seed = 12398,
+
+
+use rule ctp_test as cuomo_simulateGene_sc_Free_ctp_test with:
+    input:
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.batch{{i}}.out',
+    params:
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/rep/ctp.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready', # TODO, weird, snakemake evaluate the lambda func during DAG,
+        ML = True,
+        REML = True,
+        HE = True,
+        optim_by_R = True,
+
+
+use rule op_aggReplications as cuomo_simulateGene_sc_Free_ctp_aggReplications with:
+    input:
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.batch{i}.out'
+                for i in range(cuomo_simulateGene_batch_no)],
+    output:
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.npy',
+
+
+use rule ctp_test_remlJK as cuomo_simulateGene_sc_Free_ctp_test_remlJK with:
+    input:
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{{i}}.out',
+    params:
+        out = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/rep/ctp.remlJK.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
+        optim_by_R = True,
+    resources:
+        mem_mb = '12gb',
+        time = '48:00:00',
+
+
+use rule op_aggReplications as cuomo_simulateGene_sc_Free_ctp_remlJK_aggReplications with:
+    input:
+        out = [f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.remlJK.batch{i}.out'
+                for i in range(cuomo_simulateGene_batch_no)],
+    output:
+        out = f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.remlJK.npy',
+
+
+use rule cuomo_simulateGene_ctp_test_powerplot_paper as  cuomo_simulateGene_sc_ctp_test_powerplot_paper with:
+    input:
+        outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{nu_noise}/ctp.npy'
+                for nu_noise in nu_noises],
+        remlJK_outs = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{nu_noise}/ctp.remlJK.npy'
+                for nu_noise in nu_noises],
+        nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
+        var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
+        outs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{V}/1_2_5/ctp.npy'
+                for V in V3],
+        remlJKs3 = [f'analysis/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{V}/1_2_5/ctp.remlJK.npy'
+                for V in V3],
+    output:
+        png1 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/{{cell_no}}/{{depth}}/ctp.sc.power.paper.supp.png',
+        png2 = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/{{cell_no}}/{{depth}}/ctp.sc.power.paper.png',
+
+
+rule cuomo_simulateGene_sc_all:
+    input:
+        png2 = expand('results/cuomo/{params}/simulateGene/{cell_no}/{depth}/ctp.sc.power.paper.png',
+                params=cuomo_paramspace.instance_patterns,
+                cell_no=[50, 100], depth=[0.02, 0.2, 1]),
+
+
+rule cuomo_simulateGene_all:
+    input:
+        pseudo = expand('results/cuomo/{params}/simulateGene/ctp.pseudo.power.paper.png',
+                params=cuomo_paramspace.instance_patterns),
+        png2 = expand('results/cuomo/{params}/simulateGene/{cell_no}/{depth}/ctp.sc.power.paper.png',
+                params=cuomo_paramspace.instance_patterns,
+                cell_no=[50, 100], depth=[0.02, 0.2, 1]),
+
 
 #########################################################################################
 # Yazar et al 2022 Science
@@ -903,6 +1115,7 @@ rule yazar_rm_rareINDnCT_filterGenes:
         mem_mb = '10G',
     script: 'bin/yazar/rm_rareINDnCT.py'
 
+
 rule yazar_mvn_ctp:
     input:
         data = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.gz',
@@ -915,11 +1128,28 @@ rule yazar_mvn_ctp:
         data = pd.read_table(input.data, index_col=(0,1)).astype('float32')
         preprocess.mvn(data).to_csv(output.data, sep='\t')
 
+
 use rule yazar_mvn_ctp as yazar_mvn_ctnu with:
     input:
         data = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.gz',
     output:
         data = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.gz',
+
+
+rule yazar_zero_ctnu:
+    # >1 cts within a ind having ctnu=0, hom break
+    input: 
+        ctnu = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.gz',
+    output:
+        touch(f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.zeros'),
+    run:
+        ctnu = pd.read_table(input.ctnu, index_col=(0,1))
+        print(ctnu.shape[1])
+        grouped = (ctnu==0).groupby(level=0)
+        counts_ind = grouped.sum()
+        counts_gene = (counts_ind > 1).sum(axis=0)
+        print((counts_gene > 0).sum())
+
 
 rule yazar_std_op:
     input:
@@ -946,6 +1176,7 @@ rule yazar_std_op:
         ctp.to_csv(output.ctp, sep='\t')
         ctnu.to_csv(output.ctnu, sep='\t')
 
+
 rule yazar_op_pca:
     input:
         op = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/op.mvn.gz',
@@ -958,6 +1189,7 @@ rule yazar_op_pca:
         mem_mb = '4G',
     script: 'bin/yazar/pca.py'
 
+
 yazar_batch_no = 1000
 use rule cuomo_split2batches as yazar_split2batches with:
     input:
@@ -965,6 +1197,7 @@ use rule cuomo_split2batches as yazar_split2batches with:
     output:
         y_batch = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/y/batch{i}.txt' 
                 for i in range(cuomo_batch_no)],
+
 
 rule yazar_split_ctp:
     input:
@@ -1000,6 +1233,7 @@ rule yazar_split_ctp:
             shutil.copy(input.pca, pca_f)
             shutil.copy(input.meta, meta_f)
 
+
 rule yazar_ctp_HE:
     input:
         y_batch = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/y/batch{{i}}.txt', # genes
@@ -1020,12 +1254,37 @@ rule yazar_ctp_HE:
         partition = 'tier3q',
     script: 'bin/yazar/ctp.py'
 
+
 use rule op_aggReplications as yazar_ctp_HE_aggReplications with:
     input:
         out = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/ctp.HE.txt'
                 for i in range(yazar_batch_no)],
     output:
         out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.HE.npy',
+
+
+use rule yazar_ctp_HE as yazar_ctp_REML_free with:
+    output:
+        out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/ctp.REML.free.txt',
+    params:
+        out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{{i}}/rep/ctp.REML.free.npy',
+        genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
+        test = 'reml',
+        model = 'free',
+        jk = False, # TODO: change back to True
+    resources:
+        mem_mb = '10gb',
+        time = '248:00:00',
+        # partition = lambda wildcards: 'tier1q' if int(wildcards.i) % 2 == 0 else 'tier2q',
+
+
+use rule op_aggReplications as yazar_ctp_REML_free_aggReplications with:
+    input:
+        out = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/ctp.REML.free.txt'
+                for i in range(yazar_batch_no)],
+    output:
+        out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.REML.free.npy',
+
 
 use rule yazar_ctp_HE as yazar_ctp_REML with:
     output:
@@ -1038,12 +1297,14 @@ use rule yazar_ctp_HE as yazar_ctp_REML with:
         mem_mb = '10gb',
         time = '248:00:00',
 
+
 use rule op_aggReplications as yazar_ctp_REML_aggReplications with:
     input:
         out = [f'staging/yazar/{yazar_paramspace.wildcard_pattern}/batch{i}/ctp.REML.txt'
                 for i in range(yazar_batch_no)],
     output:
         out = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.REML.npy',
+
 
 rule yazar_merge:
     input:
@@ -1060,6 +1321,7 @@ rule yazar_merge:
         reml['he'] = he['he']
         np.save(output.out, reml)
 
+
 rule yazar_ctp_freeNfull_Variance_paper:
     input:
         P = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/P.gz',
@@ -1068,15 +1330,374 @@ rule yazar_ctp_freeNfull_Variance_paper:
         png = f'results/yazar/{yazar_paramspace.wildcard_pattern}/ctp.freeNfull.Variance.paper.png',
     script: 'bin/yazar/ctp_freeNfull_Variance.paper.py'
 
+
 rule yazar_all:
     input:
         ctp = expand('results/yazar/{params}/ctp.freeNfull.Variance.paper.png', 
                 params=yazar_paramspace.instance_patterns),
 
 
+###########################################################################################
+# simulate Yazar genes: a random gene's hom2, ct main variance, nu
+###########################################################################################
+yazar_simulateGene_gene_no = 200
+yazar_simulateGene_batch_no = 50
+yazar_simulateGene_batches = np.array_split(range(yazar_simulateGene_gene_no), yazar_simulateGene_batch_no)
+
+
+yazar_nu_noises = ['1_0_0', '1_2_20', '1_2_5', '1_2_2', '1_2_1', '1_2_0.01']
+yazar_V3 = ['0_0', '1_1', '2_1', '4_1', '6_1'] # main ct_other cts
+
+
+rule yazar_simulateGene_randompickgene:
+    input:
+        ctnu = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.gz',
+    output:
+        genes = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/genes.txt',
+    params: 
+        gene_no = yazar_simulateGene_gene_no,
+        seed = 234567,
+    script: 'bin/yazar/simulateGene_randompickgene.py'
+
+
+###################### simulate pseudobulk ###################
+rule yazar_simulateGene_hom:
+    input:
+        out = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctp.npy',
+        genes = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/genes.txt',
+        ctnu = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.gz',
+        P = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/P.gz',
+    output:
+        genes = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/genes.batch{{i}}.txt',
+        P = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/P.batch{{i}}.txt',
+        ctnu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/ctnu.batch{{i}}.txt',
+        cty = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/cty.batch{{i}}.txt',
+    params:
+        batch = lambda wildcards: yazar_simulateGene_batches[int(wildcards.i)],
+        path = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/rep',
+        seed = lambda wildcards: 13579 + int(wildcards.i)*10000,
+    script: 'bin/yazar/simulateGene_hom.py'
+
+
+use rule cuomo_simulateGene_hom_addUncertainty as yazar_simulateGene_hom_addUncertainty with:
+    input:
+        nu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/ctnu.batch{{i}}.txt',
+    output:
+        nu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctnu.batch{{i}}.txt',
+
+
+rule yazar_simulateGene_hom_ctp_he:
+    input:
+        genes = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/genes.batch{{i}}.txt',
+        y = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/cty.batch{{i}}.txt',
+        P = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/P.batch{{i}}.txt',
+        nu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.he.batch{{i}}.out',
+    params:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/rep/ctp.he.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
+        HE = True,
+    script: 'bin/sim/yazar.ctp.py'
+
+
+use rule op_aggReplications as yazar_simulateGene_hom_ctp_he_aggReplications with:
+    input:
+        out = [f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.he.batch{i}.out'
+                for i in range(yazar_simulateGene_batch_no)],
+    output:
+        out = f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.he.npy',
+
+
+use rule yazar_simulateGene_hom_ctp_he as yazar_simulateGene_hom_ctp_reml with:
+    output:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.reml.batch{{i}}.out',
+    params:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/rep/ctp.reml.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
+        REML = True,
+        Free_reml_jk = True,
+        optim_by_R = True,
+    resources:
+        mem_per_cpu = '12gb',
+        time = '148:00:00',
+
+
+use rule op_aggReplications as yazar_simulateGene_hom_ctp_reml_aggReplications with:
+    input:
+        out = [f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.reml.batch{i}.out'
+                for i in range(yazar_simulateGene_batch_no)],
+    output:
+        out = f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctp.reml.npy',
+
+
+rule yazar_simulateGene_Free_addV:
+    input:
+        cty = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/cty.batch{{i}}.txt',
+    output:
+        cty = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/cty.batch{{i}}.txt',
+    params:
+        cty = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/rep/cty.txt',
+        seed = 1234,
+    run:
+        free_fs = open(output.cty, 'w')
+        rng = np.random.default_rng(params.seed)
+
+        V_tmp = wildcards.V.split('_')
+        for line in open(input.cty):
+            hom_f = line.strip()
+            rep = re.findall('/rep[^/]+/', hom_f)[0]
+            free_f = re.sub('/rep/', rep, params.cty)
+
+            cty = np.loadtxt( hom_f )
+            n, C = cty.shape
+            V = np.array(V_tmp + V_tmp[-1] * (C - len(V_tmp))).astype('float')
+            
+            gamma_b = rng.multivariate_normal(np.zeros(C), V, size=n)
+            cty = cty + gamma_b
+
+            os.makedirs( os.path.dirname(free_f), exist_ok=True)
+            np.savetxt(free_f, cty)
+            free_fs.write(free_f + '\n')
+        free_fs.close()
+
+
+use rule yazar_simulateGene_hom_ctp_he as yazar_simulateGene_free_ctp_he with:
+    input:
+        genes = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/genes.batch{{i}}.txt',
+        y = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/cty.batch{{i}}.txt',
+        P = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/P.batch{{i}}.txt',
+        nu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{{nu_noise}}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.he.batch{{i}}.out',
+    params:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/rep/ctp.he.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
+        HE = True,
+
+
+use rule op_aggReplications as yazar_simulateGene_free_ctp_he_aggReplications with:
+    input:
+        out = [f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.he.batch{i}.out'
+                for i in range(yazar_simulateGene_batch_no)],
+    output:
+        out = f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.he.npy',
+
+
+use rule yazar_simulateGene_free_ctp_he as yazar_simulateGene_free_ctp_reml with:
+    output:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.reml.batch{{i}}.out',
+    params:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/rep/ctp.reml.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
+        REML = True,
+        Free_reml_jk = True,
+        optim_by_R = True,
+    resources:
+        mem_per_cpu = '12gb',
+        time = '148:00:00',
+
+
+use rule op_aggReplications as yazar_simulateGene_free_ctp_reml_aggReplications with:
+    input:
+        out = [f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.reml.batch{i}.out'
+                for i in range(yazar_simulateGene_batch_no)],
+    output:
+        out = f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{{V}}/{{nu_noise}}/ctp.reml.npy',
+
+
+use rule cuomo_simulateGene_ctp_test_powerplot_paper as yazar_simulateGene_ctp_test_powerplot_paper with:
+    input:
+        outs = [f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{nu_noise}/ctp.he.npy'
+                for nu_noise in yazar_nu_noises],
+        remlJK_outs = [f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/pseudo/{nu_noise}/ctp.reml.npy'
+                for nu_noise in yazar_nu_noises],
+        nu = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.gz',
+        var_nu = 'analysis/yazar/var_ctnu.gz',
+        outs3 = [f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{V}/1_2_5/ctp.he.npy'
+                for V in yazar_V3],
+        remlJKs3 = [f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/pseudo/V_{V}/1_2_5/ctp.reml.npy'
+                for V in yazar_V3],
+    output:
+        png1 = f'results/yazar/{yazar_paramspace.wildcard_pattern}/simulateGene/ctp.pseudo.power.paper.supp.png',
+        png2 = f'results/yazar/{yazar_paramspace.wildcard_pattern}/simulateGene/ctp.pseudo.power.paper.png',
+    params:
+        nu_noises = yazar_nu_noises,
+        V3 = yazar_V3,
+
+
+rule yazar_simulateGene_pseudo_all:
+    input:
+        png2 = expand('results/yazar/{params}/simulateGene/ctp.pseudo.power.paper.png',
+                params=yazar_paramspace.instance_patterns)
+
+
+################### simulate single cells #############################
+rule yazar_simulateGene_sc_hom:
+    input:
+        raw_cty = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctp.mvn.gz', # imputed cty before std
+        std_cty = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctp.mvn.gz', # imputed cty before std
+        out = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctp.npy',
+        genes = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/genes.txt',
+        ctnu = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.mvn.gz',
+        P = f'analysis/yazar/{yazar_paramspace.wildcard_pattern}/P.gz',
+    output:
+        genes = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/genes.batch{{i}}.txt',
+        P = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/P.batch{{i}}.txt',
+        ctnu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/ctnu.batch{{i}}.txt',
+        cty = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/cty.batch{{i}}.txt',
+    params:
+        batch = lambda wildcards: yazar_simulateGene_batches[int(wildcards.i)],
+        cty = lambda wildcards, output: os.path.dirname(output.cty),
+        seed = 3484437,
+    resources:
+        mem_mb = '10gb',
+        burden = 10,
+    script: 'bin/yazar/simulateGene_sc.py'
+
+
+use rule yazar_simulateGene_hom_addUncertainty as yazar_simulateGene_sc_hom_addUncertainty with:
+    input:
+        nu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/ctnu.batch{{i}}.txt',
+    output:
+        nu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctnu.batch{{i}}.txt',
+
+
+use rule yazar_simulateGene_hom_ctp_he as yazar_simulateGene_sc_hom_ctp_he with:
+    input:
+        genes = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/genes.batch{{i}}.txt',
+        y = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/cty.batch{{i}}.txt',
+        P = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/P.batch{{i}}.txt',
+        nu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.he.batch{{i}}.out',
+    params:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/rep/ctp.he.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready', 
+        HE = True,
+
+
+use rule op_aggReplications as yazar_simulateGene_sc_hom_ctp_he_aggReplications with:
+    input:
+        out = [f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.he.batch{i}.out'
+                for i in range(yazar_simulateGene_batch_no)],
+    output:
+        out = f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.he.npy',
+
+
+use rule yazar_simulateGene_sc_hom_ctp_he as yazar_simulateGene_sc_hom_ctp_reml with:
+    output:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.reml.batch{{i}}.out',
+    params:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/rep/ctp.reml.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready', 
+        REML = True,
+        Free_reml_jk = True,
+        optim_by_R = True,
+    resources:
+        mem_mb = '12gb',
+        time = '48:00:00',
+
+
+use rule op_aggReplications as yazar_simulateGene_sc_hom_ctp_reml_aggReplications with:
+    input:
+        out = [f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.reml.batch{i}.out'
+                for i in range(yazar_simulateGene_batch_no)],
+    output:
+        out = f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctp.reml.npy',
+
+
+use rule yazar_simulateGene_sc_hom as yazar_simulateGene_sc_free with:
+    output:
+        genes = temp(f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/genes.batch{{i}}.txt'),
+        P = temp(f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/P.batch{{i}}.txt'),
+        ctnu = temp(f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/ctnu.batch{{i}}.txt'),
+        cty = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/cty.batch{{i}}.txt',
+    params:
+        batch = lambda wildcards: yazar_simulateGene_batches[int(wildcards.i)],
+        cty = lambda wildcards, output: os.path.dirname(output.cty), 
+        seed = 748932,
+
+
+use rule yazar_simulateGene_sc_hom_ctp_he as yazar_simulateGene_sc_free_ctp_he with:
+    input:
+        genes = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/genes.batch{{i}}.txt',
+        y = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/cty.batch{{i}}.txt',
+        P = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/P.batch{{i}}.txt',
+        nu = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/ctnu.batch{{i}}.txt',
+    output:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.he.batch{{i}}.out',
+    params:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/rep/ctp.he.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready', 
+        HE = True,
+
+
+use rule op_aggReplications as yazar_simulateGene_sc_free_ctp_he_aggReplications with:
+    input:
+        out = [f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.he.batch{i}.out'
+                for i in range(yazar_simulateGene_batch_no)],
+    output:
+        out = f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.he.npy',
+
+
+use rule yazar_simulateGene_sc_free_ctp_he as yazar_simulateGene_sc_free_ctp_reml with:
+    output:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.reml.batch{{i}}.out',
+    params:
+        out = f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/rep/ctp.reml.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready', 
+        REML = True,
+        Free_reml_jk = True,
+        optim_by_R = True,
+    resources:
+        mem_mb = '12gb',
+        time = '148:00:00',
+
+
+use rule op_aggReplications as yazar_simulateGene_sc_free_ctp_reml_aggReplications with:
+    input:
+        out = [f'staging/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.reml.batch{i}.out'
+                for i in range(yazar_simulateGene_batch_no)],
+    output:
+        out = f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/ctp.reml.npy',
+
+
+use rule yazar_simulateGene_ctp_test_powerplot_paper as  yazar_simulateGene_sc_ctp_test_powerplot_paper with:
+    input:
+        outs = [f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{nu_noise}/ctp.he.npy'
+                for nu_noise in yazar_nu_noises],
+        remlJK_outs = [f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{nu_noise}/ctp.reml.npy'
+                for nu_noise in yazar_nu_noises],
+        nu = f'staging/yazar/{yazar_paramspace.wildcard_pattern}/ctnu.gz',
+        var_nu = 'analysis/yazar/var_ctnu.gz',
+        outs3 = [f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{V}/1_2_5/ctp.he.npy'
+                for V in yazar_V3],
+        remlJKs3 = [f'analysis/yazar/simulateGene/{yazar_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{V}/1_2_5/ctp.reml.npy'
+                for V in yazar_V3],
+    output:
+        png1 = f'results/yazar/{yazar_paramspace.wildcard_pattern}/simulateGene/{{cell_no}}/{{depth}}/ctp.sc.power.paper.supp.png',
+        png2 = f'results/yazar/{yazar_paramspace.wildcard_pattern}/simulateGene/{{cell_no}}/{{depth}}/ctp.sc.power.paper.png',
+
+
+rule yazar_simulateGene_sc_all:
+    input:
+        png2 = expand('results/yazar/{params}/simulateGene/{cell_no}/{depth}/ctp.sc.power.paper.png',
+                params=yazar_paramspace.instance_patterns,
+                cell_no=[50, 100], depth=[0.02, 0.2, 1]),
+
+
+rule yazar_simulateGene_all:
+    input:
+        pseudo = expand('results/yazar/{params}/simulateGene/ctp.pseudo.power.paper.png',
+                params=yazar_paramspace.instance_patterns),
+        png2 = expand('results/yazar/{params}/simulateGene/{cell_no}/{depth}/ctp.sc.power.paper.png',
+                params=yazar_paramspace.instance_patterns,
+                cell_no=[50, 100], depth=[0.02, 0.2, 1]),
+
 
 ###########
 # OTHERS
 ###########
-if os.path.exists('CTMM.snake'):
-    include: 'CTMM.snake'
+if os.path.exists('CTMM.smk'):
+    include: 'CTMM.smk'

@@ -16,7 +16,8 @@ def main():
     nu_path = os.path.dirname(output.nu)
     if snakemake.wildcards.im_genome in ['Y']:
         if snakemake.wildcards.im_mvn == 'N':
-            seed = snakemake.params.get('seed', None)
+            #seed = snakemake.params.get('seed', None) # TODO: use params seed
+            seed = snakemake.wildcards.get('seed', None)
             ### softimpute y
             y = preprocess.softimpute( y, seed=seed, scale=True )
             ### softimpute nu
