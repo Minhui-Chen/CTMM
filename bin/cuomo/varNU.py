@@ -4,9 +4,9 @@ from scipy import stats
 
 def main():
     #
-    meta = pd.read_table(sys.argv[1], usecols=['donor', 'day', 'cell_name'])
+    meta = pd.read_table(snakemake.input.meta, usecols=['donor', 'day', 'cell_name'])
 
-    counts = pd.read_table(sys.argv[2], index_col=0) # gene * cell
+    counts = pd.read_table(snakemake.input.counts, index_col=0) # gene * cell
     counts = counts[ meta['cell_name'] ]
     counts = counts.transpose() # cell * gene
     genes = counts.columns
@@ -25,7 +25,7 @@ def main():
             return stats.bootstrap( (x,), lambda x, axis: stats.sem(x,axis=axis)**2 ).standard_error**2
 
     var_ct_nu = counts_groupby_ct.agg(lambda x: my_bootstrap(x) )
-    var_ct_nu.to_csv(sys.argv[3], sep='\t')
+    var_ct_nu.to_csv(snakemake.output.var_nu, sep='\t')
 
 if __name__ == '__main__':
     main()
