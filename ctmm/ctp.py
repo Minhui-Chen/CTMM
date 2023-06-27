@@ -1409,9 +1409,9 @@ def free_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, v
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
 def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={},
-        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, jack_knife: Union[bool, int]=False, optim_by_R: bool=False
-        ) -> Tuple[dict, dict]:
-    '''
+        par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, jack_knife: Union[bool, int]=False, 
+        information: bool=True, optim_by_R: bool=False) -> Tuple[dict, dict]:
+    """
     Perform REML on Free model
 
     Parameters:
@@ -1429,13 +1429,15 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
         nrep:   number of repeats if initinal optimization failed
         jack_knife: perform jackknife-based Wald test. When it's int, conduct delete-m jackknife 
                     with jack_knife=number of blocks
+        information:    perform Wald test using Information matrix
         optim_by_R: use R optim function (default) or scipy.optimize.minimize for optimization
     Returns
         A tuple of
             #.  estimates of parameters and others
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0)
                 ct_beta (no mean expression difference between cell types)
-    '''
+    """
+
     log.logger.info('Fitting Free REML')
 
     def extract(out, Y, X, P, vs, fixed_covars, random_covars, random_MMT):
@@ -1514,10 +1516,10 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
                 Y, X, N, C, vs, P, fixed_covars, random_covars, method)
 
     # wald
-    # TODO: temp use hessian matrix to calculate covariance matrix
     hess = np.array(out['hess'])
     w, v = linalg.eigh(hess)
-    if np.all(w > 0) and (w[-1]/w[0] > 1e10):
+    if w[0] > 0 and w[-1]/w[0] < 1e10 and information:
+        log.logger.info('Hessian')
         D = linalg.inv(hess)
     else:
         Z = [np.repeat(np.eye(N), C, axis=0)]
