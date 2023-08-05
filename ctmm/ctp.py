@@ -112,7 +112,7 @@ def cal_Vy(A: np.ndarray, vs: np.ndarray, r2: list=[], random_MMT: list=[]) -> n
 #
 
 def _pMp(X:np.ndarray, XTX_inv: np.ndarray, N: int, F:np.ndarray,
-        fixed_covars: dict) -> np.ndarray:
+        fixed_covars: dict, dtype:str = None) -> np.ndarray:
     '''
     Compute proj @ M @ proj
     '''
@@ -128,10 +128,13 @@ def _pMp(X:np.ndarray, XTX_inv: np.ndarray, N: int, F:np.ndarray,
         M = np.kron(B,F)
         p_M = M - X @ XTX_inv @ (X.T @ M)
         M = p_M - p_M @ X @ XTX_inv @ X.T
-    return( M )
+    if dtype:
+        M = M.astype(dtype)
+
+    return M
 
 def _make_Q(X:np.ndarray, XTX_inv:np.ndarray, N:int, C:int, fixed_covars:dict, random_covars:dict, 
-        model:str) -> Tuple[np.ndarray, list]:
+        model:str, dtype:str = None) -> Tuple[list, list]:
     if model == 'hom':
         Q = [ _pMp( X, XTX_inv, N, np.ones((C,C)), fixed_covars ) ] # M (I_N \otimes J_C) M
     elif model == 'iid':
@@ -160,15 +163,20 @@ def _make_Q(X:np.ndarray, XTX_inv:np.ndarray, N:int, C:int, fixed_covars:dict, r
     for key in np.sort( list(random_covars.keys()) ):
         R = random_covars[key]
         m = np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1 )
-        random_MMT.append( m )
         p_m = m - X @ XTX_inv @ (X.T @ m)
-        Q.append( p_m - p_m @ X @ XTX_inv @ X.T)
+        x = p_m - p_m @ X @ XTX_inv @ X.T
+        if dtype:
+            m = m.astype(dtype)
+            x = x.astype(dtype)
+        random_MMT.append(m)
+        Q.append(x)
 
-    return( Q, random_MMT )
+    return Q, random_MMT
+
 
 def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, fixed_covars: dict, 
-        random_covars: dict, model: str) -> Tuple[np.ndarray, list]:
-    '''
+        random_covars: dict, model: str, dtype: str = None) -> Tuple[np.ndarray, list]:
+    """
     Perform OLS in HE
 
     Parameters:
@@ -180,11 +188,13 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, fixed_covars: dict,
         random_covars:  a dict of design matrices for each feature of random effect,
                         except for shared and cell type-specific random effects
         model:  hom/iid/free/full
+        dtype:  data type to save memory
     Returns:
         a tuple of 
             #. estimates of random effect variances, e.g., \sigma_hom^2, V
             #. list of M @ M^T
-    '''
+    """
+
     #profiler = cProfile.Profile()
     #profiler.enable()
 
@@ -205,9 +215,11 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, fixed_covars: dict,
     pD = proj * vs.flatten()
     pDp = pD - pD @ X @ XTX_inv @ X.T
     t = np.outer( y_p, y_p ) - pDp     # proj @ y @ y^T @ proj - proj @ D @ proj
+    if dtype:
+        t = t.astype(dtype)
 
     # Q matrix
-    Q, random_MMT = _make_Q(X, XTX_inv, N, C, fixed_covars, random_covars, model)
+    Q, random_MMT = _make_Q(X, XTX_inv, N, C, fixed_covars, random_covars, model, dtype=dtype)
 
     # theta
     QTQ = np.tensordot(Q, Q, axes=([1,2],[1,2]))
@@ -219,7 +231,7 @@ def he_ols(Y: np.ndarray, X: np.ndarray, vs: np.ndarray, fixed_covars: dict,
     #stats = pstats.Stats(profiler)
     #stats.print_stats()
 
-    return( theta, random_MMT )
+    return theta, random_MMT
 
 def ML_LL(Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, hom2: float, 
         beta: np.ndarray, V: np.ndarray, r2: list=[], random_MMT: list=[]) -> float:
@@ -1518,7 +1530,7 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
     # wald
     hess = np.array(out['hess'])
     w, v = linalg.eigh(hess)
-    if w[0] > 0 and w[-1]/w[0] < 1e10 and information:
+    if w[0] > 0 and w[-1]/w[0] < 1e10 and (not information):
         log.logger.info('Hessian')
         D = linalg.inv(hess)
     else:
@@ -1615,8 +1627,8 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
     return(reml, p)
 
 def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
-        jack_knife: bool=True) -> Tuple[dict, dict]:
-    '''
+        jack_knife: bool=True, ols: bool=False, ols_ew: bool=False, gls: bool=False) -> Tuple[dict, dict]:
+    """
     Perform HE on Free model
 
     Parameters:
@@ -1629,12 +1641,15 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
         random_covars_d:    files of design matrices for random effects,
                             except for cell type-shared and -specifc random effect, without header
         jack_knife: perform jackknife-based Wald test, default False
+        ols:    perform ols estimate and inference of beta
+        ols_ew: perform ols using Eicker-White estimator
+        gls:    perform gls estimate and inference of beta
     Returns
         A tuple of
             #.  estimates of parameters and others
             #.  p values for hom2 (\sigma_hom^2 = 0) and V (V = 0) and
                 ct_beta (no mean expression difference between cell types)
-    '''
+    """
     log.logger.info('Fitting Free HE')
 
     def he_f(Y, vs, P, fixed_covars, random_covars):
@@ -1648,13 +1663,13 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
 
         # beta
         A = np.ones((C,C)) * hom2 + V
-        Vy = cal_Vy( A, vs, r2, random_MMT )
-        beta = util.glse( Vy, X, y )
+        Vy = cal_Vy(A, vs, r2, random_MMT)
+        beta = util.glse(Vy, X, y)
         # calcualte variance of fixed and random effects, and convert to dict
         beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
-        return(hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var)
+        return hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var, Vy
 
     # par
     Y = np.loadtxt(y_f)
@@ -1667,7 +1682,15 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     X = get_X(fixed_covars, N, C)
     n_par = 1 + C + n_random + X.shape[1]
 
-    hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
+    # if n_random == 1:
+    #     # order by random covar
+    #     R = list( random_covars.values() )[0]
+    #     _, R, [Y, P, vs], fixed_covars = util.order_by_randomcovariate(R, [Y, P, vs], fixed_covars)
+    #     random_covars[ list(random_covars.keys())[0] ] = R
+    #     # random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
+    #     X = get_X(fixed_covars, N, C)
+
+    hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var, Vy = he_f(
             Y, vs, P, fixed_covars, random_covars)
 
     he = {'hom2': hom2, 'V': V, 'beta':beta, 'fixedeffect_vars':fixed_vars,
@@ -1686,23 +1709,43 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
                 log.logger.info(f'{i}')
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                     i, Y, vs, fixed_covars, random_covars, P)
-            hom2_jk, V_jk, _, beta_jk, _, _, _, _ = he_f(
+            hom2_jk, V_jk, _, beta_jk, _, _, _, _, _ = he_f(
                     Y_jk, vs_jk, P_jk, fixed_covars_jk, random_covars_jk)
 
-            jacks['ct_beta'].append( beta_jk['ct_beta'] )
-            jacks['hom2'].append( hom2_jk )
-            jacks['V'].append( np.diag(V_jk) )
+            jacks['ct_beta'].append(beta_jk['ct_beta'])
+            jacks['hom2'].append(hom2_jk)
+            jacks['V'].append(np.diag(V_jk))
 
         var_hom2 = (len(jacks['hom2']) - 1.0) * np.var(jacks['hom2'])
-        var_V = (len(jacks['V']) - 1.0) * np.cov( np.array(jacks['V']).T, bias=True )
-        var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov( np.array(jacks['ct_beta']).T, bias=True )
+        var_V = (len(jacks['V']) - 1.0) * np.cov(np.array(jacks['V']).T, bias=True)
+        var_ct_beta = (len(jacks['ct_beta']) - 1.0) * np.cov(np.array(jacks['ct_beta']).T, bias=True)
 
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
-        p['ct_beta'] = util.wald_ct_beta( beta['ct_beta'], var_ct_beta, n=N, P=n_par )
+        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
+
+    if ols or ols_ew:
+        y = Y.flatten()
+        ols_beta = linalg.inv(X.T @ X) @ X.T @ y
+        epsilon = y - X @ ols_beta
+        if ols:
+            s2 = (epsilon.T @ epsilon) / (N * C - X.shape[1]) # TODO: df
+            ols_var_beta = s2 * linalg.inv(X.T @ X)
+        elif ols_ew:
+            ols_var_beta = linalg.inv(X.T @ X) @ X.T @ np.diag(epsilon ** 2) @ X @ linalg.inv(X.T @ X)
+        p['ct_beta'] = util.wald_ct_beta(ols_beta[:C], ols_var_beta[:C, :C], n=N, P=n_par)  # TODO: what's the df
+    elif gls:
+        log.logger.info(f'{linalg.eigvalsh(Vy)[0]:.3e}')
+        np.save('he.npy', he)
+        np.savetxt('Vy.txt', Vy)
+        gls_var_beta = X.T @ linalg.inv(Vy) @ X / ((N * C) ** 2)
+        p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], gls_var_beta[:C, :C], n=N, P=n_par)  # TODO: what's the df
+
 
     log.logger.info('Finishing Free HE')
-    return(he, p)
+
+    return he, p
+
 
 def full_ML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray, random_MMT: list
         ) -> float:
@@ -1729,6 +1772,7 @@ def full_ML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, vs:
     r2 = par[(ngam+X.shape[1]):]
 
     return( ML_LL(Y, X, N, C, vs, hom2, beta, V, r2, random_MMT) )
+
 
 def full_ML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
         par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, optim_by_R: bool=False) -> dict:
@@ -1951,8 +1995,8 @@ def full_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
     return(reml)
 
 def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
-        ) -> dict:
-    '''
+        dtype:str = None) -> dict:
+    """
     Perform HE on Free model
 
     Parameters:
@@ -1964,18 +2008,20 @@ def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
                         except for cell type-specifc fixed effect, without header
         random_covars_d:    files of design matrices for random effects,
                             except for cell type-shared and -specifc random effect, without header
+        dtype:  data type to save memory, e.g. float32
     Returns
         estimates of parameters and others
-    '''
+    """
+
     log.logger.info('Fitting Full HE')
 
-    def he_f(Y, vs, P, fixed_covars, random_covars):
+    def he_f(Y, vs, P, fixed_covars, random_covars, dtype):
         N, C = Y.shape
         ngam = C * (C+1) // 2
         y = Y.flatten()
         X = get_X(fixed_covars, N, C)
 
-        theta, random_MMT = he_ols(Y, X, vs, fixed_covars, random_covars, model='full')
+        theta, random_MMT = he_ols(Y, X, vs, fixed_covars, random_covars, model='full', dtype=dtype)
         r2 = theta[ngam:]
         V = np.diag( theta[:C] )
         V[np.tril_indices(C,k=-1)] = theta[C:ngam]
@@ -1989,7 +2035,7 @@ def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
         beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
 
-        return(V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var)
+        return V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var
 
     # par
     Y = np.loadtxt(y_f)
@@ -2001,7 +2047,7 @@ def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
             fixed_covars_d, random_covars_d, C)
 
     V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var = he_f(
-            Y, vs, P, fixed_covars, random_covars)
+            Y, vs, P, fixed_covars, random_covars, dtype)
 
     he = {'V': V, 'beta':beta, 'fixedeffect_vars':fixed_vars,
             'ct_random_var':ct_overall_var, 'ct_specific_random_var':ct_specific_var,
@@ -2011,5 +2057,5 @@ def full_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
 
     log.logger.info('Finishing Full HE')
 
-    return( he )
+    return he
 
