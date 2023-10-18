@@ -1,9 +1,6 @@
 import numpy as np, pandas as pd
 
-nu_fs = []
-for list_f in snakemake.input.imputed_ct_nu:
-    for line in open(list_f):
-        nu_fs.append( line.strip() )
+nu_fs = [line.strip() for line in open(snakemake.input.ctnu)]
 
 genes = []
 for f in nu_fs:

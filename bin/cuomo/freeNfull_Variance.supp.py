@@ -4,10 +4,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def cut_data(data, l, r):
-    data[data > r] = r
-    data[data < l] = l
-    return data
 
 def ct_cor(V):
     C = V.shape[0]
@@ -17,6 +13,7 @@ def ct_cor(V):
             cor.append( V[i,j]/math.sqrt(V[i,i] * V[j,j]) )
     return( cor )
     
+
 def main():
     # read
     op = np.load(snakemake.input.op, allow_pickle=True).item()
@@ -30,11 +27,16 @@ def main():
     CTs = [f'CT{i}' for i in range(1,C+1)]
     CT_pairs = [f'CT{i}-CT{j}' for i in range(1,C) for j in range(i+1,C+1)]
 
-    ## Free model
+    ## collect data
     op_free_datas = []
+    op_free_source = []
     ctp_free_datas = []
+    ctp_free_source = []
     op_full_datas = []
+    op_full_source = []
     ctp_full_datas = []
+    ctp_full_source = []
+
     for method in methods:
         op_free_data = pd.DataFrame()
         ctp_free_data = pd.DataFrame()
@@ -54,25 +56,29 @@ def main():
             op_free_data[f'V-{ct}-hom'] = op_free_data[f'V-{ct}']+op_free_data['hom2']
             ctp_free_data[f'V-{ct}-hom'] = ctp_free_data[f'V-{ct}']+ctp_free_data['hom2']
 
-        op_free_datas.append( cut_data(op_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -2, 2) )
-        ctp_free_datas.append( cut_data(ctp_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -0.5, 2) )
+        op_free_datas.append(op_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].clip(-2, 2))
+        ctp_free_datas.append(ctp_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].clip(-0.5, 2))
 
-        #data = cut_data(op_data[[f'V-{ct}' for ct in CTs]].copy())
-        #sns.violinplot(data=data, ax=axes[0,0], cut=0, color=color, orient='h')
-        #data = cut_data(ctp_data[[f'V-{ct}' for ct in CTs]].copy())
-        #sns.violinplot(data=data, ax=axes[1,0], cut=0, color=color, orient='h')
+        # save source data
+        tmp_data = op_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy()
+        tmp_data['method'] = method
+        op_free_source.append(tmp_data)
+        tmp_data = ctp_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy()
+        tmp_data['method'] = method
+        ctp_free_source.append(tmp_data)
 
-        #data = cut_data(op_data[[f'V-{ct}-hom' for ct in CTs]+['hom2']].copy())
-        #sns.violinplot(data=data, ax=axes[0], cut=0, color=color, orient='h')
-        #axes[0].set_ylabel('op')
-        #ctp_free_data = cut_data(ctp_free_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy(), -10, 1.5)
 
         ## Full model
         V = op[method]['full']['V']
         op_cor = [ct_cor(x) for x in V if np.all(np.diag(x) > 0)]
         print( len(V) - len(op_cor) )
         op_cor = pd.DataFrame(op_cor, columns=CT_pairs)
-        op_cor = cut_data(op_cor, -2, 2) if method != 'he' else cut_data(op_cor, -5, 5)
+        ### source data
+        op_cor_copy = op_cor.copy()
+        op_cor_copy['method'] = method
+        op_full_source.append(op_cor_copy)
+
+        op_cor = op_cor.clip(-2, 2) if method != 'he' else op_cor.clip(-5, 5)
         op_full_data = pd.melt(op_cor)
         op_full_datas.append( op_full_data )
 
@@ -80,9 +86,25 @@ def main():
         ctp_cor = [ct_cor(x) for x in V if np.all(np.diag(x) > 0)]
         print( len(V) - len(ctp_cor) )
         ctp_cor = pd.DataFrame(ctp_cor, columns=CT_pairs)
-        ctp_cor = cut_data(ctp_cor, -1.5, 1.5) 
+        ### source data
+        ctp_cor_copy = ctp_cor.copy()
+        ctp_cor_copy['method'] = method
+        ctp_full_source.append(ctp_cor_copy)
+        
+        ctp_cor = ctp_cor.clip(-1.5, 1.5) 
         ctp_full_data = pd.melt(ctp_cor)
         ctp_full_datas.append( ctp_full_data )
+
+    # save source data
+    op_free_source = pd.concat(op_free_source)
+    op_free_source.to_csv(snakemake.output.op_free_data, sep='\t', index=False)
+    ctp_free_source = pd.concat(ctp_free_source)
+    ctp_free_source.to_csv(snakemake.output.ctp_free_data, sep='\t', index=False)
+    op_full_source = pd.concat(op_full_source)
+    op_full_source.to_csv(snakemake.output.op_full_data, sep='\t', index=False)
+    ctp_full_source = pd.concat(ctp_full_source)
+    ctp_full_source.to_csv(snakemake.output.ctp_full_data, sep='\t', index=False)
+    
 
     # plot
     my_pal = {}
@@ -96,11 +118,11 @@ def main():
     mpl.rcParams.update({'font.size': 11})
     color = sns.color_palette()[0]
 
+
     for free_datas, full_datas, png in zip([op_free_datas, ctp_free_datas],
             [op_full_datas, ctp_full_datas],
             [snakemake.output.op, snakemake.output.ctp]):
         fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(12, 12), dpi=600, sharex='col')
-        #fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(12, 12), dpi=600, sharex='col', sharey=True)
         
         for i, method, free_data, full_data in zip(range(len(methods)), methods, free_datas, full_datas):
             sns.violinplot(data=free_data, ax=axes[i,0], cut=0, color=color)

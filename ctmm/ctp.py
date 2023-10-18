@@ -51,7 +51,7 @@ def get_MMT(random_covars: dict, C: int) -> list:
         random_MMT.append( m )
     return( random_MMT )
 
-def cal_Vy(A: np.ndarray, vs: np.ndarray, r2: list=[], random_MMT: list=[]) -> np.ndarray:
+def cal_Vy(A: np.ndarray, vs: np.ndarray, r2: Union[list, dict]=[], random_MMT: list=[]) -> np.ndarray:
     '''
     Compute covariance matrix of vectorized Cell Type-specific Pseudobulk
 
@@ -462,7 +462,7 @@ def REML_LL(Y: np.ndarray, X: np.ndarray, N: int, C: int, vs: np.ndarray,
     return( L )
 
 def r_optim(Y: np.ndarray, P: np.ndarray, ctnu: np.ndarray, fixed_covars: dict, random_covars: dict, 
-        par: list, nrep: int, ml: str, model: str, method: str) -> dict:
+        par: Optional[list], nrep: int, ml: str, model: str, method: Optional[str]) -> dict:
     '''
     Opimization using R optim functions
 
@@ -1442,7 +1442,7 @@ def free_REML_loglike(par: list, Y: np.ndarray, X: np.ndarray, N: int, C: int, v
 
     return( REML_LL(Y, X, N, C, vs, hom2, V, r2, random_MMT) )
 
-def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={},
+def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_covars_d: dict={}, random_covars_d: dict={},
         par: Optional[list]=None, method: Optional[str]=None, nrep: int=10, jack_knife: Union[bool, int]=False, 
         information: bool=True, optim_by_R: bool=False) -> Tuple[dict, dict]:
     """
@@ -1476,16 +1476,17 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
 
     def extract(out, Y, X, P, vs, fixed_covars, random_covars, random_MMT):
         N, C = P.shape
-        hom2, r2 = out['x'][0], out['x'][(C+1):]
-        V = np.diag( out['x'][1:(C+1)] )
+        hom2, r2 = out['x'][0], out['x'][(C + 1):]
+        V = np.diag(out['x'][1:(C + 1)])
         l = out['fun'] * (-1)
-        A = np.ones((C,C)) * hom2 + V
+        A = np.ones((C, C)) * hom2 + V
         Vy = cal_Vy( A, vs, r2, random_MMT )
-        beta = util.glse( Vy, X, Y.flatten() )
+        beta = util.glse(Vy, X, Y.flatten())
         # calcualte variance of fixed and random effects, and convert to dict
         beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
-        return(hom2, V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy)
+        return hom2, V, r2, beta, l, ct_overall_var, ct_specific_var, fixed_vars, random_vars, Vy
+
 
     def reml_f(Y, X, N, C, vs, P, fixed_covars, random_covars, method):
         ''' wrapper for free reml '''
@@ -1504,15 +1505,17 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
         return(hom2, V, r2, beta, l, fixed_vars, random_vars, Vy, 
                 ct_overall_var, ct_specific_var, opt)
 
+
     def extract_R(out):
         hom2, V, beta = out['hom2'][0], np.array(out['V']), np.array(out['beta'])
         l = out['l'][0]
         opt = {'convergence':out['convergence'][0], 'method':out['method'][0]}
         random_vars, r2 = np.array(out['randomeffect_vars']), np.array(out['r2'])
         beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
-        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance( V, P )
+        ct_overall_var, ct_specific_var = util.ct_randomeffect_variance(V, P)
 
-        return( hom2, V, beta, r2, ct_overall_var, ct_specific_var, fixed_vars, random_vars, l, opt)
+        return hom2, V, beta, r2, ct_overall_var, ct_specific_var, fixed_vars, random_vars, l, opt
+
 
     # par
     Y = np.loadtxt(y_f)
@@ -1538,7 +1541,7 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
         hom2, V, beta, r2, ct_overall_var, ct_specific_var, fixed_vars, random_vars, l, opt = extract_R(out)
 
         A = np.ones((C,C)) * hom2 + V
-        Vy = cal_Vy( A, vs, r2, random_MMT )
+        Vy = cal_Vy(A, vs, r2, random_MMT)
     else:
         if par is None:
             beta = np.linalg.inv( X.T @ X) @ (X.T @ Y.flatten())
@@ -1569,6 +1572,12 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
     reml = {'beta':beta, 'hom2':hom2, 'V':V, 'fixedeffect_vars':fixed_vars,
             'ct_random_var':ct_overall_var, 'ct_specific_random_var':ct_specific_var,
             'randomeffect_vars':random_vars, 'r2':r2, 'l':l, 'D':D, 'opt':opt}
+    
+    if wald.check_singular(Vy, eigtol=1e99):
+        reml['Vy'] = 'singular'
+    else:
+        reml['Vy'] = 'nonsingular'
+
     if nu_f:
         reml['nu'] = np.mean( np.loadtxt(nu_f) )
 
@@ -1586,9 +1595,10 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
     else:
         jacks = { 'ct_beta':[], 'hom2':[], 'V':[] }
         if isinstance(jack_knife, bool):
+            log.logger.info('REML Jackkinfing')
             for i in range(N):
-                if i % 100 == 0:
-                    log.logger.info( str(i) )
+                if i % 10 == 0:
+                    log.logger.info(str(i))
                 Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(
                         i, Y, vs, fixed_covars, random_covars, P)
                 if optim_by_R:
@@ -1600,9 +1610,9 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
                     hom2_jk, V_jk, _, beta_jk, _, _, _, _, _, _ = reml_f(
                             Y_jk, X_jk, N-1, C, vs_jk, P_jk, fixed_covars_jk, random_covars_jk, method)
 
-                jacks['ct_beta'].append( beta_jk['ct_beta'] )
-                jacks['hom2'].append( hom2_jk )
-                jacks['V'].append( np.diag(V_jk) )
+                jacks['ct_beta'].append(beta_jk['ct_beta'])
+                jacks['hom2'].append(hom2_jk)
+                jacks['V'].append(np.diag(V_jk))
 
             var_hom2 = (len(jacks['hom2']) - 1.0) * np.var(jacks['hom2'])
             var_V = (len(jacks['V']) - 1.0) * np.cov( np.array(jacks['V']).T, bias=True )
@@ -1649,8 +1659,9 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: d
     return reml, p
 
 
-def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, random_covars_d: dict={}, 
-        jack_knife: bool=True, ols: bool=False, ols_ew: bool=False, gls: bool=False, ols_jk: bool=False, ct_specific_random: bool=False) -> Tuple[dict, dict]:
+def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dict={}, 
+            random_covars_d: dict={}, jack_knife: bool=True, ols: bool=True, gls: bool=False, 
+            ols_jk: bool=False, gls_jk: bool=False, ct_specific_random: bool=False) -> Tuple[dict, dict]:
     """
     Perform HE on Free model
 
@@ -1665,9 +1676,9 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
                             except for cell type-shared and -specifc random effect, without header
         jack_knife: perform jackknife-based Wald test, default False
         ols:    perform ols estimate and inference of beta
-        ols_ew: perform ols using Eicker-White estimator
-        gls:    perform gls estimate and inference of beta
-        ols_jk: perform JK of ols
+        gls:    perform gls estimate and inference of beta. If Vy singular, return ols
+        ols_jk: perform JK of ols. 
+        gls_jk: perform JK of gls. If ols or gls or ols_jk is True, gls jk is set to False
         ct_specific_random: whether extra random effects are ct specific
     Returns
         A tuple of
@@ -1677,8 +1688,8 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     """
 
     log.logger.info('Fitting Free HE')
-
-    def he_f(Y, vs, P, fixed_covars, random_covars, ols_jk):
+    
+    def he_f(Y, vs, P, fixed_covars, random_covars, gls_jk):
         N, C = Y.shape
         y = Y.flatten()
         X = get_X(fixed_covars, N, C)
@@ -1691,23 +1702,25 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
         # beta
         A = np.ones((C,C)) * hom2 + V
         Vy = cal_Vy(A, vs, r2, random_MMT)
-        ols_beta = linalg.inv(X.T @ X) @ X.T @ y
-        beta = util.glse(Vy, X, y)
+        beta = util.glse(Vy, X, y) if gls_jk else linalg.inv(X.T @ X) @ X.T @ y
+
         # calcualte variance of fixed and random effects, and convert to dict
-        ols_beta, _, _, _ = util.cal_variance(ols_beta, P, fixed_covars, r2, random_covars)
         beta, fixed_vars, r2, random_vars = util.cal_variance(beta, P, fixed_covars, r2, random_covars)
         ct_overall_var, ct_specific_var = util.ct_randomeffect_variance(V, P)
 
-        return hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var, Vy, ols_beta
+        return hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var, Vy
 
+    if ols or gls or ols_jk:
+        gls_jk = False
+        
     # par
     Y = np.loadtxt(y_f)
     P = np.loadtxt(P_f)
     vs = np.loadtxt(ctnu_f)
-    D = np.diag(vs.flatten())
+    # D = np.diag(vs.flatten())
     N, C = Y.shape
-    fixed_covars, random_covars, n_fixed, n_random, random_keys, Rs, random_MMT = util.read_covars(
-            fixed_covars_d, random_covars_d, C)
+    fixed_covars, random_covars, _, n_random, _, _, _ = util.read_covars(
+                                                            fixed_covars_d, random_covars_d, C)
     X = get_X(fixed_covars, N, C)
     n_par = 1 + C + n_random + X.shape[1]
 
@@ -1719,8 +1732,8 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     #     # random_MMT = [np.repeat( np.repeat(R @ R.T, C, axis=0), C, axis=1)]
     #     X = get_X(fixed_covars, N, C)
 
-    hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var, Vy, ols_beta = he_f(
-            Y, vs, P, fixed_covars, random_covars, ols_jk)
+    hom2, V, r2, beta, fixed_vars, random_vars, ct_overall_var, ct_specific_var, Vy = he_f(
+            Y, vs, P, fixed_covars, random_covars, gls_jk)
 
     he = {'hom2': hom2, 'V': V, 'beta':beta, 'fixedeffect_vars':fixed_vars,
             'ct_random_var':ct_overall_var, 'ct_specific_random_var':ct_specific_var,
@@ -1737,54 +1750,42 @@ def free_HE(y_f: str, P_f: str, ctnu_f: str, nu_f: str=None, fixed_covars_d: dic
     p = {}
     if jack_knife:
         log.logger.info('Jackknifing')
-        jacks = {'ct_beta':[], 'hom2':[], 'V':[], 'ols_ct_beta':[]}
+        jacks = {'ct_beta':[], 'hom2':[], 'V':[]}
         for i in range(N):
             if i % 10 == 0:
                 log.logger.info(f'{i}')
             Y_jk, vs_jk, fixed_covars_jk, random_covars_jk, P_jk = util.jk_rmInd(i, Y, vs, fixed_covars, 
                                                                                  random_covars, P)
-            hom2_jk, V_jk, _, beta_jk, _, _, _, _, _, ols_beta_jk = he_f(Y_jk, vs_jk, P_jk, fixed_covars_jk, 
-                                                            random_covars_jk, ols_jk)
+            hom2_jk, V_jk, _, beta_jk, _, _, _, _, _ = he_f(Y_jk, vs_jk, P_jk, fixed_covars_jk, 
+                                                            random_covars_jk, gls_jk)
 
             jacks['ct_beta'].append(beta_jk['ct_beta'])
             jacks['hom2'].append(hom2_jk)
             jacks['V'].append(np.diag(V_jk))
-            jacks['ols_ct_beta'].append(ols_beta_jk['ct_beta'])
 
         var_hom2 = (N - 1.0) * np.var(jacks['hom2'])
         var_V = (N - 1.0) * np.cov(np.array(jacks['V']).T, bias=True)
         var_ct_beta = (N - 1.0) * np.cov(np.array(jacks['ct_beta']).T, bias=True)
-        var_ols_ct_beta = (N - 1.0) * np.cov(np.array(jacks['ols_ct_beta']).T, bias=True)
 
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)
-        p['olsjk_ct_beta'] = util.wald_ct_beta(ols_beta['ct_beta'], var_ols_ct_beta, n=N, P=n_par)
 
-    # ols or ols_ew:
-    y = Y.flatten()
-    ols_beta = linalg.inv(X.T @ X) @ X.T @ y
-    epsilon = y - X @ ols_beta
-    s2 = (epsilon.T @ epsilon) / (N * C - X.shape[1]) # TODO: df
-    ols_var_beta = s2 * linalg.inv(X.T @ X)
-    # elif ols_ew:
-        # ols_var_beta = linalg.inv(X.T @ X) @ X.T @ np.diag(epsilon ** 2) @ X @ linalg.inv(X.T @ X)
-    p['ols_ct_beta'] = util.wald_ct_beta(ols_beta[:C], ols_var_beta[:C, :C], n=N, P=n_par)  # TODO: what's the df
+    if ols or gls:
+        # ols
+        y = Y.flatten()
+        if ols or wald.check_singular(Vy, eigtol=1e99):
+            ols_beta = linalg.inv(X.T @ X) @ X.T @ y
+            epsilon = y - X @ ols_beta
+            s2 = (epsilon.T @ epsilon) / (N * C - X.shape[1]) # df
+            ols_var_beta = s2 * linalg.inv(X.T @ X)
+            p['ct_beta'] = util.wald_ct_beta(ols_beta[:C], ols_var_beta[:C, :C], n=N, P=n_par)  # df
 
-    # gls:
-    if wald.check_singular(Vy, eigtol=1e99):
-        # if singular, use ols
-        # y = Y.flatten()
-        # ols_beta = linalg.inv(X.T @ X) @ X.T @ y
-        # epsilon = y - X @ ols_beta
-        # s2 = (epsilon.T @ epsilon) / (N * C - X.shape[1]) # TODO: df
-        # ols_var_beta = s2 * linalg.inv(X.T @ X)
-        p['gls_ct_beta'] = util.wald_ct_beta(ols_beta[:C], ols_var_beta[:C, :C], n=N, P=n_par)  # TODO: what's the df
-    else:
-        epsilon = y - X @ util.glse(Vy, X, y)
-        s2 = (epsilon.T @ linalg.inv(Vy) @ epsilon) / (N * C - X.shape[1])
-        gls_var_beta = s2 * linalg.inv(X.T @ linalg.inv(Vy) @ X)
-        p['gls_ct_beta'] = util.wald_ct_beta(beta['ct_beta'], gls_var_beta[:C, :C], n=N, P=n_par)  # TODO: what's the df
+        else:
+            epsilon = y - X @ util.glse(Vy, X, y)
+            s2 = (epsilon.T @ linalg.inv(Vy) @ epsilon) / (N * C - X.shape[1])
+            gls_var_beta = s2 * linalg.inv(X.T @ linalg.inv(Vy) @ X)
+            p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], gls_var_beta[:C, :C], n=N, P=n_par)  # df
 
 
     log.logger.info('Finishing Free HE')

@@ -40,12 +40,9 @@ def main():
     color = sns.color_palette()[0]
     
     ## Free model
-    def cut_data(data):
-        r = 2
-        data[data > r] = r
-        return data
-
-    data = cut_data(ctp_data[['hom2']+[f'V-{ct}' for ct in CTs]].copy())
+    data = ctp_data[['hom2']+[f'V-{ct}' for ct in CTs]]
+    data.to_csv(snakemake.output.dataA, sep='\t', index=False)
+    data = data.clip(upper=2)
     sns.violinplot(data=data, ax=axes[0], cut=0, color=color)
     axes[0].axhline(0, ls='--', color='0.8', zorder=0)
     axes[0].set_xlabel('')
@@ -102,6 +99,7 @@ def main():
             ctp_cor.append( cor )
         print( k )
         ctp_cor = pd.DataFrame(ctp_cor, columns=CT_pairs)
+        print(ctp_cor.median(axis=0))
         data = pd.melt( ctp_cor )
 
         threshold = [-1.5, 1.5]
@@ -117,6 +115,7 @@ def main():
             my_pal[pair] = 'lightblue'
         else:
             my_pal[pair] = sns.color_palette('muted')[0]
+    data.to_csv(snakemake.output.dataB, sep='\t', index=False)
     sns.violinplot( x='variable', y='value', data=data, ax=axes[1], cut=0, palette=my_pal )
     axes[1].axhline(0, ls='--', color='0.9', zorder=0)
     axes[1].set_ylabel( ylab, fontsize=12 )

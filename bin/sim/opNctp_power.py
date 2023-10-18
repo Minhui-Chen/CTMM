@@ -125,7 +125,7 @@ def main():
     ## 
     sns.lineplot(data=reml_hom_power, x='sample size', y='Positive rate', hue='Method', 
             style='Framework', dashes={'OP':(3,2), 'CTP':''}, ax=axes[0], markers={'OP':'X', 'CTP':'o'},
-            alpha=alpha, lw=lw, legend=False)
+            alpha=alpha, lw=lw, legend=False, markeredgecolor='None')
     print(reml_hom_power)
     axes[0].set_ylabel('False positive rate', fontsize=9)
     axes[0].set_xlabel('Sample size', fontsize=9)
@@ -145,7 +145,7 @@ def main():
 
     sns.lineplot(data=reml_free_power, x='sample size', y='Positive rate', hue='Method', 
             style='Framework', dashes={'OP':(3,2), 'CTP':''}, ax=axes[1], markers={'OP':'X', 'CTP':'o'}, 
-            alpha=alpha, lw=lw)
+            alpha=alpha, lw=lw, markeredgecolor='None')
     axes[1].set_ylabel('True positive rate', fontsize=9)
     axes[1].set_xlabel('Sample size', fontsize=9)
     axes[1].text(-0.10, 1.05, '(B)', fontsize=10, transform=axes[1].transAxes)
@@ -159,7 +159,7 @@ def main():
         ax.legend().set_visible(False)
 
     plt.tight_layout(pad=2, w_pad=3)
-    fig.savefig( snakemake.output.png )
+    fig.savefig(snakemake.output.png)
 
 if __name__ == '__main__':
     main()

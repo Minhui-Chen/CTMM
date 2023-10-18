@@ -2,7 +2,7 @@ import math
 import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
-import draw
+from ctmm import draw
 
 out = np.load(snakemake.input.out, allow_pickle=True).item()
 remlJK = np.load(snakemake.input.remlJK, allow_pickle=True).item()
@@ -24,7 +24,9 @@ remlJK_genes = np.array([x.split('_')[1] for x in remlJK['gene']])
 print(len(genes), len(remlJK_genes))
 
 remlJK_data = pd.DataFrame({'reml_beta':reml_beta_ps, 'reml_V':reml_V_ps, 'gene': remlJK_genes})
+remlJK_data.to_csv(snakemake.output.reml_data, sep='\t', index=False)
 data = pd.DataFrame({'he_beta':he_beta_ps, 'he_V':he_V_ps,'gene':genes})
+data.to_csv(snakemake.output.he_data, sep='\t', index=False)
 remlJK_threshold = (-1)*math.log10(0.05/remlJK_data.shape[0])
 threshold = (-1)*math.log10(0.05/data.shape[0])
 
@@ -52,24 +54,35 @@ for method, tmp_data, tmp_threshold, png_f in zip(['reml','he'], [remlJK_data, d
     ## add arrow to three markers
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
-    k = 0
     for index, row in tmp_data.loc[tmp_data['gene'].isin(marker+candidate)].iterrows():
+        print(row['gene'])
         if row[method+'_beta'] < ((xlim[1]-xlim[0])*0.9+xlim[0]):
-            k += 1
-            if k % 2 == 0:
+            if method == 'reml':
+                if row['gene'] == 'T':
+                    shiftx = (xlim[1]-xlim[0])/20
+                    shifty = (ylim[1]-ylim[0])/10
+                elif row['gene'] == 'GATA6':
+                    shiftx = (xlim[1]-xlim[0])/15
+                    shifty = (ylim[1]-ylim[0])/10
+                else:
+                    shiftx = (xlim[1]-xlim[0])/15
+                    shifty = (ylim[1]-ylim[0])/8
+                if row[method+'_V'] > ((ylim[1]-ylim[0])*0.8+ylim[0]):
+                    shifty = shifty * (-1)
+                ax.annotate(row['gene'], xy=(row[method + '_beta'], row[method + '_V']),
+                        xytext=(row[method + '_beta'] + shiftx, row[method + '_V'] + shifty),
+                        arrowprops={'arrowstyle':'->'})
+            elif method == 'he':
                 shiftx = (xlim[1]-xlim[0])/10
-                shifty = (ylim[1]-ylim[0])/20
-            else:
-                shiftx = (xlim[1]-xlim[0])/5
                 shifty = (ylim[1]-ylim[0])/10
-            if row[method+'_V'] > ((ylim[1]-ylim[0])*0.8+ylim[0]):
-                shifty = shifty * (-1)
-            ax.annotate(row['gene'], xy=(row[method+'_beta'],row[method+'_V']),
-                    xytext=(row[method+'_beta']+shiftx, row[method+'_V']+shifty),
-                    arrowprops={'arrowstyle':'->'})
+                if row[method+'_V'] > ((ylim[1]-ylim[0])*0.8+ylim[0]):
+                    shifty = shifty * (-1)
+                ax.annotate(row['gene'], xy=(row[method + '_beta'], row[method + '_V']),
+                        xytext=(row[method + '_beta'] + shiftx, row[method + '_V'] + shifty),
+                        arrowprops={'arrowstyle':'->'})
         else:
-            ax.annotate(row['gene'], xy=(row[method+'_beta'],row[method+'_V']),
-                    xytext=(row[method+'_beta']-(xlim[1]-xlim[0])/10, row[method+'_V']+(ylim[1]-ylim[0])/10),
+            ax.annotate(row['gene'], xy=(row[method + '_beta'], row[method + '_V']),
+                    xytext=(row[method + '_beta'] + (xlim[1] - xlim[0]) / 40, row[method + '_V'] + (ylim[1] - ylim[0]) / 15),
                     arrowprops={'arrowstyle':'->'})
 
     ax.axhline(tmp_threshold, color='0.8', ls='--', zorder=0)

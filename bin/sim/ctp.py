@@ -14,12 +14,24 @@ def main():
     #
     batch = params.batch
     outs = [re.sub('/rep/', f'/rep{i}/', params.out) for i in batch]
-    for y_f, P_f, nu_f, out_f in zip(
-            [line.strip() for line in open(input.y)],
-            [line.strip() for line in open(input.P)], 
-            [line.strip() for line in open(input.nu)], 
-            outs
-            ):
+
+    y_fs = [line.strip() for line in open(input.y)]
+    P_fs = [line.strip() for line in open(input.P)]
+
+    if input.nu[-4:] == '.npy':
+        nus = np.load(input.nu, allow_pickle=True).item()
+        tmpfn = util.generate_tmpfn()
+        nu_fs = []
+        for i in sorted(nus.keys()):
+            f = f'{tmpfn}.ctnu.{i}'
+            np.savetxt(f, nus[i])
+            nu_fs.append(f)
+    else:
+        nu_fs = [line.strip() for line in open(input.nu)]
+    
+    collection = []
+    for i in range(len(y_fs)):
+        y_f, P_f, nu_f, out_f = y_fs[i], P_fs[i], nu_fs[i], outs[i]
         log.logger.info(f'{y_f}, {P_f}, {nu_f}')
 
         # cell type number
@@ -37,13 +49,15 @@ def main():
             snakemake.params.HE = True
 
         if snakemake.params.HE:
-            free_he, free_he_wald = ctp.free_HE(y_f, P_f, nu_f, jack_knife=True)
+            he_free_jk = params.get('he_free_jk', True)
+            he_iid_jk = params.get('he_iid_jk', False)
+            free_he, free_he_wald = ctp.free_HE(y_f, P_f, nu_f, jack_knife=he_free_jk)
             HE_free_only = params.get('HE_free_only', False)
             if HE_free_only:
                 out['he'] = { 'free': free_he, 'wald':{'free': free_he_wald} }
             else:
                 hom_he, hom_he_wald = ctp.hom_HE(y_f, P_f, nu_f, jack_knife=False)
-                iid_he, iid_he_wald = ctp.iid_HE(y_f, P_f, nu_f, jack_knife=False)
+                iid_he, iid_he_wald = ctp.iid_HE(y_f, P_f, nu_f, jack_knife=he_iid_jk)
                 full_he = ctp.full_HE(y_f, P_f, nu_f)
 
                 out['he'] = {'hom': hom_he, 'iid': iid_he, 'free': free_he, 'full': full_he,
@@ -118,9 +132,13 @@ def main():
 
         # save
         np.save(out_f, out)
+        collection.append(out)
 
-    with open(output.out, 'w') as f:
-        f.write('\n'.join(outs))
+    if output.out[-4:] == '.npy':
+        np.save(output.out, collection)
+    else:
+        with open(output.out, 'w') as f:
+            f.write('\n'.join(outs))
 
 if __name__ == '__main__':
     main()

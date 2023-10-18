@@ -220,7 +220,7 @@ def main():
             #                     'free_iid': free_iid_lrt, 'full_hom': full_hom_lrt, 'full_iid': full_iid_lrt,
             #                     'full_free': full_free_lrt}
             if snakemake.params.Hom:
-                out['ml']['lrt']['free_hom'] = util.lrt(out['ml']['free']['l'], out['ml']['hom']['l'], C)
+                out['ml']['lrt'] = {'free_hom': util.lrt(out['ml']['free']['l'], out['ml']['hom']['l'], C)}
 
         # REML
         if snakemake.params.REML:
@@ -281,7 +281,7 @@ def main():
             #                       'free_iid': free_iid_lrt, 'full_hom': full_hom_lrt, 'full_iid': full_iid_lrt,
                                 #   'full_free': full_free_lrt}
             if snakemake.params.Hom:
-                out['reml']['lrt']['free_hom'] = util.lrt(out['reml']['free']['l'], out['reml']['hom']['l'], C)
+                out['reml']['lrt'] = {'free_hom': util.lrt(out['reml']['free']['l'], out['reml']['hom']['l'], C)}
 
         # save
         np.save(out_f, out)

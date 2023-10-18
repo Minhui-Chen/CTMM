@@ -1,10 +1,5 @@
-import os
+import os, time
 import numpy as np, pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import rpy2.robjects as ro
-from rpy2.robjects import r, pandas2ri, numpy2ri
-from rpy2.robjects.packages import importr, STAP
 from ctmm import util, preprocess
 
 # def imputeY4eachgene(y, gene, y_path):
@@ -78,6 +73,7 @@ def main():
     
     # save 
     P_path = os.path.dirname(output.P)
+    n_path = os.path.dirname(output.n)
     for gene in genes:
         os.makedirs(os.path.join(y_path,f'rep{gene}'), exist_ok=True)
         os.makedirs(os.path.join(nu_path,f'rep{gene}'), exist_ok=True)
@@ -93,7 +89,8 @@ def main():
         ctnu_ctp[[gene]].to_csv(
                 f'{nu_path}/rep{gene}/ct.nu.ctng.gz', sep='\t',index=True)
 
-        P.to_csv(f'{P_path}/rep{gene}/P.txt', sep='\t', index=False, header=False)
+        P.to_csv(f'{P_path}/rep{gene}/P.gz', sep='\t', index=False, header=False)
+        n.to_csv(f'{n_path}/rep{gene}/n.gz', sep='\t', index=False, header=False)
 
 
     # op_imputed = pd.DataFrame(index=inds)
@@ -248,17 +245,19 @@ def main():
     f2 = open(output.nu, 'w')
     f3 = open(output.nu_ctp, 'w')
     f4 = open(output.P, 'w')
-    f5 = open(output.imputed_cty, 'w')
-    f6 = open(output.imputed_ctnu, 'w')
-    f7 = open(output.imputed_ctnu_ctp, 'w')
+    f5 = open(output.n, 'w')
+    f6 = open(output.imputed_cty, 'w')
+    f7 = open(output.imputed_ctnu, 'w')
+    f8 = open(output.imputed_ctnu_ctp, 'w')
     for gene in genes:
         f1.write(f'{y_path}/rep{gene}/y.gz\n')
         f2.write(f'{nu_path}/rep{gene}/nu.gz\n')
         f3.write(f'{nu_path}/rep{gene}/nu.ctng.gz\n')
-        f4.write(f'{P_path}/rep{gene}/P.txt\n')
-        f5.write(f'{y_path}/rep{gene}/ct.y.gz\n')
-        f6.write(f'{nu_path}/rep{gene}/ct.nu.gz\n')
-        f7.write(f'{nu_path}/rep{gene}/ct.nu.ctng.gz\n')
+        f4.write(f'{P_path}/rep{gene}/P.gz\n')
+        f5.write(f'{n_path}/rep{gene}/n.gz\n')
+        f6.write(f'{y_path}/rep{gene}/ct.y.gz\n')
+        f7.write(f'{nu_path}/rep{gene}/ct.nu.gz\n')
+        f8.write(f'{nu_path}/rep{gene}/ct.nu.ctng.gz\n')
     f1.close()
     f2.close()
     f3.close()
@@ -266,6 +265,10 @@ def main():
     f5.close()
     f6.close()
     f7.close()
+    f8.close()
+
+    time.sleep(30)
+
 
 if __name__ == '__main__':
     main()

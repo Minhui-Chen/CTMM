@@ -1,12 +1,14 @@
-import sys, math, time
+from typing import Tuple, Optional, Union
+
+import sys, math
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-def check_singular(X, eigtol=1e16):
+def check_singular(X, eigtol=1e32):
     eval, evec = np.linalg.eig(X)
-    #if ( ( max(eval) / min(eval)+1e-99 ) > eigtol ) or ( min(eval) < 0 ):
-    if min(eval) < 0:
+    if ((max(eval) / (min(eval) + 1e-99)) > eigtol) or ( min(eval) < 0 ):
+    # if min(eval) < 0:
         print( eval )
         #print( evec[:, np.argmin(eval)] )
         return True # singular
@@ -136,21 +138,17 @@ def wald_test(estimate, expectation, var, df, two_sided=False):
     else:
         return stats.t.sf(W, df=df)
 
-def mvwald_test(estimate, expectation, var, eigtol=1e8, Ftest=True, n=None, P=None, df=None):
-    '''
-    estimate : array of scalar
-        ML estimates of parameters
-    expectation : array of scalar
-        expectation of parameters
-    var : ndarray of scalar
-        variance-covariance matrix of parameter normal distribution
-    Ftest: bool
-        by default False, chi squire test is used (refer to Wiki Wald test - test on multiple parameters)
-    n: scalar (for Ftest)
-        sample size
-    P: scalar (for Ftest)
-        number of estimated parameters
-    '''
+def mvwald_test(estimate: np.ndarray, expectation: np.ndarray, var: np.ndarray, eigtol: float=1e32, Ftest: bool=True, 
+                n: int=None, P: int=None, df: int=None) -> float:
+    """
+    estimate:   estimates of parameters
+    expectation:    expectation of parameters
+    var:    variance-covariance matrix of parameter normal distribution
+    Ftest:  Ftest or chi squire test (refer to Wiki Wald test - test on multiple parameters)
+    n:  sample size
+    P:  number of estimated parameters
+    """
+    
     # chi square test
     if check_singular(var, eigtol):
         print(var)

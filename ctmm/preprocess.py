@@ -11,11 +11,28 @@ from rpy2.robjects.packages import STAP
 from . import log
 
 
+def normalize(X: sparse.csr.csr_matrix, l=1e6) -> sparse.csr.csr_matrix:
+    """
+    Normalize read counts to CPM: x/s, where s = total reads / 10^6
+
+    Parameters:
+        X:  ann.X (raw read counts)
+        l:  normalized total counts
+
+    Returns:
+        Normalized X
+    """
+    s = X.sum(axis=1).A1
+    X = X.multiply(l / s[:, np.newaxis])
+    
+    return X
+
+
 def pseudobulk(counts: pd.DataFrame = None, meta: pd.DataFrame = None, ann: object = None,
                X: sparse.csr.csr_matrix = None, obs: pd.DataFrame = None, var: pd.DataFrame = None,
                ind_col: str = 'ind', ct_col: str = 'ct', cell_col: str = 'cell', ind_cut: int = 0, ct_cut: int = 0
                ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    '''
+    """
     Compute Cell Type-Specific Pseudobulk and Cell Type-specific noise variance
     and remove individuals with # of cells <= ind_cut
     and for paris of individual and cell type with # of cell <= ct_cut, set CTP and CT noise variance to missing
@@ -34,21 +51,22 @@ def pseudobulk(counts: pd.DataFrame = None, meta: pd.DataFrame = None, ann: obje
                 and each column corresponds to a gene with a gene id.
                 each cell have additional metadata, including cell type (column name: ct) 
                 and donor information (column name: ind) for each cell
-        X:  ann.X
-        obs:    ann.obs 
-        var:    ann.var
+        X:  ann.X (normalized)
+        obs:    ann.obs, cell info, with cell id as index
+        var:    ann.var, gene info, with gene id as index
         ind_col:    column name for individual in meta or ann; it's renamed as ind in the output 
         ct_col: column name for cell type in meta or ann; it's renamed as ct in the output
         cell_col:   column name for cell in meta 
         ind_cut:    exclude individuals with # of cells <= ind_cut
         ct_cut: set pairs of individual and cell type with # of cells <= ct_cut to missing
+
     Returns:
         A tuple of 
             #. Cell Type-specific Pseudobulk of index: (ind, ct) * columns: genes
             #. Cell Type-specific noise variance of idnex: (ind, ct) * columns: genes
             #. cell type proportion matrix
             #. number of cells in each (ind, ct) before filtering
-    '''
+    """
 
     if ann is None and X is None:
         # sanity check
@@ -109,37 +127,44 @@ def pseudobulk(counts: pd.DataFrame = None, meta: pd.DataFrame = None, ann: obje
         pairs, index = np.unique(ind_ct, return_index=True)
         raw_order = pairs[np.argsort(index)]
         ind_ct = pd.Categorical(ind_ct, categories=raw_order)
-        indicator = pd.get_dummies(ind_ct, sparse=True, dtype='int8')
+        indicator = pd.get_dummies(ind_ct, sparse=True)  # don't use dtype int8
         ind_ct = indicator.columns
-        cell_num = indicator.sum().to_numpy()
-        print(indicator.shape)
-        print(indicator.iloc[:3, :3])
 
         ## convert to sparse matrix
         # indicator = sparse.csr_matrix( indicator.to_numpy() )
         indicator = indicator.sparse.to_coo().tocsr()
+        cell_num = indicator.sum(axis=0)
 
         # inverse indicator matrix
         indicator_inv = indicator.multiply(1 / cell_num)
-        print(indicator_inv.getrow(0)[0, 0])
+        # print(indicator_inv.getrow(0)[0, 0])
 
         # compute ctp
-        print('Computing CTP')
+        log.logger.info('Computing CTP')
         ctp = indicator_inv.T @ X
 
         # compute ctnu
-        print('Computing CTNU')
-        ctp2 = indicator_inv.T @ X.power(2)
-        ctnu = (ctp2 - ctp.power(2)).multiply(1 / (cell_num ** 2).reshape(-1, 1))
+        log.logger.info('Computing CTNU')
+        if sparse.issparse(X): 
+            ctp2 = indicator_inv.T @ X.power(2)
+            ctnu = (ctp2 - ctp.power(2)).multiply(1 / (cell_num.T - 1))
+
+            ctp = ctp.toarray()
+            ctnu = ctnu.toarray()
+
+        else:
+            ctp2 = indicator_inv.T @ (X ** 2)
+            ctnu = (ctp2 - ctp ** 2) * (1 / (cell_num.T - 1))
 
         # convert to df
         ctp_index = pd.MultiIndex.from_frame(ind_ct.to_series().str.split(sep, expand=True, regex=False),
-                                             names=['ind', 'ct'])
-        ctp = pd.DataFrame(ctp.toarray(), index=ctp_index, columns=var.index)
-        ctnu = pd.DataFrame(ctnu.toarray(), index=ctp_index, columns=var.index)
+                                            names=['ind', 'ct'])
+        ctp = pd.DataFrame(ctp, index=ctp_index, columns=var.index)
+        ctnu = pd.DataFrame(ctnu, index=ctp_index, columns=var.index)
 
         # group by ind-ct to compute cell numbers
         data_grouped = obs.reset_index(drop=False, names='cell').groupby(['ind', 'ct'])
+
 
     # compute cell numbers
     cell_counts = data_grouped['cell'].count().unstack(fill_value=0).astype('int')
@@ -332,6 +357,7 @@ def _std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
 
     # standardize op
     mean, std, var = op.mean(), op.std(), op.var()
+
     op = (op - mean) / std
     ctp = (ctp - mean) / std
     nu_op = nu_op / var

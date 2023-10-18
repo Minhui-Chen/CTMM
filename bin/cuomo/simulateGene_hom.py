@@ -11,15 +11,9 @@ def main():
 
     # collect P and ctnu files for genes
     P_fs = {}
-    P_fs_list = []
-    for f in snakemake.input.P:
-        for line in open(f):
-            P_fs_list.append( line.strip() )
+    P_fs_list = [line.strip() for line in open(snakemake.input.P)]
     ctnu_fs = {}
-    ctnu_fs_list = []
-    for f in snakemake.input.imputed_ct_nu:
-        for line in open(f):
-            ctnu_fs_list.append( line.strip() )
+    ctnu_fs_list = [line.strip() for line in open(snakemake.input.ctnu)]
     for gene in genes:
         for P_f in P_fs_list:
             if f'/rep{gene}/' in P_f:
@@ -52,7 +46,9 @@ def main():
         hom2 = out['reml']['free']['hom2'][gene_idx]
         ctnu = pd.read_table(ctnu_fs[gene]).pivot(index='donor', columns='day', values=gene)
 
-        cty = util.sim_pseudobulk(beta, hom2, ctnu.to_numpy(), ss, C, seed=snakemake.params.seed+i)
+        gene_no = np.array([ord(x) for x in gene]).sum()
+        seed = gene_no + int(snakemake.params.seed)
+        cty = util.sim_pseudobulk(beta, hom2, ctnu.to_numpy(), ss, C, seed=seed)
 
         # save
         cty_f = re.sub('/rep/', f'/rep{gene}/', snakemake.params.cty)

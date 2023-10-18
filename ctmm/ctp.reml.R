@@ -23,7 +23,7 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
             eval <- e$values
             evec <- e$vectors
             if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
-            if( any( diag(AD) < 0 ) ) return(1e12) 
+            if (any(diag(AD) < 0)) return(1e12) 
 
             AD_inv <- evec %*% diag(1/eval) %*% t(evec)
             AD_det <- sum(log(eval))
@@ -43,7 +43,7 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
         L <- AD_det_sum + AD_inv_sum_det + yADy_sum - t(ADy_sum) %*% AD_inv_sum_inv %*% ADy_sum
         L <- 0.5 * L
 
-    } else if ( !is.null(fixed) & is.null(random_MMT) ) {
+    } else if (!is.null(fixed) && is.null(random_MMT)) {
         fixed <- do.call(cbind, fixed)
 
         AD_det_sum <- 0
@@ -51,52 +51,47 @@ LL <- function(Y, vs, hom2, V, fixed=NULL, r2=NULL, random_MMT=NULL){
         for (i in 1:N) {
             AD <- A + diag(vs[i,])
 
-            e  <- eigen(AD, symmetric=TRUE)
+            e  <- eigen(AD, symmetric = TRUE)
             eval <- e$values
             evec <- e$vectors
-            if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
-            if( any( diag(AD) < 0 ) ) return(1e12)
+            if (max(eval) / (min(eval) + 1e-99) > 1e8 || min(eval) < 0) {
+                return(1e12)
+            }
+            if (any(diag(AD) < 0)) return(1e12)
 
-            AD_inv_list[[i]] <- evec %*% diag(1/eval) %*% t(evec)
+            AD_inv_list[[i]] <- evec %*% diag(1 / eval) %*% t(evec)
             AD_det_sum <- AD_det_sum + sum(log(eval))
         }
 
-        X <- cbind(do.call(rbind, replicate(N, diag(C), simplify=FALSE)), fixed[rep(1:N, each=C),])
-        X_l <- lapply(split(X, rep(1:N, each=C)), matrix, nrow=C)
-        print(dim(X_l[[1]]))
+        X <- cbind(do.call(rbind, replicate(N, diag(C), simplify = FALSE)),
+                    fixed[rep(1:N, each = C), ])
+        X_l <- lapply(split(X, rep(1:N, each = C)), matrix, nrow = C)
 
         XAD <- mapply(function(x, y) {
             t(x) %*% y
-        }, X_l, AD_inv_list, SIMPLIFY=FALSE)
+        }, X_l, AD_inv_list, SIMPLIFY = FALSE)
         XAD <- do.call(cbind, XAD)
         XADX <- XAD %*% X
 
-        e <- eigen(XADX, symmetric=TRUE)
+        e <- eigen(XADX, symmetric = TRUE)
         eval <- e$values
         evec <- e$vectors
-        if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
+        if (max(eval) / (min(eval) + 1e-99) > 1e8 || min(eval) < 0) return(1e12)
         XADX_det <- sum(log(eval))
-        XADX_inv <- evec %*% diag(1/eval) %*% t(evec)
+        XADX_inv <- evec %*% diag(1 / eval) %*% t(evec)
 
         y <- as.vector(t(Y))
         Y <- split(Y, row(Y))
         # yAD <- y %*% AD_inv
         yAD <- mapply(function(x, y) {
             c(x %*% y)
-        }, Y, AD_inv_list, SIMPLIFY=FALSE)
+        }, Y, AD_inv_list, SIMPLIFY = FALSE)
         yAD <- unlist(yAD)
         yADX <- as.vector(yAD %*% X)
 
         L <- AD_det_sum + XADX_det + yAD %*% y - yADX %*% XADX_inv %*% yADX
         L <- as.numeric(0.5 * L)
 
-        eval   <- eigen(XADX_sum, symmetric=TRUE)$values
-        if (max(eval)/(min(eval)+1e-99) > 1e8 | min(eval)<0) return(1e12)
-        XADX_sum_det <- determinant(XADX_sum, logarithm=TRUE)$modulus
-        XADX_sum_inv <- solve(XADX_sum)
-
-        L <- AD_det_sum + XADX_sum_det + yADy_sum - XADy_sum %*% XADX_sum_inv %*% XADy_sum
-        L <- 0.5 * L
 
     } else if ( !is.null(random_MMT) ) {
         X <- kronecker( rep(1,N), diag(C) )
@@ -170,9 +165,27 @@ gls <- function(y, X, vs, hom2, V, random_MMT, r2){
         }
     }
 
+    # tmp test for singularity
+    # e <- eigen(sig2s, symmetric=TRUE)
+    # eval <- e$values
+    # evec <- e$vectors
+    # # as block inverse is used when no extra fix and random, so use 1e20 a large cut
+    # if (max(eval)/(min(eval)+1e-99) > 1e10 | min(eval)<0) {
+    #     print(max(eval))
+    #     print(min(eval))
+    #     stop('Singular Vy')
+    # }
+
     sig2s_inv <- solve(sig2s)
     F <- t(X) %*% sig2s_inv
     B <- F %*% X
+
+    # tmp test for singularity
+    # e <- eigen(B, symmetric=TRUE)
+    # eval <- e$values
+    # evec <- e$vectors
+    # if (max(eval)/(min(eval)+1e-99) > 1e10 | min(eval)<0) stop('Singular B')
+
     beta <- c(solve( B ) %*% F %*% y)
     return( beta )
 }
@@ -336,7 +349,8 @@ Y, P, vs, fixed=NULL, random=NULL, overVariance_cut=5, method="BFGS", par=NULL, 
     fixed_vars <- FixedeffectVariance( beta, c(list(P), fixed) )
     random_vars <- RandomeffectVariance( r2, random )[[2]]
 
-    if ( check_optim(out, hom2, ct_overall_var, fixed_vars, random_vars, overVariance_cut) ) {
+
+    if ( check_optim(out, hom2, ct_overall_var, fixed_vars, random_vars, overVariance_cut) | isTRUE(all.equal(par, out$par))) {
         out <- re_optim( out, screml_free_loglike, par, args, method, nrep, FALSE )
 
         hom2 <- out$par[1]
@@ -368,7 +382,9 @@ screml_free_loglike<- function(par, args){
 	V <- diag(par[1+1:C])
     r2 <- par[(C+2):length(par)]
 
-    return( LL(Y, vs, hom2, V, fixed, r2, random_MMT) )
+    l <- LL(Y, vs, hom2, V, fixed, r2, random_MMT)
+
+    return( l )
 }
 
 screml_full <- function(

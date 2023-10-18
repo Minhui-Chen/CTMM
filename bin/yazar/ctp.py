@@ -11,13 +11,12 @@ def collect_covariates(snakemake, inds=None):
     '''
 
     covars_f = util.generate_tmpfn()
-    ## pca
-    ### get individuals after filtering from pca result file
+
     pca = pd.read_table(snakemake.input.pca, index_col=0)
-    meta = pd.read_table(snakemake.input.meta, usecols=['individual', 'sex', 'age'])
+    meta = pd.read_table(snakemake.input.meta, usecols=['individual', 'sex', 'age', 'pool'])
     meta = meta.drop_duplicates()
     meta = meta.set_index('individual')
-    pca_f = covars_f + '.pca'  # TODO: currently don't include genotype PC
+    pca_f = covars_f + '.pca'
     sex_f = covars_f + '.sex'
     age_f = covars_f + '.age'
     np.savetxt(pca_f, util.design(inds, pca=pca, PC=1))
@@ -25,22 +24,31 @@ def collect_covariates(snakemake, inds=None):
     np.savetxt(age_f, util.design(inds, cat=util.age_group(meta['age'])))
     fixed_covars = {'pca': pca_f, 'sex': sex_f, 'age': age_f}
 
-    return fixed_covars
+    if snakemake.params.get('batch', True):
+        batch_f = covars_f + '.batch'
+        np.savetxt(batch_f, util.design(inds, cat=meta['pool'], drop_first=False))
+        random_covars = {
+            'batch': batch_f
+        }
+    else:
+        random_covars = {}
+
+    return fixed_covars, random_covars
 
 
 def main():
     # par
     params = snakemake.params
     input = snakemake.input
-    output = snakemake.output
-    wildcards = snakemake.wildcards
+    model = snakemake.params.get('model')
+    genes = params.genes
 
     # read
     cty = pd.read_table(input.ctp)
     ctnu = pd.read_table(input.ctnu)
     cts = np.unique(ctnu['ct'])
     # celltype specific mean nu
-    ctnu_grouped = ctnu.groupby('ct').mean()
+    ctnu_grouped = ctnu.groupby('ct')[genes].mean()
 
     # P
     P = pd.read_table(input.P, index_col=0)
@@ -50,15 +58,13 @@ def main():
     P.to_csv(P_f, sep='\t', index=False, header=False)
 
     # collect covariates
-    fixed_covars_d = collect_covariates(snakemake, inds)
+    fixed_covars_d, random_covars = collect_covariates(snakemake, inds)
 
     #
-    genes = params.genes
     outs = []
     for gene in genes:
         log.logger.info(gene)
-        out_f = re.sub('/rep/', f'/rep{gene}/', params.out)
-        os.makedirs(os.path.dirname(out_f), exist_ok=True)
+        out = {'gene': gene, 'ct_mean_nu': {ct: ctnu_grouped.loc[ct, gene] for ct in cts}}
 
         # transform y and ctnu from vector to matrix
         g_cty = cty.pivot(index='ind', columns='ct', values=gene)
@@ -85,18 +91,34 @@ def main():
         #    else:
         #        pass
 
-        out = {'gene': gene, 'ct_mean_nu': {ct: ctnu_grouped.loc[ct, gene] for ct in cts}}
         # HE
         if params.test == 'he':
-            free_he, free_he_p = ctp.free_HE(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d,
-                                             jack_knife=True)
-            full_he = ctp.full_HE(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d)
-            out['he'] = {'free': free_he, 'full': full_he,
-                         'wald': {'free': free_he_p}}
+            he_jk = snakemake.params.get('he_jk', True)
+            he_free_ct_specific_random = snakemake.params.get('he_free_ct_specific_random', False)
+
+            if model:
+                if model == 'free':
+                    free_he, free_he_p = ctp.free_HE(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d, 
+                                                    random_covars_d=random_covars, jack_knife=he_jk,
+                                                    ct_specific_random=he_free_ct_specific_random)
+                    out['he'] = {'free': free_he,
+                                'wald': {'free': free_he_p}}
+                elif model == 'full':
+                    full_he = ctp.full_HE(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d, 
+                                          random_covars_d=random_covars, dtype='float32')
+                    out['he'] = {'full': full_he}
+            else:
+                free_he, free_he_p = ctp.free_HE(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d, 
+                                                random_covars_d=random_covars, jack_knife=he_jk,
+                                                ols=he_free_ols, ols_ew=he_free_ols_ew, gls=he_free_gls)
+                full_he = ctp.full_HE(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d, 
+                                        random_covars_d=random_covars)
+                out['he'] = {'free': free_he, 'full': full_he,
+                            'wald': {'free': free_he_p}}
 
         ## ML
         if params.test == 'ml':
-            free_ml, free_ml_p = ctp.free_ML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d,
+            free_ml, free_ml_p = ctp.free_ML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d, random_covars_d=random_covars,
                                              optim_by_R=True)
             # full_ml = ctp.full_ML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d,
             #        optim_by_R=True)
@@ -124,23 +146,22 @@ def main():
 
         # REML
         if params.test == 'reml':
-            model = snakemake.params.get('model')
             jk = snakemake.params.get('jk', False)
             
             if model:
                 if model == 'free':
-                    free_reml, free_reml_p = ctp.free_REML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d,
+                    free_reml, free_reml_p = ctp.free_REML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d, random_covars_d=random_covars,
                                                         optim_by_R=True, jack_knife=jk)
                     out['reml'] = {'free': free_reml, 'wald': {'free': free_reml_p}}
                 elif model == 'full':
-                    full_reml = ctp.full_REML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d,
+                    full_reml = ctp.full_REML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d, random_covars_d=random_covars,
                                             optim_by_R=True)
                     out['reml'] = {'full': full_reml}
 
             else:
-                free_reml, free_reml_p = ctp.free_REML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d,
+                free_reml, free_reml_p = ctp.free_REML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d, random_covars_d=random_covars,
                                                     optim_by_R=True, jack_knife=jk)
-                full_reml = ctp.full_REML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d,
+                full_reml = ctp.full_REML(y_f, P_f, ctnu_f, fixed_covars_d=fixed_covars_d, random_covars_d=random_covars,
                                           optim_by_R=True)
                 out['reml'] = {'free': free_reml, 'full': full_reml,
                             'wald': {'free': free_reml_p}}
@@ -165,14 +186,9 @@ def main():
             #        'full_free':full_free_lrt}
 
         # save
-        np.save(out_f, out)
-        outs.append(out_f)
+        outs.append(out)
 
-        # TODO
-        sys.exit()
-
-    with open(output.out, 'w') as f:
-        f.write('\n'.join(outs))
+    np.save(snakemake.output.out, outs)
 
 
 if __name__ == '__main__':

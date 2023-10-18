@@ -1,18 +1,5 @@
 # ind_min_cellnum:  exclude individuals <= number of cells
 # ct_min_cellnum: For cts <= ct_min_cellnum, set nu and y to missing
 # im_genome : impute all genes together
-ind_min_cellnum	ct_min_cellnum	im_genome	im_mvn	sex	PC	experiment	disease	seed
-#100	10	Y	N	Y	6	R	Y	123453
-#100	10	Y	N	Y	6	R	Y	123455
-#100	10	Y	N	Y	6	R	Y	123460
-#100	10	Y	N	Y	6	R	Y	123468
-100	10	Y	N	Y	6	R	Y	123480
-100	10	Y	N	Y	6	R	Y	123481
-100	10	Y	N	Y	6	R	Y	123482
-100	10	Y	N	Y	6	R	Y	123483
-100	10	Y	N	Y	6	R	Y	123484
-100	10	Y	N	Y	6	R	Y	123485
-100	10	Y	N	Y	6	R	Y	123486
-100	10	Y	N	Y	6	R	Y	123487
-100	10	Y	N	Y	6	R	Y	123488
-100	10	Y	N	Y	6	R	Y	123489
+ind_min_cellnum	ct_min_cellnum	im_genome	im_mvn	sex	PC	experiment	disease
+100	10	Y	N	Y	6	R	Y
