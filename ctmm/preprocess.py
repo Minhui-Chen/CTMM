@@ -369,8 +369,8 @@ def _std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame
 
 
 def std(ctp: pd.DataFrame, ctnu: pd.DataFrame, P: pd.DataFrame, return_all: bool = False
-        ) -> tuple[DataFrame, DataFrame, DataFrame, DataFrame, DataFrame, DataFrame] | tuple[
-    DataFrame, DataFrame, DataFrame, DataFrame]:
+        ) -> Union[Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame], 
+                   Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     """
     For each Gene, stardardize Overall Pseudobulk (OP) to mean 0 and std 1, and scale ctp,
     overall noise variance (nu), ct-specific noise variance (ctnu) correspondingly.
