@@ -1039,18 +1039,18 @@ rule cuomo_simulateGene_FDR:
 
 
 
+
+
+
 ###########################################################################################
 # simulate Cuomo genes: single cell simulation (bootstrap)
 ###########################################################################################
-
-
 wildcard_constraints: cell_no='[^/]+' 
 wildcard_constraints: depth='[\d\.]+' 
 wildcard_constraints: option='\d+' 
 
 cell_nos = [0.5, 1, 2]
 depths = [0.01, 0.1, 1, 2]
-# depths = [0.01, 0.1, 1, 10]
 V4 = [0, 0.2, 0.4, 0.6, 0.8, 1]  # proportion of shuffled individual to simulate cell type specific variance 
 
 rule cuomo_simulateGene_sc_bootstrap_hom:
@@ -1587,6 +1587,28 @@ rule yazar_ctp_HE_free:
         mem_mb = '30gb', 
         time = '100:00:00',
     script: 'bin/yazar/ctp.py'
+
+
+rule yazar_ctp_HE_free_tmp:
+    input:
+        y_batch = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/y/batch{{i}}.txt', # genes
+        ctp = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/batch{{i}}/ctp.std.gz', 
+        ctnu = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/batch{{i}}/ctnu.std.gz', 
+        P = f'analysis/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/P.gz',
+        pca = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/pca.txt',
+        meta = 'staging/data/yazar/obs.gz',
+    output:
+        out = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/batch{{i}}/ctp.HE.free.tmp.npy',
+    params:
+        genes = lambda wildcards, input: [line.strip() for line in open(input.y_batch)],
+        test = 'he',
+        model = 'free',
+        he_jk = True,
+        he_free_ols = True,
+    resources:
+        mem_mb = '30gb', 
+        time = '100:00:00',
+    script: 'scripts/yazar/ctp.tmp.py'
 
 
 use rule yazar_ctp_HE_free as yazar_ctp_HE_full with:
