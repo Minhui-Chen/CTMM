@@ -1452,7 +1452,9 @@ rule cuomo_sc_expressionpattern_collect:
                     'ENSG00000125845_BMP2', 'ENSG00000107984_DKK1', 'ENSG00000234964_FABP5P7',
                     'ENSG00000166105_GLB1L3', 'ENSG00000237550_UBE2Q2P6', 'ENSG00000230903_RPL9P8']],
     output:
-        touch(f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.sc_expressionpattern.flag'),
+        flag = f'staging/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.sc_expressionpattern.flag',
+    shell:
+        'touch {output.flag}'
 
 # likelihood
 rule cuomo_likelihood_plot:
@@ -1852,6 +1854,130 @@ rule cuomo_enrichment_all:
 
 
 
+rule yazar_enrichment:
+    input:
+        out = f'analysis/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/ctp.HE.npy',
+    output:
+        genes = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/enrichment/all.genes.txt',
+        he_V_top = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/enrichment/he.V.topgenes.txt',
+    script: 'scripts/yazar/homvsfree_genes.py'
+
+
+rule yazar_enrichment_GOnPathway:
+    input:
+        genes = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/enrichment/all.genes.txt',
+        he_V_top = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/enrichment/he.V.topgenes.txt',
+    output:
+        he_V_top_enrich = f'results/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/enrichment/he.V.top.enrich.txt',
+        he_V_top_gse = f'results/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/enrichment/he.V.top.gse.txt',
+    resources:
+        mem_mb = '10gb',
+    shell:
+        '''
+        Rscript scripts/yazar/ctp_enrichment_GOnPathway.R {input.he_V_top} {input.genes} \
+                {output.he_V_top_enrich} {output.he_V_top_gse}
+        '''
+
+
+rule yazar_enrichment_all:
+    input:
+        he_V = expand('results/yazar/nomissing/{params}/enrichment/he.V.top.enrich.txt',
+                params=yazar_paramspace.instance_patterns),
+
+
+
+##########################################################################
+#  correlation with gene features
+##########################################################################
+rule cuomo_eds:
+    input:
+        counts = 'data/cuomo2020natcommun/log_normalised_counts.csv.gz', 
+        eds = 'data/Wang_Goldstein.tableS1.txt',
+        gnomad = 'data/gnomad.v2.1.1.lof_metrics.by_gene.txt.gz',
+        tf = 'data/Dey2022CellGenomics/Dey_Enhancer_MasterReg/genesets/TF_genes_curated.txt',
+    output:
+        eds = 'analysis/cuomo/eds.txt',
+    run:
+        counts = pd.read_table(input.counts, index_col=0)
+        eds = pd.read_table(input.eds)
+
+        print(counts.shape, eds.shape)
+        print(len(np.unique(counts.index)))
+        print(len(np.unique(eds['GeneSymbol'])))
+
+        # TODO: drop dozens of duplicated genes
+        eds = eds.drop_duplicates(subset=['GeneSymbol'], keep=False, ignore_index=True)
+
+        eds = eds.loc[eds['GeneSymbol'].isin(counts.index.str.split('_').str.get(0))]
+        # print(counts.index.str.split('_').str.get(0))
+
+        # drop pLI in eds, instead using pLI from gnomad
+        eds = eds.drop('pLI', axis=1)
+
+        # read gene length from gnomad
+        gnomad = pd.read_table(input.gnomad, usecols=['gene', 'gene_id', 'gene_length', 'pLI', 'oe_lof_upper'])
+        gnomad = gnomad.rename(columns={'gene_id': 'GeneSymbol', 'oe_lof_upper': 'LOEUF'})
+        # lose dozens of genes that are not exist in gnomad
+        eds = eds.merge(gnomad[['GeneSymbol', 'gene_length', 'pLI', 'LOEUF']])
+
+        # read TF
+        tf = [line.strip().split()[0] for line in open(input.tf)]
+        tf_gnomad = gnomad.loc[gnomad['gene'].isin(tf)]
+        # check how many genes in tf has gene_id  # TODO: gnomad has the same gene name but different id
+        print(len(tf), tf_gnomad.shape[0], len(tf_gnomad['gene'].unique()), len(tf_gnomad['GeneSymbol'].unique()))
+
+        eds['TF'] = 0
+        eds.loc[eds['GeneSymbol'].isin(tf_gnomad['GeneSymbol']), 'TF'] = 1
+
+
+        eds.to_csv(output.eds, sep='\t', index=False)
+
+
+rule cuomo_eds_cor:
+    input:
+        y = 'analysis/cuomo/data/log/day.raw.pseudobulk.gz', # donor - day * gene
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.remlJK.npy',
+        eds = 'analysis/cuomo/eds.txt',
+    output: 
+        matrix = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/matrix.cor.png',
+    params:
+        method = 'reml',
+    priority: 1
+    script: 'scripts/cuomo/eds.cor.py'
+
+
+use rule cuomo_eds_cor as cuomo_eds_cor_he with:
+    input:
+        y = 'analysis/cuomo/data/log/day.raw.pseudobulk.gz', # donor - day * gene
+        out = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
+        eds = 'analysis/cuomo/eds.txt',
+    output: 
+        matrix = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/matrix.cor.he.png',
+    params:
+        method = 'he',
+
+
+rule cuomo_eds_all:
+    input:
+        png = expand('results/cuomo/{params}/matrix.cor.png', params=cuomo_paramspace.instance_patterns),
+        he = expand('results/cuomo/{params}/matrix.cor.he.png', params=cuomo_paramspace.instance_patterns),
+
+
+use rule cuomo_eds_cor as yazar_eds_cor with:
+    input:
+        y = 'data/Yazar2022Science/ctp.gz',
+        out = f'analysis/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/ctp.HE.npy',
+        eds = 'analysis/cuomo/eds.txt',
+    output: 
+        matrix = f'results/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/matrix.cor.png',
+    params:
+        method = 'he',
+
+
+rule yazar_eds_all:
+    input:
+        png = expand('results/yazar/nomissing/{params}/matrix.cor.png', params=yazar_paramspace.instance_patterns),
+
 
 ###########################################################################################
 # simulate Cuomo genes: a random gene's hom2, ct main variance, nu
@@ -1944,184 +2070,23 @@ use rule cuomo_simulateGene_free_ctp_test_estimates as cuomo_simulateGene_free_c
         png = f'results_20230510/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/ctp.free.estimates.png',
 
 
-#########################################################################
-# simulate Cuomo genes: single cell simulation (bootstrap)
-# test without resampling inds with 0 expression
-#########################################################################
-cuomo_sc_batch_no = 20
-cuomo_sc_batches = np.array_split(range(cuomo_simulateGene_gene_no), cuomo_sc_batch_no)
 
 
-use rule cuomo_simulateGene_sc_bootstrap_hom as cuomo_simulateGene_sc_bootstrap_xindsresample_hom with:
-    output:
-        genes = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/genes.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-        P = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/P.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-        ctnu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/ctnu.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-        cty = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/cty.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-    params:
-        batch = cuomo_sc_batches,
-        cty = lambda wildcards, output: os.path.dirname(output.cty[0]),
-        seed = 145342,
-        # seed = 1452,
-        resample_inds = False,
 
 
-use rule cuomo_simulateGene_hom_addUncertainty as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_addUncertainty with:
-    input:
-        nu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/ctnu.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-    output:
-        nu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctnu.batch{i}.npy'
-                for i in range(cuomo_sc_batch_no)],
-    params:
-        seed = 237632,
-
-
-use rule ctp_test as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_ctp_test with:
-    input:
-        genes = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
-    output:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.batch{{i}}.npy',
-    params:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/rep/ctp.npy',
-        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
-        ML = False,
-        REML = False,
-        HE = True,
-        HE_free_only = True,
-        optim_by_R = True,
-
-
-use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_ctp_aggReplications with:
-    input:
-        out = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.batch{i}.npy'
-                for i in range(cuomo_sc_batch_no)],
-    output:
-        out = f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.npy',
-
-
-use rule ctp_test_remlJK as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_ctp_test_remlJK with:
-    input:
-        genes = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
-    output:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{{i}}.npy',
-    params:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/rep/ctp.remlJK.npy',
-        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
-        optim_by_R = True,
-
-
-use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_ctp_remlJK_aggReplications with:
-    input:
-        out = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{i}.npy'
-                for i in range(cuomo_sc_batch_no)],
-    output:
-        out = f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.remlJK.npy',
-
-
-use rule cuomo_simulateGene_sc_bootstrap_xindsresample_hom as cuomo_simulateGene_sc_bootstrap_xindsresample_free with:
-    output:
-        genes = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/genes.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-        P = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/P.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-        ctnu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/ctnu.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-        cty = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/cty.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-    params:
-        batch = cuomo_sc_batches,
-        cty = lambda wildcards, output: os.path.dirname(output.cty[0]), 
-        seed = 143352,
-        resample_inds = False,
-    resources:
-        mem_mb = '30gb',
-        partition = 'tier2q',
-
-
-use rule cuomo_simulateGene_hom_addUncertainty as cuomo_simulateGene_sc_bootstrap_xindsresample_free_addUncertainty with:
-    input:
-        nu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/ctnu.batch{i}.txt'
-                for i in range(cuomo_sc_batch_no)],
-    output:
-        nu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctnu.batch{i}.npy'
-                for i in range(cuomo_sc_batch_no)],
-    params:
-        seed = 211313,
-
-
-use rule ctp_test as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_ctp_test with:
-    input:
-        genes = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
-    output:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.batch{{i}}.npy',
-    params:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/rep/ctp.npy',
-        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
-        ML = False,
-        REML = False,
-        HE = True,
-        HE_free_only = True,
-        optim_by_R = True,
-
-
-use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_ctp_aggReplications with:
-    input:
-        out = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.batch{i}.npy'
-                for i in range(cuomo_sc_batch_no)],
-    output:
-        out = f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.npy',
-
-
-use rule ctp_test_remlJK as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_ctp_test_remlJK with:
-    input:
-        genes = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
-    output:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{{i}}.npy',
-    params:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/rep/ctp.remlJK.npy',
-        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
-        optim_by_R = True,
-        method = 'BFGS-Nelder',
-    resources:
-        mem_mb = '12gb',
-        time = '68:00:00',
-
-
-use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_ctp_remlJK_aggReplications with:
-    input:
-        out = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{i}.npy'
-                for i in range(cuomo_sc_batch_no)],
-    output:
-        out = f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.remlJK.npy',
-
-
+###########################################################################################
+# simulate Cuomo genes: single cell simulation
+###########################################################################################
 #################### 10 cells per ind-ct
-use rule cuomo_simulateGene_sc_bootstrap_hom as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_10 with:
+use rule cuomo_simulateGene_sc_bootstrap_hom as cuomo_simulateGene_sc_bootstrap_hom_10 with:
     output:
-        genes = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{i}.txt'
+        genes = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
-        P = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{i}.txt'
+        P = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
-        ctnu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/ctnu.batch{i}.txt'
+        ctnu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/ctnu.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
-        cty = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/cty.batch{i}.txt'
+        cty = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/cty.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
     params:
         batch = cuomo_sc_batches,
@@ -2131,27 +2096,27 @@ use rule cuomo_simulateGene_sc_bootstrap_hom as cuomo_simulateGene_sc_bootstrap_
         cell_count = True,
 
 
-use rule cuomo_simulateGene_hom_addUncertainty as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_addUncertainty_10 with:
+use rule cuomo_simulateGene_hom_addUncertainty as cuomo_simulateGene_sc_bootstrap_hom_addUncertainty_10 with:
     input:
-        nu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/ctnu.batch{i}.txt'
+        nu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/ctnu.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
     output:
-        nu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctnu.batch{i}.npy'
+        nu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctnu.batch{i}.npy'
                 for i in range(cuomo_sc_batch_no)],
     params:
         seed = 237632,
 
 
-use rule ctp_test as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_ctp_test_10 with:
+use rule ctp_test as cuomo_simulateGene_sc_bootstrap_hom_ctp_test_10 with:
     input:
-        genes = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
+        genes = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
     output:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.batch{{i}}.npy',
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.batch{{i}}.npy',
     params:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/rep/ctp.npy',
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/rep/ctp.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
         ML = False,
         REML = False,
@@ -2160,45 +2125,45 @@ use rule ctp_test as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_ctp_test_
         optim_by_R = True,
 
 
-use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_ctp_aggReplications_10 with:
+use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_hom_ctp_aggReplications_10 with:
     input:
-        out = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.batch{i}.npy'
+        out = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.batch{i}.npy'
                 for i in range(cuomo_sc_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.npy',
+        out = f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.npy',
 
 
-use rule ctp_test_remlJK as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_ctp_test_remlJK_10 with:
+use rule ctp_test_remlJK as cuomo_simulateGene_sc_bootstrap_hom_ctp_test_remlJK_10 with:
     input:
-        genes = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
+        genes = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
     output:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{{i}}.npy',
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{{i}}.npy',
     params:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/rep/ctp.remlJK.npy',
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/rep/ctp.remlJK.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
         optim_by_R = True,
 
 
-use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_xindsresample_hom_ctp_remlJK_aggReplications_10 with:
+use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_hom_ctp_remlJK_aggReplications_10 with:
     input:
-        out = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{i}.npy'
+        out = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{i}.npy'
                 for i in range(cuomo_sc_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.remlJK.npy',
+        out = f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{nu_noise}}/{{option}}/ctp.remlJK.npy',
 
 
-use rule cuomo_simulateGene_sc_bootstrap_xindsresample_hom as cuomo_simulateGene_sc_bootstrap_xindsresample_free_10 with:
+use rule cuomo_simulateGene_sc_bootstrap_hom as cuomo_simulateGene_sc_bootstrap_free_10 with:
     output:
-        genes = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/genes.batch{i}.txt'
+        genes = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/genes.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
-        P = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/P.batch{i}.txt'
+        P = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/P.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
-        ctnu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/ctnu.batch{i}.txt'
+        ctnu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/ctnu.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
-        cty = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/cty.batch{i}.txt'
+        cty = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/cty.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
     params:
         batch = cuomo_sc_batches,
@@ -2211,27 +2176,27 @@ use rule cuomo_simulateGene_sc_bootstrap_xindsresample_hom as cuomo_simulateGene
         partition = 'tier2q',
 
 
-use rule cuomo_simulateGene_hom_addUncertainty as cuomo_simulateGene_sc_bootstrap_xindsresample_free_addUncertainty_10 with:
+use rule cuomo_simulateGene_hom_addUncertainty as cuomo_simulateGene_sc_bootstrap_free_addUncertainty_10 with:
     input:
-        nu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/ctnu.batch{i}.txt'
+        nu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/ctnu.batch{i}.txt'
                 for i in range(cuomo_sc_batch_no)],
     output:
-        nu = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctnu.batch{i}.npy'
+        nu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctnu.batch{i}.npy'
                 for i in range(cuomo_sc_batch_no)],
     params:
         seed = 211313,
 
 
-use rule ctp_test as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_ctp_test_10 with:
+use rule ctp_test as cuomo_simulateGene_sc_bootstrap_Free_ctp_test_10 with:
     input:
-        genes = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
+        genes = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
     output:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.batch{{i}}.npy',
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.batch{{i}}.npy',
     params:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/rep/ctp.npy',
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/rep/ctp.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
         ML = False,
         REML = False,
@@ -2240,24 +2205,24 @@ use rule ctp_test as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_ctp_test
         optim_by_R = True,
 
 
-use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_ctp_aggReplications_10 with:
+use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_Free_ctp_aggReplications_10 with:
     input:
-        out = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.batch{i}.npy'
+        out = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.batch{i}.npy'
                 for i in range(cuomo_sc_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.npy',
+        out = f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.npy',
 
 
-use rule ctp_test_remlJK as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_ctp_test_remlJK_10 with:
+use rule ctp_test_remlJK as cuomo_simulateGene_sc_bootstrap_Free_ctp_test_remlJK_10 with:
     input:
-        genes = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
-        y = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/cty.batch{{i}}.txt',
-        P = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
-        nu = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
+        genes = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{option}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/{{cell_no}}/{{depth}}/{{option}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctnu.batch{{i}}.npy',
     output:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{{i}}.npy',
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{{i}}.npy',
     params:
-        out = f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/rep/ctp.remlJK.npy',
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/rep/ctp.remlJK.npy',
         batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
         optim_by_R = True,
         method = 'BFGS-Nelder',
@@ -2266,56 +2231,380 @@ use rule ctp_test_remlJK as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_c
         time = '68:00:00',
 
 
-use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_xindsresample_Free_ctp_remlJK_aggReplications_10 with:
+use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_Free_ctp_remlJK_aggReplications_10 with:
     input:
-        out = [f'staging/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{i}.npy'
+        out = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.remlJK.batch{i}.npy'
                 for i in range(cuomo_sc_batch_no)],
     output:
-        out = f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.remlJK.npy',
+        out = f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/{{cell_no}}/{{depth}}/V_{{V}}/{{nu_noise}}/{{option}}/ctp.remlJK.npy',
 
 
-
-
-
-
-use rule cuomo_simulateGene_sc_bootstrap_ctp_test_powerplot_merge_paper as cuomo_simulateGene_sc_bootstrap_xindsresample_ctp_test_powerplot_merge_paper with:
+use rule cuomo_simulateGene_sc_bootstrap_ctp_test_powerplot_merge_paper as cuomo_simulateGene_sc_bootstrap_ctp_test_powerplot_merge_paper_including_10cellsimulation with:
     input:
-        cellno_outs = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{cell_no}/1/{nu_noise}/{{option}}/ctp.npy'
+        cellno_outs = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{cell_no}/1/{nu_noise}/{{option}}/ctp.npy'
                 for cell_no in cell_nos for nu_noise in nu_noises],
-        cellcount_outs = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/50/1/{nu_noise}/{{option}}/ctp.npy'
+        cellcount_outs = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/10/1/{nu_noise}/{{option}}/ctp.npy'
                 for nu_noise in nu_noises],
-        depth_outs = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/1/{depth}/{nu_noise}/{{option}}/ctp.npy'
+        depth_outs = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/1/{depth}/{nu_noise}/{{option}}/ctp.npy'
                 for depth in depths for nu_noise in nu_noises],
-        remlJK_cellno_outs = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/{cell_no}/1/{nu_noise}/{{option}}/ctp.remlJK.npy'
+        remlJK_cellno_outs = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{cell_no}/1/{nu_noise}/{{option}}/ctp.remlJK.npy'
                 for cell_no in cell_nos for nu_noise in nu_noises],
-        remlJK_cellcount_outs = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/50/1/{nu_noise}/{{option}}/ctp.remlJK.npy'
+        remlJK_cellcount_outs = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/cell_count/10/1/{nu_noise}/{{option}}/ctp.remlJK.npy'
                 for nu_noise in nu_noises],
-        remlJK_depth_outs = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/hom/1/{depth}/{nu_noise}/{{option}}/ctp.remlJK.npy'
+        remlJK_depth_outs = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/1/{depth}/{nu_noise}/{{option}}/ctp.remlJK.npy'
                 for depth in depths for nu_noise in nu_noises],
         nu = 'analysis/cuomo/data/log/day.raw.nu.gz', # donor - day * gene
         var_nu = 'analysis/cuomo/data/log/bootstrapedNU/day.raw.var_nu.gz', # donor - day * gene
-        cellno_outs3 = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{cell_no}/1/V_{V}/1_2_5/{{option}}/ctp.npy'
+        cellno_outs3 = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/{cell_no}/1/V_{V}/1_2_5/{{option}}/ctp.npy'
                 for cell_no in cell_nos for V in V4],
-        cellcount_outs3 = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/50/1/V_{V}/1_2_5/{{option}}/ctp.npy'
+        cellcount_outs3 = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/10/1/V_{V}/1_2_5/{{option}}/ctp.npy'
                 for V in V4],
-        depth_outs3 = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/1/{depth}/V_{V}/1_2_5/{{option}}/ctp.npy'
+        depth_outs3 = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/1/{depth}/V_{V}/1_2_5/{{option}}/ctp.npy'
                 for depth in depths for V in V4],
-        cellno_remlJKs3 = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/{cell_no}/1/V_{V}/1_2_5/{{option}}/ctp.remlJK.npy'
+        cellno_remlJKs3 = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/{cell_no}/1/V_{V}/1_2_5/{{option}}/ctp.remlJK.npy'
                 for cell_no in cell_nos for V in V4],
-        cellcount_remlJKs3 = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/cell_count/50/1/V_{V}/1_2_5/{{option}}/ctp.remlJK.npy'
+        cellcount_remlJKs3 = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/cell_count/10/1/V_{V}/1_2_5/{{option}}/ctp.remlJK.npy'
                 for V in V4],
-        depth_remlJKs3 = [f'analysis/cuomo/simulateGene/bootstrap/xindsresample/{cuomo_paramspace.wildcard_pattern}/free/1/{depth}/V_{V}/1_2_5/{{option}}/ctp.remlJK.npy'
+        depth_remlJKs3 = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/free/1/{depth}/V_{V}/1_2_5/{{option}}/ctp.remlJK.npy'
                 for depth in depths for V in V4],
         real = f'analysis/cuomo/{cuomo_paramspace.wildcard_pattern}/ctp.npy',
     output:
-        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/xindsresample/ctp.sc.power.{{option}}.paper.png',
-        data = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/xindsresample/ctp.sc.power.{{option}}.paper.txt',
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/ctp.sc.power.{{option}}.png',
+        data = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/ctp.sc.power.{{option}}.txt',
 
 
-rule cuomo_simulateGene_sc_bootstrap_xindsresample_all:
+
+# quality check of sc simulation
+rule cuomo_simulateGene_sc_bootstrap_countsimqc_transform:
     input:
-        png = expand('results/cuomo/{params}/simulateGene/bootstrap/xindsresample/ctp.sc.power.{option}.paper.png', 
+        raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.gz',
+        sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.gz',
+    output:
+        raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.dds.gz',
+        sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.dds.gz',
+        raw_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.meta.dds.gz',
+        sim_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.meta.dds.gz',
+    script: 'scripts/cuomo/countsimqc_transform.py'
+
+
+rule cuomo_simulateGene_sc_bootstrap_countsimqc:
+    input:
+        raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.dds.gz',
+        sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.dds.gz',
+        raw_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.meta.dds.gz',
+        sim_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.meta.dds.gz',
+    output:
+        html = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/hom/{{cell_no}}/{{depth}}/{{option}}/countsimqc.html',
+    resources:
+        time = '124:00:00'
+    conda: "envs/countsimQC.yaml"
+    script: 'scripts/cuomo/countsimqc.R' 
+
+
+# rule cuomo_simulateGene_sc_bootstrap_countsimqc_test:
+#     input:
+#         raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.dds.gz',
+#         sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.dds.gz',
+#         raw_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.meta.dds.gz',
+#         sim_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.meta.dds.gz',
+#     output:
+#         html = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/hom/{{cell_no}}/{{depth}}/{{option}}/test/countsimqc.html',
+#     resources:
+#         time = '124:00:00'
+#     conda: "envs/countsimQC.yaml"
+#     script: 'scripts/cuomo/countsimqc.test.R'
+
+
+# test: including all 1,000 genes. conclusion: the package doesn't support missing values in count matrix
+# rule cuomo_simulateGene_sc_bootstrap_countsimqc_transform2:
+#     input:
+#         raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.gz',
+#         sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.gz',
+#     output:
+#         raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.dds.tmp.gz',
+#         sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.dds.tmp.gz',
+#         raw_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.meta.dds.tmp.gz',
+#         sim_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.meta.dds.tmp.gz',
+#     script: 'scripts/cuomo/countsimqc_transform2.py'
+
+
+# use rule cuomo_simulateGene_sc_bootstrap_countsimqc as cuomo_simulateGene_sc_bootstrap_countsimqc2 with:
+#     input:
+#         raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.dds.tmp.gz',
+#         sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.dds.tmp.gz',
+#         raw_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.meta.dds.tmp.gz',
+#         sim_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.meta.dds.tmp.gz',
+#     output:
+#         html = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/hom/{{cell_no}}/{{depth}}/{{option}}/tmp/countsimqc.html',
+
+
+# # test: the inflated variance is because of round of counts in raw data?
+# rule cuomo_simulateGene_sc_bootstrap_countsimqc_transform3:
+#     input:
+#         raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.gz',
+#         sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.gz',
+#     output:
+#         raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.dds.tmp3.gz',
+#         sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.dds.tmp3.gz',
+#         raw_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.meta.dds.tmp3.gz',
+#         sim_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.meta.dds.tmp3.gz',
+#     script: 'scripts/cuomo/countsimqc_transform3.py'
+
+
+# use rule cuomo_simulateGene_sc_bootstrap_countsimqc as cuomo_simulateGene_sc_bootstrap_countsimqc3 with:
+#     input:
+#         raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.count.dds.tmp3.gz',
+#         sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.count.dds.tmp3.gz',
+#         raw_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/raw.meta.dds.tmp3.gz',
+#         sim_meta = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/{{cell_no}}/{{depth}}/{{option}}/sim.meta.dds.tmp3.gz',
+#     output:
+#         html = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/hom/{{cell_no}}/{{depth}}/{{option}}/tmp3/countsimqc.html',
+
+
+
+
+#########################################################################
+#  Cuomo sc simulation test for pseudocount in simulation of mean difference
+#########################################################################
+rule cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom:
+    input:
+        counts = 'data/cuomo2020natcommun/raw_counts.csv.gz',
+        meta = 'analysis/cuomo/data/meta.txt',
+        genes = f'staging/cuomo/simulateGene/{cuomo_paramspace.wildcard_pattern}/genes.txt',
+    output:
+        genes = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/genes.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+        P = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/P.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+        ctnu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/ctnu.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+        cty = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/cty.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+        raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/raw.count.gz',
+        sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/sim.count.gz',
+    params:
+        batch = cuomo_sc_batches,
+        cty = lambda wildcards, output: os.path.dirname(output.cty[0]),
+        seed = 145342,
+        resample_inds = False,
+    resources:
+        mem_mb = '10gb',
+    priority: 100
+    script: 'scripts/cuomo/simulateGene_sc_bootstrap.py'
+
+
+use rule cuomo_simulateGene_hom_addUncertainty as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom_addUncertainty with:
+    input:
+        nu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/ctnu.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+    output:
+        nu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/ctnu.batch{i}.npy'
+                for i in range(cuomo_sc_batch_no)],
+
+
+use rule ctp_test as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom_ctp_test with:
+    input:
+        genes = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/ctnu.batch{{i}}.npy',
+    output:
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/ctp.batch{{i}}.npy',
+    params:
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/rep/ctp.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
+        ML = False,
+        REML = False,
+        HE = True,
+        HE_free_only = True,
+        optim_by_R = True,
+
+
+use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom_ctp_aggReplications with:
+    input:
+        out = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/ctp.batch{i}.npy'
+                for i in range(cuomo_sc_batch_no)],
+    output:
+        out = f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/ctp.npy',
+    priority: 100
+
+
+use rule ctp_test_remlJK as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom_ctp_test_remlJK with:
+    input:
+        genes = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/ctnu.batch{{i}}.npy',
+    output:
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/ctp.remlJK.batch{{i}}.npy',
+    params:
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/rep/ctp.remlJK.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
+        optim_by_R = True,
+    resources:
+        mem_mb = '12gb',
+        time = '48:00:00',
+    priority: 97
+
+
+use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom_ctp_remlJK_aggReplications with:
+    input:
+        out = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/ctp.remlJK.batch{i}.npy'
+                for i in range(cuomo_sc_batch_no)],
+    output:
+        out = f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/ctp.remlJK.npy',
+    priority: 100
+
+
+# use rule cuomo_simulateGene_sc_bootstrap_meandifference_hom_plot as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom_plot with:
+#     input:
+#         he = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/sdc_{{pseudocount}}/1/1/1_2_5/2/{meandifference}/ctp.npy'
+#                 for meandifference in mean_differences],
+#         reml = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/hom/sdc_{{pseudocount}}/1/1/1_2_5/2/{meandifference}/ctp.remlJK.npy'
+#                 for meandifference in mean_differences],
+#     output:
+#         png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/sdc_{{pseudocount}}/meandifference.2.supp.png',
+
+pseudocounts = [1, 1e-4]
+# pseudocounts = [1, 1e-2, 1e-4]
+rule cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom_plot:
+    input:
+        raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_1/option_{{option}}/md_0/raw.count.gz',
+        he = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{pseudocount}/option_{{option}}/md_{meandifference}/nu_{{nu_noise}}/ctp.npy'
+                for pseudocount in pseudocounts for meandifference in mean_differences],
+        reml = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{pseudocount}/option_{{option}}/md_{meandifference}/nu_{{nu_noise}}/ctp.remlJK.npy'
+                for pseudocount in pseudocounts for meandifference in mean_differences],
+    output:
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/nu_{{nu_noise}}/meandifference.{{option}}.png',
+    params:
+        pseudocounts = pseudocounts,
+        mean_differences = mean_differences,
+    script: 'scripts/cuomo/meandifference_pseudocount_hom_plot.py'
+
+
+
+rule cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_all:
+    input:
+        png = expand('results/cuomo/{params}/simulateGene/bootstrap/nu_{nu_noise}/meandifference.{option}.png',
+                    params=cuomo_paramspace.instance_patterns, nu_noise=['1_0_0'], option=[2, 3]),
+        # nu_noise=['1_0_0', '1_2_5']
+
+
+rule cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_mergeplot:
+    input:
+        raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_1/option_2/md_0/raw.count.gz',
+        null = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_1/option_3/md_{meandifference}/nu_{{nu_noise}}/ctp.remlJK.npy'
+                for meandifference in mean_differences],
+        hom = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_1/option_2/md_{meandifference}/nu_{{nu_noise}}/ctp.remlJK.npy'
+                for meandifference in mean_differences],
+    output:
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/nu_{{nu_noise}}/meandifference.supp.png',
+    params:
+        mean_differences = mean_differences,
+    script: 'scripts/cuomo/meandifference_pseudocount_merge_plot.py'
+
+
+#################### test prior gene proportion
+use rule cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_prior_hom with:
+    output:
+        genes = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.genes.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+        P = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.P.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+        ctnu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.ctnu.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+        cty = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.cty.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+        raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.raw.count.gz',
+        sim = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.sim.count.gz',
+    params:
+        batch = cuomo_sc_batches,
+        cty = lambda wildcards, output: os.path.dirname(output.cty[0]),
+        seed = 145342,
+        resample_inds = False,
+        prior = True,
+
+
+use rule cuomo_simulateGene_hom_addUncertainty as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_prior_hom_addUncertainty with:
+    input:
+        nu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.ctnu.batch{i}.txt'
+                for i in range(cuomo_sc_batch_no)],
+    output:
+        nu = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_{{nu_noise}}/prior.ctnu.batch{i}.npy'
+                for i in range(cuomo_sc_batch_no)],
+
+
+use rule ctp_test as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_prior_hom_ctp_test with:
+    input:
+        genes = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_1_2_5/prior.ctnu.batch{{i}}.npy',
+    output:
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.ctp.batch{{i}}.npy',
+    params:
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/rep/prior.ctp.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
+        ML = False,
+        REML = False,
+        HE = True,
+        HE_free_only = True,
+        optim_by_R = True,
+
+
+use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_prior_hom_ctp_aggReplications with:
+    input:
+        out = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.ctp.batch{i}.npy'
+                for i in range(cuomo_sc_batch_no)],
+    output:
+        out = f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.ctp.npy',
+    priority: 100
+
+
+use rule ctp_test_remlJK as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_prior_hom_ctp_test_remlJK with:
+    input:
+        genes = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.genes.batch{{i}}.txt',
+        y = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.cty.batch{{i}}.txt',
+        P = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.P.batch{{i}}.txt',
+        nu = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/nu_1_2_5/prior.ctnu.batch{{i}}.npy',
+    output:
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.ctp.remlJK.batch{{i}}.npy',
+    params:
+        out = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/rep/prior.ctp.remlJK.npy',
+        batch = lambda wildcards, input: np.loadtxt(input.genes, dtype='str') if os.path.exists(input.genes) else 'not ready',
+        optim_by_R = True,
+    resources:
+        mem_mb = '12gb',
+        time = '48:00:00',
+    priority: 97
+
+
+use rule op_aggReplications as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_prior_hom_ctp_remlJK_aggReplications with:
+    input:
+        out = [f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.ctp.remlJK.batch{i}.npy'
+                for i in range(cuomo_sc_batch_no)],
+    output:
+        out = f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{{pseudocount}}/option_{{option}}/md_{{meandifference}}/prior.ctp.remlJK.npy',
+    priority: 100
+
+
+use rule cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_hom_plot as cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_prior_hom_plot with:
+    input:
+        raw = f'staging/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_1/option_{{option}}/md_0/prior.raw.count.gz',
+        he = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{pseudocount}/option_{{option}}/md_{meandifference}/prior.ctp.npy'
+                for pseudocount in pseudocounts for meandifference in mean_differences],
+        reml = [f'analysis/cuomo/simulateGene/bootstrap/{cuomo_paramspace.wildcard_pattern}/sdc_{pseudocount}/option_{{option}}/md_{meandifference}/prior.ctp.remlJK.npy'
+                for pseudocount in pseudocounts for meandifference in mean_differences],
+    output:
+        png = f'results/cuomo/{cuomo_paramspace.wildcard_pattern}/simulateGene/bootstrap/option_{{option}}/meandifference.prior.2.png',
+
+
+
+rule cuomo_simulateGene_sc_bootstrap_meandifference_pseudocount_prior_all:
+    input:
+        png = expand('results/cuomo/{params}/simulateGene/bootstrap/option_{option}/meandifference.prior.2.png',
                     params=cuomo_paramspace.instance_patterns, option=[2]),
+
 
 
 
@@ -3266,7 +3555,7 @@ use rule yazar_L_sc_expressionpattern as yazar_nomissing_sc_expressionpattern wi
 # single cell expression pattern plot
     input:
         out = f'analysis/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/ctp.HE.npy',
-        ctp = f'staging/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/ctp.std.gz',
+        ctp = f'analysis/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/ctp.std.gz',
         P = f'analysis/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/P.gz',
         var = 'staging/data/yazar/var.gz',
     output:
