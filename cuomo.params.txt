@@ -3,3 +3,5 @@
 # im_genome : impute all genes together
 ind_min_cellnum	ct_min_cellnum	im_genome	im_mvn	sex	PC	experiment	disease
 100	10	Y	N	Y	6	R	Y
+#100	5	Y	N	Y	6	R	Y
+#100	20	Y	N	Y	6	R	Y
