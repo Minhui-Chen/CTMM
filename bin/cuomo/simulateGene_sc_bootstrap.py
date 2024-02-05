@@ -11,6 +11,7 @@ def main():
     rng = np.random.default_rng(int(snakemake.params.seed))
 
     # fraction of cells to sample
+    cell_count = snakemake.params.get('cell_count', False)
     frac = float(snakemake.wildcards.cell_no) 
 
     # read depth
@@ -19,6 +20,11 @@ def main():
     # whether to perform resampling individuals with 0 counts
     resample_inds = snakemake.params.get('resample_inds', True)
     
+    # whether to simulate mean difference
+    mean_difference = snakemake.wildcards.get('meandifference', None)
+    if mean_difference:
+        mean_difference = float(mean_difference)
+
     # read data
     counts = pd.read_table(snakemake.input.counts, index_col=0)
     counts = counts.transpose()
@@ -36,6 +42,10 @@ def main():
 
     # ct mean expression
     ct_means = data.groupby('day')[all_genes.tolist()].mean()
+
+    # to save raw, sim data
+    raw_counts = []
+    sim_counts = []
 
     for batch, gene_f, P_f, ctnu_f, cty_f in zip(snakemake.params.batch, snakemake.output.genes, 
                                                  snakemake.output.P, snakemake.output.ctnu, snakemake.output.cty):
@@ -66,6 +76,13 @@ def main():
                                  ['cell', 'total_counts', gene, 'donor']].copy()
             gene_data = gene_data.rename(columns={gene: 'gene', 'donor': 'ind'})
 
+            # save raw counts
+            raw_count = gene_data[['ind', 'gene']].copy()
+            raw_count = raw_count.rename(columns={'gene': 'count'})
+            raw_count['gene'] = gene
+            raw_count['ct'] = main_ct
+            raw_counts.append(raw_count)
+
             # free
             if 'V' in snakemake.wildcards.keys():
                 V = float(snakemake.wildcards.V)
@@ -74,11 +91,17 @@ def main():
 
             # simulate
             if gene == 'ENSG00000176896_TCEANC':
-                cty, ctnu = util.sim_sc_bootstrap(gene_data, C, frac, depth, V, rng.integers(100000)+1, 
-                                                option=int(snakemake.wildcards.option), resample_inds=resample_inds)
+                cty, ctnu, sim_count = util.sim_sc_bootstrap(gene_data, C, frac, depth, V, rng.integers(100000)+1, 
+                                                option=int(snakemake.wildcards.option), resample_inds=resample_inds, cell_count=cell_count,
+                                                mean_difference=mean_difference)
             else:
-                cty, ctnu = util.sim_sc_bootstrap(gene_data, C, frac, depth, V, rng.integers(100000), 
-                                                option=int(snakemake.wildcards.option), resample_inds=resample_inds)
+                cty, ctnu, sim_count = util.sim_sc_bootstrap(gene_data, C, frac, depth, V, rng.integers(100000), 
+                                                option=int(snakemake.wildcards.option), resample_inds=resample_inds, cell_count=cell_count,
+                                                mean_difference=mean_difference)
+
+            sim_count['gene'] = gene
+            sim_count = sim_count.rename(columns={'gene_sim': 'count'})
+            sim_counts.append(sim_count)
 
             cty = cty.to_numpy()
             ctnu = pd.DataFrame(ctnu.stack()).reset_index()
@@ -102,6 +125,14 @@ def main():
         cty_agg.close()
         P_agg.close()
         ctnu_agg.close()
+
+
+    # save raw and simulated counts
+    if 'raw' in snakemake.output.keys():
+        raw_counts = pd.concat(raw_counts, ignore_index=True)
+        raw_counts.to_csv(snakemake.output.raw, sep='\t', index=False)
+        sim_counts = pd.concat(sim_counts, ignore_index=True)
+        sim_counts.to_csv(snakemake.output.sim, sep='\t', index=False)
 
 
 if __name__ == '__main__':

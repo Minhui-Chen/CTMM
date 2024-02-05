@@ -11,6 +11,7 @@ from rpy2.robjects.packages import STAP
 
 from . import util, wald, log
 
+
 def get_X(fixed_covars: dict, N: int, C: int) -> np.ndarray:
     '''
     Compute the design matrix X for fixed effects.
@@ -1651,6 +1652,8 @@ def free_REML(y_f: str, P_f: str, ctnu_f: str, nu_f: Optional[str]=None, fixed_c
 
         p['hom2'] = wald.wald_test(hom2, 0, var_hom2, N-n_par)
         p['V'] = wald.mvwald_test(np.diag(V), np.zeros(C), var_V, n=N, P=n_par)
+        p['var_V'] = var_V  # TODO: tmp add this
+        p['jacks_V'] = np.array(jacks['V'])  # TODO: tmp
         #p['V_iid'] = util.wald_ct_beta(np.diag(V), var_V, n=N, P=n_par)
         # wald test beta1 = beta2 = beta3
         p['ct_beta'] = util.wald_ct_beta(beta['ct_beta'], var_ct_beta, n=N, P=n_par)

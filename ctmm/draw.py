@@ -8,7 +8,7 @@ from sklearn import linear_model
 
 
 def scatter(x, y, png_fn=None, ax=None, xlab=None, ylab=None, title=None, text=None, xyline=False,
-        linregress=True, linregress_label=True, coeff_determination=True, s=None, color=None, heatscatter=False):
+        linregress=True, linregress_label=True, coeff_determination=False, s=None, color=None, heatscatter=False):
     '''
     Make a simple scatter plot. 
     Able to add text. 
@@ -102,7 +102,10 @@ def scatter(x, y, png_fn=None, ax=None, xlab=None, ylab=None, title=None, text=N
     if linregress:
         slope, intercept, r, p, stderr = stats.linregress(x, y)
         r, p = stats.pearsonr(x, y)
-        line = f'y={intercept:.2g}+{slope:.2g}x, r={r:.2g}, p={p:.2g}'
+        if slope > 0:
+            line = f'y={intercept:.2g}+{slope:.2g}x, r={r:.2g}, p={p:.2g}'
+        else:
+            line = f'y={intercept:.2g}{slope:.2g}x, r={r:.2g}, p={p:.2g}'
         if coeff_determination:
             # Create linear regression object
             regr = linear_model.LinearRegression()

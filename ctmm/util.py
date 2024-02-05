@@ -639,145 +639,185 @@ def _sim_sc(ss: int, C: int, cell_no: int, cty: np.ndarray, cell_var: np.ndarray
     return cell_y
 
 
-def sim_sc(beta: np.ndarray, hom2: float, V_hat: np.ndarray, V: np.ndarray, ctnu: np.ndarray, n: np.ndarray, k: float, d: float, depth: float, 
-           cell_no: int, seed: int=None, option: int=0) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Simulate gene expression for single cells
+# def sim_sc(beta: np.ndarray, hom2: float, V_hat: np.ndarray, V: np.ndarray, ctnu: np.ndarray, n: np.ndarray, k: float, d: float, depth: float, 
+#            cell_no: int, seed: int=None, option: int=0) -> Tuple[np.ndarray, np.ndarray]:
+#     """
+#     Simulate gene expression for single cells
 
-    Parameters:
-        beta:   cell type fixed effect
-        hom2:   variance of homogeneous effect
-        V_hat:  estimated covariance of cell type specific effect from real data
-        V:  simulated covariance of cell type specific effect
-        ctnu:   variance of residual effect of shape n X C
-        n:  number of cells per individual - ct 
-        k:  CTP was scaled to OP mean 0 var 1, now scale back by sim_CTP * k + d
-        d:  CTP was scaled to OP mean 0 var 1, now scale back by sim_CTP * k + d
-        depth:  simulate read depth relative to 1M reads. e.g. depth = 0.1 -> 0.1M reads per cell
-        cell_no:    number of cells to simulate per individual-cell type pair
-        seed:   seed for generating random effect
+#     Parameters:
+#         beta:   cell type fixed effect
+#         hom2:   variance of homogeneous effect
+#         V_hat:  estimated covariance of cell type specific effect from real data
+#         V:  simulated covariance of cell type specific effect
+#         ctnu:   variance of residual effect of shape n X C
+#         n:  number of cells per individual - ct 
+#         k:  CTP was scaled to OP mean 0 var 1, now scale back by sim_CTP * k + d
+#         d:  CTP was scaled to OP mean 0 var 1, now scale back by sim_CTP * k + d
+#         depth:  simulate read depth relative to 1M reads. e.g. depth = 0.1 -> 0.1M reads per cell
+#         cell_no:    number of cells to simulate per individual-cell type pair
+#         seed:   seed for generating random effect
     
-    Returns:
-        CTP
-    """
+#     Returns:
+#         CTP
+#     """
 
-    rng = np.random.default_rng(seed)
+#     rng = np.random.default_rng(seed)
     
-    ss, C = ctnu.shape
+#     ss, C = ctnu.shape
 
-    # find cell type with highest beta
-    c = np.argmax(beta)
+#     # find cell type with highest beta
+#     c = np.argmax(beta)
 
-    if option == 1:
-        if hom2 < 0:
-            hom2 = 0
-        beta = np.ones_like(beta) * beta[c]  # beta
-        V += hom2
-        cty = beta[np.newaxis, :] + rng.multivariate_normal(np.zeros(C), V, size=ss)
+#     if option == 1:
+#         if hom2 < 0:
+#             hom2 = 0
+#         beta = np.ones_like(beta) * beta[c]  # beta
+#         V += hom2
+#         cty = beta[np.newaxis, :] + rng.multivariate_normal(np.zeros(C), V, size=ss)
 
-    elif option == 2:
-        beta = np.ones_like(beta) * beta[c]  # beta
-        if np.all(V == 0):
-            hom2 += V_hat[c, c]
-            if hom2 < 0:
-                hom2 = 0
-            alpha = rng.normal(scale=np.sqrt(hom2), size=ss)
-            cty = beta[np.newaxis, :] + alpha[:, np.newaxis]
-        else:
-            if hom2 < 0:
-                hom2 = 0
-            V += hom2
-            cty = beta[np.newaxis, :] + rng.multivariate_normal(np.zeros(C), V, size=ss)
+#     elif option == 2:
+#         beta = np.ones_like(beta) * beta[c]  # beta
+#         if np.all(V == 0):
+#             hom2 += V_hat[c, c]
+#             if hom2 < 0:
+#                 hom2 = 0
+#             alpha = rng.normal(scale=np.sqrt(hom2), size=ss)
+#             cty = beta[np.newaxis, :] + alpha[:, np.newaxis]
+#         else:
+#             if hom2 < 0:
+#                 hom2 = 0
+#             V += hom2
+#             cty = beta[np.newaxis, :] + rng.multivariate_normal(np.zeros(C), V, size=ss)
             
-    elif option == 3:
-        beta = np.zeros_like(beta)  # beta
-        if np.all(V == 0):
-            hom2 += V_hat[c, c]
-            if hom2 < 0:
-                hom2 = 0
-            alpha = rng.normal(scale=np.sqrt(hom2), size=ss)
-            cty = beta[np.newaxis, :] + alpha[:, np.newaxis]
-        else:
-            if hom2 < 0:
-                hom2 = 0
-            V += hom2
-            cty = beta[np.newaxis, :] + rng.multivariate_normal(np.zeros(C), V, size=ss)
-        # alpha = rng.normal(scale=np.sqrt(hom2), size=ss)
+#     elif option == 3:
+#         beta = np.zeros_like(beta)  # beta
+#         if np.all(V == 0):
+#             hom2 += V_hat[c, c]
+#             if hom2 < 0:
+#                 hom2 = 0
+#             alpha = rng.normal(scale=np.sqrt(hom2), size=ss)
+#             cty = beta[np.newaxis, :] + alpha[:, np.newaxis]
+#         else:
+#             if hom2 < 0:
+#                 hom2 = 0
+#             V += hom2
+#             cty = beta[np.newaxis, :] + rng.multivariate_normal(np.zeros(C), V, size=ss)
+#         # alpha = rng.normal(scale=np.sqrt(hom2), size=ss)
 
-    # residual effect
-    cell_var = ctnu * n
-    if option in [1, 2, 3]:
-        # duplicate ctnu from main cell type
-        cell_var = np.ones_like(cell_var) * cell_var[:, [c]]
+#     # residual effect
+#     cell_var = ctnu * n
+#     if option in [1, 2, 3]:
+#         # duplicate ctnu from main cell type
+#         cell_var = np.ones_like(cell_var) * cell_var[:, [c]]
 
-    # simulate
-    cell_y = _sim_sc(ss, C, cell_no, cty, cell_var, k, d, depth, rng)
-    sim_cty = np.mean(cell_y, axis=2)
+#     # simulate
+#     cell_y = _sim_sc(ss, C, cell_no, cty, cell_var, k, d, depth, rng)
+#     sim_cty = np.mean(cell_y, axis=2)
 
-    # use a large number of cells to compute real ctnu
-    cell_y = _sim_sc(ss, C, 10000, cty, cell_var, k, d, depth, rng)
-    cell_var = np.var(cell_y, axis=2)
-    ctnu = cell_var / cell_no
+#     # use a large number of cells to compute real ctnu
+#     cell_y = _sim_sc(ss, C, 10000, cty, cell_var, k, d, depth, rng)
+#     cell_var = np.var(cell_y, axis=2)
+#     ctnu = cell_var / cell_no
 
-    # scale back
-    sim_cty = (sim_cty - d) / k
-    ctnu = ctnu / (k**2)
+#     # scale back
+#     sim_cty = (sim_cty - d) / k
+#     ctnu = ctnu / (k**2)
 
-    return sim_cty, ctnu
+#     return sim_cty, ctnu
 
 
 def sim_sc_bootstrap(data: pd.DataFrame, C: int, frac: float, depth: float, prop: float, seed: int, option: int=2,
-                     resample_inds: bool=True) -> Tuple[pd.DataFrame, pd.DataFrame]:
+                     pseudocount: float=1, resample_inds: bool=True, cell_count: bool=False, 
+                     mean_difference: Optional[float]=None, log_scale: bool=True, prior: bool=False, ngene: Optional[int]=None
+                     ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Simulate gene expression for single cells by bootstrap
 
     Parameters:
         data:   raw counts per cell. with columns: cell, total_counts, gene (for gene counts), ind
         C:  number of cell types
-        frac:   fraction of cells to sample
+        frac:   fraction/count of cells to sample
         depth:  sequencing depth relative to real data
+        pseudocount:    pseudocount for log transformation
         prop:   proportion of individuals to shuffle, to create cell type specific variance
         seed:   seed for random generator
-        option: 1. samples of the same cell have different counts; 2. samples of the same cells have the same counts;
+        option: 1. samples of the same cell have different counts; 2. samples of the same cells have the same counts; 
+                3. 2 + shuffle cells across individuals
         resample_inds:  resample individuals with 0 counts
+        cell_count: whether frac if fraction (False) or count (True)
+        mean_difference:    create mean difference = log2(fold change) between cell types
+        log_scale:  make fold change at log-transformed expression
+        prior:  whether to incorporate prior beta dist (1, # genes) of gene's read proportion
+        ngene:  used in prior beta distribution
     
     Returns:
-        CTP, CTNU
+        CTP 
+        CTNU
+        sim_data: three columns: ind, ct, gene_sim; each row is a simulated cell's gene expression
     """
 
     rng = np.random.default_rng(seed)
     cts = [f'ct{i+1}' for i in range(C)]
 
+    if mean_difference:
+        fold_change = 2 ** mean_difference
+    else:
+        fold_change = None
+
+    def binomial(row, depth, fold_change=1, prior=False, ngene=None):
+        if prior:
+            x = rng.binomial(int(row['total_counts'] * depth), (row['gene'] + 1) * fold_change / (row['total_counts'] + ngene))
+        else:
+            x = rng.binomial(int(row['total_counts'] * depth), row['gene'] * fold_change / row['total_counts'])
+
+        return x
+
     if option == 1:
+
         # sample cells
         grouped = data.groupby('ind')
         cells = []
         for i in range(C):
             ct = cts[i]
-            sampled_cells = grouped.sample(frac=frac, replace=True, random_state=rng.integers(100000))
+            if cell_count:
+                sampled_cells = grouped.sample(n=int(frac), replace=True, random_state=rng.integers(100000))
+            else:
+                sampled_cells = grouped.sample(frac=frac, replace=True, random_state=rng.integers(100000))
             sampled_cells['ct'] = ct
             cells.append(sampled_cells)
 
         sim_data = pd.concat(cells, ignore_index=True)
 
         # sample counts per cell with binomial
-        binomial = lambda row, depth: rng.binomial(int(row['total_counts'] * depth), row['gene'] / row['total_counts'])
-        sim_data['gene_sim'] = sim_data.apply(binomial, axis=1, depth=depth)
+        sim_data['gene_sim'] = sim_data.apply(binomial, axis=1, depth=depth, prior=prior, ngene=ngene)
+        if fold_change and (not log_scale):
+            sim_data['gene_sim2'] = sim_data.apply(binomial, axis=1, depth=depth, prior=prior, ngene=ngene, fold_change=fold_change)
+            sim_data.loc[sim_data['ct'] == cts[-1], 'gene_sim'] = sim_data.loc[sim_data['ct'] == cts[-1], 'gene_sim2']
+            sim_data = sim_data.drop(columns='gene_sim2')
+        sim_count = sim_data.copy()  # save counts
         
         # log transformation
-        sim_data['gene_sim'] = np.log2(sim_data['gene_sim'] * 1e6 / sim_data['total_counts'] + 1)
+        sim_data['gene_sim'] = np.log2(sim_data['gene_sim'] * 1e6 / (sim_data['total_counts'] * depth) + pseudocount)
+        if fold_change and log_scale:
+            sim_data.loc[sim_data['ct'] == cts[-1], 'gene_sim'] = sim_data.loc[sim_data['ct'] == cts[-1], 'gene_sim'] + np.log2(fold_change)
 
         # calculate ct pseudobulk
         cty = sim_data.groupby(['ind', 'ct'])['gene_sim'].mean().unstack()
 
         # expected nu
         ## mean and mean of squares per cell
-        def mean_f(row, depth):
-            counts = rng.binomial(int(row['total_counts'] * depth), row['gene'] / row['total_counts'], 10000)
-            counts = np.log2(counts + 1)
+        def mean_f(row, depth, fold_change=1, prior=False, ngene=None, log_scale=None):
+            if log_scale:
+                fold_change = 1
+
+            if prior:
+                counts = rng.binomial(int(row['total_counts'] * depth), (row['gene'] + 1) * fold_change / (row['total_counts'] + ngene), 10000)
+            else:
+                counts = rng.binomial(int(row['total_counts'] * depth), row['gene'] * fold_change / row['total_counts'], 10000)
+                
             return counts.mean(), (counts ** 2).mean()
 
-        data[['mean', 'mean2']] = data.apply(mean_f, axis=1, result_type='expand', depth=depth)
+        data[['mean', 'mean2']] = data.apply(mean_f, axis=1, result_type='expand', depth=depth, prior=prior, ngene=ngene)
 
         ## mean and mean of squares per ind
         ind_data = data.groupby('ind')[['mean', 'mean2']].mean()
@@ -786,16 +826,38 @@ def sim_sc_bootstrap(data: pd.DataFrame, C: int, frac: float, depth: float, prop
         ind_data['cell_var'] = ind_data['mean2'] - ind_data['mean'] ** 2
 
         ## ctnu
-        cell_no = (data.groupby('ind').size() * frac).astype('int')
+        if cell_count:
+            cell_no = frac
+        else:
+            cell_no = (data.groupby('ind').size() * frac).astype('int')
         ctnu = ind_data['cell_var'] / cell_no
         ctnu = ctnu[cty.index]
         ctnu = pd.concat([ctnu] * C, axis=1)
         ctnu.columns = cts   
 
-    elif option == 2:
+        # update ctnu if mean difference
+        if fold_change and (not log_scale):
+            data[['mean', 'mean2']] = data.apply(mean_f, axis=1, result_type='expand', depth=depth, prior=prior, ngene=ngene,
+                                                 fold_change=fold_change, log_scale=log_scale)
+            ind_data = data.groupby('ind')[['mean', 'mean2']].mean()
+            ind_data['cell_var'] = ind_data['mean2'] - ind_data['mean'] ** 2
+            ctnu2 = ind_data['cell_var'] / cell_no
+            ctnu2.name = cts[-1]
+            ctnu = ctnu.drop(columns=cts[-1])
+            ctnu = ctnu.merge(ctnu2.to_frame(), left_index=True, right_index=True)
+
+    elif option in [2, 3]:
+        if option == 3:
+            # shuffle individuals
+            data['ind'] = rng.permutation(data['ind'])
+
         # sample counts per cell with binomial
-        binomial = lambda row, depth: rng.binomial(int(row['total_counts'] * depth), row['gene'] / row['total_counts'])
-        data['gene_sim'] = data.apply(binomial, axis=1, depth=depth)
+        data['gene_sim'] = data.apply(binomial, axis=1, depth=depth, 
+                                      prior=prior, ngene=ngene)
+        if fold_change and (not log_scale):
+            data['gene_sim2'] = data.apply(binomial, axis=1, depth=depth, 
+                                           fold_change=fold_change, prior=prior,
+                                           ngene=ngene)
 
         # resample inds with 0 counts
         max_counts = data.groupby('ind')['gene_sim'].max()
@@ -809,9 +871,6 @@ def sim_sc_bootstrap(data: pd.DataFrame, C: int, frac: float, depth: float, prop
             mis_inds = max_counts[max_counts == 0].index.to_numpy()
 
 
-        # log transformation
-        data['gene_sim'] = np.log2(data['gene_sim'] * 1e6 / data['total_counts'] + 1)
-
         # sample cells
         grouped = data.groupby('ind')
         cells = []
@@ -822,21 +881,56 @@ def sim_sc_bootstrap(data: pd.DataFrame, C: int, frac: float, depth: float, prop
             while random_state in x:
                 random_state = rng.integers(100000)
             x.append(random_state)
-            sampled_cells = grouped.sample(frac=frac, replace=True, random_state=random_state)
+            if cell_count:
+                sampled_cells = grouped.sample(n=int(frac), replace=True, random_state=random_state)
+            else:
+                sampled_cells = grouped.sample(frac=frac, replace=True, random_state=random_state)
             sampled_cells['ct'] = ct
             cells.append(sampled_cells)
 
-        sim_data = pd.concat(cells, ignore_index=True)
+        sim_count = pd.concat(cells, ignore_index=True)
+        sim_data = sim_count.copy()
+
+        # log transformation
+        sim_data['gene_sim'] = np.log2(sim_data['gene_sim'] * 1e6 / (sim_data['total_counts'] * depth) + pseudocount)
+        if fold_change:
+            if log_scale:
+                sim_data.loc[sim_data['ct'] == cts[-1], 'gene_sim'] = sim_data.loc[sim_data['ct'] == cts[-1], 'gene_sim'] + np.log2(fold_change)
+            else:
+                sim_data['gene_sim2'] = np.log2(sim_data['gene_sim2'] * 1e6 / (sim_data['total_counts'] * depth) + pseudocount)
+                sim_data.loc[sim_data['ct'] == cts[-1], 'gene_sim'] = sim_data.loc[sim_data['ct'] == cts[-1], 'gene_sim2']
 
         # calculate ct pseudobulk
         cty = sim_data.groupby(['ind', 'ct'])['gene_sim'].mean().unstack()
 
         # expected nu
-        cell_var = grouped['gene_sim'].agg(np.var)
-        cell_no = (grouped.size() * frac).astype('int')
-        ctnu = cell_var / cell_no
+        data['gene_sim'] = np.log2(data['gene_sim'] * 1e6 / (data['total_counts'] * depth) + pseudocount)
+        if fold_change and (not log_scale):
+            data['gene_sim2'] = np.log2(data['gene_sim2'] * 1e6 / (data['total_counts'] * depth) + pseudocount)
+        grouped = data.groupby('ind')
+        cell_var = grouped['gene_sim'].var()
+        if cell_count:
+            ctnu = cell_var / frac
+        else:
+            cell_no = (grouped.size() * frac).astype('int')
+            ctnu = cell_var / cell_no
         ctnu = pd.concat([ctnu] * C, axis=1)
         ctnu.columns = cts
+
+        if fold_change and (not log_scale):
+            cell_var2 = grouped['gene_sim2'].var()
+            if cell_count:
+                ctnu2 = cell_var2 / frac
+            else:
+                cell_no = (grouped.size() * frac).astype('int')
+                ctnu2 = cell_var2 / cell_no
+            ctnu2 = pd.concat([ctnu2] * C, axis=1)
+            ctnu2.columns = cts
+
+            if ctnu.index.equals(ctnu2.index):
+                ctnu[cts[-1]] = ctnu2[cts[-1]]
+            else:
+                sys.exit('Not matching')
 
     # santiy check
     if cty.shape[0] != ctnu.shape[0]:
@@ -854,74 +948,74 @@ def sim_sc_bootstrap(data: pd.DataFrame, C: int, frac: float, depth: float, prop
             cty[ct] = cty.loc[new_index, ct].to_numpy()
             ctnu[ct] = ctnu.loc[new_index, ct].to_numpy()
 
-    return cty, ctnu
+    return cty, ctnu, sim_count[['ind', 'ct', 'gene_sim']]
 
 
-def _sim_sc_bootstrap(group, frac, seed):
-    """
-    Define a function to perform random choice and calculate ctp and ctnu for each group
-    """
+# def _sim_sc_bootstrap(group, frac, seed):
+#     """
+#     Define a function to perform random choice and calculate ctp and ctnu for each group
+#     """
 
-    sampled_group = group.sample(n=int(len(group) * frac), replace=True, random_state=seed)  # can add a threshold here. e.g. keep all cells if the ct has < 10 cells
-    ctp = sampled_group.mean()
-    # ctnu = sampled_group.var() / len(group)
-    return ctp
+#     sampled_group = group.sample(n=int(len(group) * frac), replace=True, random_state=seed)  # can add a threshold here. e.g. keep all cells if the ct has < 10 cells
+#     ctp = sampled_group.mean()
+#     # ctnu = sampled_group.var() / len(group)
+#     return ctp
 
 
-def sim_sc_bootstrap1(data: pd.DataFrame, C: int, gene: str, frac: float, prop: float, seed: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Simulate gene expression for single cells by bootstrap
+# def sim_sc_bootstrap1(data: pd.DataFrame, C: int, gene: str, frac: float, prop: float, seed: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
+#     """
+#     Simulate gene expression for single cells by bootstrap
 
-    Parameters:
-        data:   DF with two columns: donor and gene. donor: individuals. gene: gene expression.
-                each row is gene expression for a cell
-        C:  number of cell types
-        gene:   column name of the gene
-        frac:   fraction of cells to sample
-        prop:   proportion of individuals to shuffle, to create cell type specific variance
-        seed:   seed for random generator
+#     Parameters:
+#         data:   DF with two columns: donor and gene. donor: individuals. gene: gene expression.
+#                 each row is gene expression for a cell
+#         C:  number of cell types
+#         gene:   column name of the gene
+#         frac:   fraction of cells to sample
+#         prop:   proportion of individuals to shuffle, to create cell type specific variance
+#         seed:   seed for random generator
     
-    Returns:
-        CTP, CTNU
-    """
+#     Returns:
+#         CTP, CTNU
+#     """
 
-    rng = np.random.default_rng(seed)
-    cts = [f'ct{i+1}' for i in range(C)]
+#     rng = np.random.default_rng(seed)
+#     cts = [f'ct{i+1}' for i in range(C)]
 
-    # simulate
-    grouped = data.groupby('donor')
+#     # simulate
+#     grouped = data.groupby('donor')
     
-    sim = [grouped.apply(_sim_sc_bootstrap, frac, rng.integers(100000)) for c in range(C)]
+#     sim = [grouped.apply(_sim_sc_bootstrap, frac, rng.integers(100000)) for c in range(C)]
 
-    cty = pd.concat(sim, axis=1)
-    cty.columns = cts
+#     cty = pd.concat(sim, axis=1)
+#     cty.columns = cts
 
-    # expected nu
-    cell_var = grouped[gene].agg(np.var)
-    cell_no = (grouped.size() * frac).astype('int')
-    ctnu = cell_var / cell_no
-    ctnu = pd.concat([ctnu] * C, axis=1)
-    ctnu.columns = cts
+#     # expected nu
+#     cell_var = grouped[gene].agg(np.var)
+#     cell_no = (grouped.size() * frac).astype('int')
+#     ctnu = cell_var / cell_no
+#     ctnu = pd.concat([ctnu] * C, axis=1)
+#     ctnu.columns = cts
 
-    # santiy check
-    if cty.index.equals(ctnu.index):
-        pass
-    else:
-        sys.exit('Wrong order of inds')
+#     # santiy check
+#     if cty.index.equals(ctnu.index):
+#         pass
+#     else:
+#         sys.exit('Wrong order of inds')
 
-    # make free model
-    if prop != 0:
-        # find inds to shuffle
-        cty_to_shuffle = cty.sample(frac=prop, random_state=rng.integers(100000))
-        index_to_shuffle = cty_to_shuffle.index
-        index_to_fix = cty.index.difference(index_to_shuffle)
-        for ct in cts:
-            shuffled_index = cty_to_shuffle.sample(frac=1, random_state=rng.integers(100000)).index
-            new_index = shuffled_index.union(index_to_fix, sort=False)
-            cty[ct] = cty.loc[new_index, ct].to_numpy()
-            ctnu[ct] = ctnu.loc[new_index, ct].to_numpy()
+#     # make free model
+#     if prop != 0:
+#         # find inds to shuffle
+#         cty_to_shuffle = cty.sample(frac=prop, random_state=rng.integers(100000))
+#         index_to_shuffle = cty_to_shuffle.index
+#         index_to_fix = cty.index.difference(index_to_shuffle)
+#         for ct in cts:
+#             shuffled_index = cty_to_shuffle.sample(frac=1, random_state=rng.integers(100000)).index
+#             new_index = shuffled_index.union(index_to_fix, sort=False)
+#             cty[ct] = cty.loc[new_index, ct].to_numpy()
+#             ctnu[ct] = ctnu.loc[new_index, ct].to_numpy()
 
-    return cty, ctnu
+#     return cty, ctnu
 
 
 def age_group(age: pd.Series):
