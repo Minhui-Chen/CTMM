@@ -127,13 +127,19 @@ def main():
         for i, method, free_data, full_data in zip(range(len(methods)), methods, free_datas, full_datas):
             sns.violinplot(data=free_data, ax=axes[i,0], cut=0, color=color)
             axes[i,0].axhline(0, ls='--', color='0.8', zorder=0)
-            axes[i,0].set_xlabel('')
+            if i == len(methods)-1:
+                axes[i,0].set_xlabel('Cell types')
+            else:
+                axes[i,0].set_xlabel('')
             axes[i,0].set_ylabel('Variance in Free model', fontsize=12)
             axes[i,0].set_title(method.upper())
 
             sns.violinplot( x='variable', y='value', data=full_data, ax=axes[i,1], cut=0, palette=my_pal )
             axes[i,1].axhline(0, ls='--', color='0.8', zorder=0)
-            axes[i,1].set_xlabel('')
+            if i == len(methods)-1:
+                axes[i,1].set_xlabel('Pairs of cell types')
+            else:
+                axes[i,1].set_xlabel('')
             axes[i,1].set_ylabel( 'Correlation between CTs in Full model', fontsize=12, labelpad=8 )
             axes[i,1].set_title(method.upper())
 
@@ -165,7 +171,7 @@ def main():
             labels[i] = r'$V_{({%s},{%s})}$'%(ct1, ct2)
         plt.xticks(locs, labels)
 
-        fig.tight_layout(pad=2, w_pad=3)
+        fig.tight_layout(w_pad=3)
         fig.savefig(png)
 
 if __name__ == '__main__':

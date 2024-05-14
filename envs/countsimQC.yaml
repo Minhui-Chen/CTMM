@@ -1,0 +1,24 @@
+channels:
+    - conda-forge
+    - bioconda
+dependencies:
+    - python
+    - ipython
+    - jupyter
+    - snakemake
+    - numpy
+    - pandas
+    - scipy
+    - matplotlib
+    - seaborn
+    - scanpy
+    - rpy2
+    - memory_profiler
+    - r:r
+    - r:r-numDeriv
+    - r:r-mvtnorm
+    - r:r-Matrix
+    - r:r-softImpute
+    - r-biocmanager
+    - bioconductor-countsimqc
+    - bioconductor-deseq2

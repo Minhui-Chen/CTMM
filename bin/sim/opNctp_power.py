@@ -117,8 +117,11 @@ def main():
     reml_free_power = reml_free_power.rename( columns={'label':'sample size'} )
 
     # plot
-    mpl.rcParams.update({'font.size': 7, 'lines.markersize': mpl.rcParams['lines.markersize']*1})
-    fig, axes = plt.subplots(ncols=2, sharex=True, sharey=False, figsize=(6.85,2.8), dpi=600)
+    mpl.rcParams.update({'font.size': 6, 'lines.markersize': mpl.rcParams['lines.markersize']*1,
+                         'font.family': 'sans-serif'})
+                        #  'font.family': 'sans-serif', 'font.sans-serif': ['Arial']})
+    # mpl.rcParams['font.sans-serif'] = ['Arial']
+    fig, axes = plt.subplots(ncols=2, sharex=True, sharey=False, figsize=(7.08, 2.5), dpi=600)
     alpha = 1.0
     lw = 1.0
 
@@ -127,9 +130,9 @@ def main():
             style='Framework', dashes={'OP':(3,2), 'CTP':''}, ax=axes[0], markers={'OP':'X', 'CTP':'o'},
             alpha=alpha, lw=lw, legend=False, markeredgecolor='None')
     print(reml_hom_power)
-    axes[0].set_ylabel('False positive rate', fontsize=9)
-    axes[0].set_xlabel('Sample size', fontsize=9)
-    axes[0].text(-0.10, 1.05, '(A)', fontsize=10, transform=axes[0].transAxes)
+    axes[0].set_ylabel('False positive rate', fontsize=7)
+    axes[0].set_xlabel('Sample size', fontsize=7)
+    axes[0].text(-0.10, 1.05, '(a)', fontsize=7, transform=axes[0].transAxes)
     # make two legends
     colors = sns.color_palette()
     markers = sns.color_palette()
@@ -146,9 +149,9 @@ def main():
     sns.lineplot(data=reml_free_power, x='sample size', y='Positive rate', hue='Method', 
             style='Framework', dashes={'OP':(3,2), 'CTP':''}, ax=axes[1], markers={'OP':'X', 'CTP':'o'}, 
             alpha=alpha, lw=lw, markeredgecolor='None')
-    axes[1].set_ylabel('True positive rate', fontsize=9)
-    axes[1].set_xlabel('Sample size', fontsize=9)
-    axes[1].text(-0.10, 1.05, '(B)', fontsize=10, transform=axes[1].transAxes)
+    axes[1].set_ylabel('True positive rate', fontsize=7)
+    axes[1].set_xlabel('Sample size', fontsize=7)
+    axes[1].text(-0.10, 1.05, '(b)', fontsize=7, transform=axes[1].transAxes)
 
     ylim_min = np.amin([axes[0].get_ylim(), axes[1].get_ylim()])
     ylim_max = np.amax([axes[0].get_ylim(), axes[1].get_ylim()])
@@ -158,7 +161,7 @@ def main():
     for ax in axes.flatten()[1:]:
         ax.legend().set_visible(False)
 
-    plt.tight_layout(pad=2, w_pad=3)
+    plt.tight_layout(w_pad=3)
     fig.savefig(snakemake.output.png)
 
 if __name__ == '__main__':

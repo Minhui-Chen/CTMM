@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # coeffcient of variation
-var_nu = pd.read_table(snakemake.input.var_nu, index_col=(0,1))
-nu = pd.read_table(snakemake.input.nu, index_col=(0,1))
+var_nu = pd.read_table(snakemake.params.var_nu, index_col=(0,1))
+nu = pd.read_table(snakemake.params.nu, index_col=(0,1))
 cv = np.array( np.sqrt( var_nu ) / nu )
 
 # Hom simulation with noise
@@ -20,8 +20,8 @@ for i in range(len(nu_noises)):
     else:
         nu_noises[i] = np.std(rng.beta(a,b,100000) * rng.choice([-1,1],100000))
 
-outs = [np.load(f, allow_pickle=True).item() for f in snakemake.input.outs]
-remlJK_outs = [np.load(f, allow_pickle=True).item() for f in snakemake.input.remlJK_outs]
+outs = [np.load(f, allow_pickle=True).item() for f in snakemake.params.outs]
+remlJK_outs = [np.load(f, allow_pickle=True).item() for f in snakemake.params.remlJK_outs]
 
 #
 data = {'noise':[], 'REML (LRT)':[], 'REML (JK)':[], 'HE':[]}
@@ -44,8 +44,8 @@ for x in snakemake.params.V3:
     # else:
     V3.append(float(x))
 #V3 = [x.split('_')[0] for x in snakemake.params.V3]
-outs3 = [np.load(f, allow_pickle=True).item() for f in snakemake.input.outs3]
-remlJKs3 = [np.load(f, allow_pickle=True).item() for f in snakemake.input.remlJKs3]
+outs3 = [np.load(f, allow_pickle=True).item() for f in snakemake.params.outs3]
+remlJKs3 = [np.load(f, allow_pickle=True).item() for f in snakemake.params.remlJKs3]
 
 # 
 data3 = {'V':V3, 'REML (LRT)':[], 'REML (JK)':[], 'HE':[]}
@@ -103,7 +103,7 @@ axes[1].legend().set_visible(False)
 axes[1].set_ylim([-0.02, 1.02])
 
 # add lines of quantile v_i from Cuomo
-real = np.load(snakemake.input.real, allow_pickle=True).item()
+real = np.load(snakemake.params.real, allow_pickle=True).item()
 real_V = np.diagonal(real['reml']['free']['V'], axis1=1, axis2=2)
 axes[1].axvline(x=np.percentile(real_V, 10), color='0.7', ls='--', zorder=0, lw=0.8 * lw)
 axes[1].axvline(x=np.percentile(real_V, 50), color='0.7', ls='--', zorder=0, lw=0.8 * lw)
@@ -123,5 +123,5 @@ plt.xticks(xticks, labels)
 axes[1].set_xlim([-0.02, 0.52])
 
 
-fig.tight_layout(h_pad=5)
+fig.tight_layout(w_pad=3)
 fig.savefig(snakemake.output.png2)

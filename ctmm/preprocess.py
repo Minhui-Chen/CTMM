@@ -28,9 +28,37 @@ def normalize(X: sparse.csr.csr_matrix, l=1e6) -> sparse.csr.csr_matrix:
     return X
 
 
+def transform(X: sparse.csr.csr_matrix, transform: str='raw_counts'):
+    """
+    Transform read counts
+
+    Parameters:
+        X:  ann.X (raw read counts), in the shape of cell x gene
+        transform:  transformation methods
+                    'raw_counts': no transformation
+                    'logp_cpm': ln(CPM + 1)
+                    'logp_cp10k': ln(cp10k + 1)
+
+    Returns:
+        Transformed X
+    """
+    if transform == 'raw_counts':
+        X = X.copy()
+    elif transform == 'logp_cpm':
+        l = 1e6
+        X = normalize(X, l)
+        X = np.log1p(X)
+    elif transform == 'logp_cp10k':
+        l = 1e4
+        X = normalize(X, l)
+        X = np.log1p(X)
+
+    return X
+
+
 def pseudobulk(counts: pd.DataFrame = None, meta: pd.DataFrame = None, ann: object = None,
                X: sparse.csr.csr_matrix = None, obs: pd.DataFrame = None, var: pd.DataFrame = None,
-               ind_col: str = 'ind', ct_col: str = 'ct', cell_col: str = 'cell', ind_cut: int = 0, ct_cut: int = 0
+               ind_col: str = 'ind', ct_col: str = 'ct', cell_col: str = 'cell', ind_cut: int = 0, ct_cut: int = 1
                ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Compute Cell Type-Specific Pseudobulk and Cell Type-specific noise variance
@@ -127,16 +155,17 @@ def pseudobulk(counts: pd.DataFrame = None, meta: pd.DataFrame = None, ann: obje
         pairs, index = np.unique(ind_ct, return_index=True)
         raw_order = pairs[np.argsort(index)]
         ind_ct = pd.Categorical(ind_ct, categories=raw_order)
-        indicator = pd.get_dummies(ind_ct, sparse=True)  # don't use dtype int8
+        indicator = pd.get_dummies(ind_ct, dtype=float)  # don't use dtype int8
+        # indicator = pd.get_dummies(ind_ct, sparse=True, dtype=float)  # don't use dtype int8
+        cell_num = indicator.to_numpy().sum(axis=0)[:, np.newaxis]
         ind_ct = indicator.columns
 
         ## convert to sparse matrix
-        # indicator = sparse.csr_matrix( indicator.to_numpy() )
-        indicator = indicator.sparse.to_coo().tocsr()
-        cell_num = indicator.sum(axis=0)
+        indicator = sparse.csr_matrix( indicator.to_numpy() )
+        # indicator = indicator.sparse.to_coo().tocsr()
 
         # inverse indicator matrix
-        indicator_inv = indicator.multiply(1 / cell_num)
+        indicator_inv = indicator.multiply(1 / cell_num.T)
         # print(indicator_inv.getrow(0)[0, 0])
 
         # compute ctp
@@ -145,16 +174,24 @@ def pseudobulk(counts: pd.DataFrame = None, meta: pd.DataFrame = None, ann: obje
 
         # compute ctnu
         log.logger.info('Computing CTNU')
+        adj_cell_num = cell_num - 1
+        adj_cell_num[adj_cell_num == 0] = 1e-12  # avoid divide by zero  # array from np matrix doesn't work (bug?)
+        # print(adj_cell_num)
+        # print(np.any(adj_cell_num == 0))
+        # np.savetxt('adj_cell_num.txt', adj_cell_num)
+
         if sparse.issparse(X): 
             ctp2 = indicator_inv.T @ X.power(2)
-            ctnu = (ctp2 - ctp.power(2)).multiply(1 / (cell_num.T - 1))
+            ctnu = (ctp2 - ctp.power(2)).multiply(1 / adj_cell_num)
+            print(ctp.A[:5, :5], ctp2.A[:5, :5], ctnu.A[:5, :5], adj_cell_num[:5, 0])
 
             ctp = ctp.toarray()
             ctnu = ctnu.toarray()
 
         else:
             ctp2 = indicator_inv.T @ (X ** 2)
-            ctnu = (ctp2 - ctp ** 2) * (1 / (cell_num.T - 1))
+            ctnu = (ctp2 - ctp ** 2) * (1 / adj_cell_num)
+            print(ctp[:5, :5], ctp2[:5, :5], ctnu[:5, :5], adj_cell_num[0, :5])
 
         # convert to df
         ctp_index = pd.MultiIndex.from_frame(ind_ct.to_series().str.split(sep, expand=True, regex=False),

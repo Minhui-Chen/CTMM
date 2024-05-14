@@ -1,5 +1,6 @@
 import os, sys, tempfile
 import numpy as np, pandas as pd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -67,8 +68,8 @@ he_beta['gene'] = out['gene']
 
 genes = snakemake.params.genes
 
-plt.rcParams.update( {'font.size' : 10} )
-fig, axes = plt.subplots( nrows=2, ncols=2, sharex=True, sharey=True, figsize=(10,6), dpi=600 )
+mpl.rcParams.update({'font.size': 6, 'font.family': 'sans-serif'})
+fig, axes = plt.subplots(nrows=2, ncols=2, sharex=True, sharey=True, figsize=(7.08, 4), dpi=600)
 
 ct_ys = None
 for gene, ax in zip(genes, axes.flatten()):
@@ -131,8 +132,10 @@ for gene, ax in zip(genes, axes.flatten()):
     ax.set_title(gene.split('_')[1])
 
 
-axes[0,0].set_ylabel('CT-specific pseudo-bulk', fontsize=12)
-axes[1,0].set_ylabel('CT-specific pseudo-bulk', fontsize=12)
+axes[0,0].set_ylabel('Cell type-specific pseudobulk', fontsize=7)
+axes[1,0].set_ylabel('Cell type-specific pseudobulk', fontsize=7)
+axes[1,0].set_xlabel('Cell types', fontsize=7)
+axes[1,1].set_xlabel('Cell types', fontsize=7)
 
 fig.tight_layout(w_pad=3)
 

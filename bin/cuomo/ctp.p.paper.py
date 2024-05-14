@@ -79,14 +79,14 @@ def matrix_plot(data, features, propertys, num_bins, png, gs):
              }
 
     mainfig_ylabs = { 
-             'V_prop': 'Variance differentiation: ' + r'$\tilde{V}\ /\ (\sigma_\alpha^2 + \tilde{V})$',
+             'V_prop': 'Variance differentiation:\n' + r'$\tilde{V}\ /\ (\sigma_\alpha^2 + \tilde{V})$',
              'var(mean)': 'Mean differentiation: ' + r'var($\beta$)',
              }
 
     p_format = lambda x: format(x, f'.{3}f') if x >= 0.01 else format(x, f'.{2}e')
     
     # main figure
-    fs = 8
+    fs = 6
     property = 'LOEUF'
     grouped = data.groupby(by=property + '_bin')
     tmp_data = data[[property + '_bin', 'V_prop', 'var(mean)', 'pV', 'pMean']].groupby(property + '_bin').mean().reset_index()
@@ -95,7 +95,7 @@ def matrix_plot(data, features, propertys, num_bins, png, gs):
 
     line, p = meta_regression(grouped, 'V_prop', 'mean')
     ls = ':'
-    ms = 80
+    ms = 40
     p = p_format(p)
     sns.pointplot(data=data, x=property + '_bin', y='V_prop', estimator='mean',
                 errorbar='se', linestyles=ls, ax=ax1, 
@@ -104,21 +104,21 @@ def matrix_plot(data, features, propertys, num_bins, png, gs):
     plt.scatter(x=tmp_data[property + '_bin'], y=tmp_data['V_prop'],
                 color=sns.color_palette()[0], s=ms)
 
-    ax1.text(0.08, .08, f'regression p-value = {p}', color=sns.color_palette()[0], fontsize=8, transform=ax1.transAxes)
-    ax1.text(-0.15, 1.05, '(C)', fontsize=20, transform=ax1.transAxes)
+    ax1.text(0.08, .10, f'regression p-value = {p}', color=sns.color_palette()[0], fontsize=fs, transform=ax1.transAxes)
+    ax1.text(-0.15, 1.05, '(c)', fontsize=7, transform=ax1.transAxes)
     # ax1.set_xlabel('')
-    ax1.set_xlabel(xlabs[property], fontsize=12)
-    ax1.set_ylabel(mainfig_ylabs['V_prop'], fontsize=11, color=sns.color_palette()[0])
+    ax1.set_xlabel(xlabs[property], fontsize=7)
+    ax1.set_ylabel(mainfig_ylabs['V_prop'], fontsize=7, color=sns.color_palette()[0])
     # plt.xticks(visible=False)
-    plt.xticks(fontsize=8)
+    plt.xticks(fontsize=fs)
     plt.yticks([0.90, 0.95, 1.00, 1.05], color=sns.color_palette()[0])
 
     # add arrow
     arrow_position = (0.7, 0.9)
     plt.annotate('', xy=(arrow_position[0] - 0.42, arrow_position[1]), xytext=arrow_position,
              arrowprops=dict(arrowstyle='->', lw=1.5),
-             fontsize=10, ha='center', va='center', xycoords=ax1.transAxes)
-    plt.text(0.5, 0.92, 'more constrained', ha='center', va='bottom', transform=ax1.transAxes)
+             fontsize=fs, ha='center', va='center', xycoords=ax1.transAxes)
+    plt.text(0.5, 0.92, 'more constrained', ha='center', va='bottom', fontsize=fs, transform=ax1.transAxes)
 
     # 2nd y-axis
     ax1_2 = ax1.twinx()
@@ -132,8 +132,8 @@ def matrix_plot(data, features, propertys, num_bins, png, gs):
     plt.scatter(x=tmp_data[property + '_bin'], y=tmp_data['var(mean)'],
                 color=sns.color_palette()[1], s=ms)
 
-    ax1_2.text(0.08, .02, f'regression p-value = {p}', color=sns.color_palette()[1], fontsize=8, transform=ax1_2.transAxes)
-    ax1_2.set_ylabel(mainfig_ylabs['var(mean)'], fontsize=11, color=sns.color_palette()[1])
+    ax1_2.text(0.08, .02, f'regression p-value = {p}', color=sns.color_palette()[1], fontsize=fs, transform=ax1_2.transAxes)
+    ax1_2.set_ylabel(mainfig_ylabs['var(mean)'], fontsize=7, color=sns.color_palette()[1])
     plt.yticks(color=sns.color_palette()[1])
 
     #
@@ -142,7 +142,7 @@ def matrix_plot(data, features, propertys, num_bins, png, gs):
     tmp_data = data[[property + '_bin', 'V_prop', 'var(mean)', 'pV', 'pMean']].groupby(property + '_bin').mean().reset_index()
 
     ax2 = plt.subplot(gs[0, 1])
-    ax2.text(-0.15, 1.05, '(B)', fontsize=20, transform=ax2.transAxes)
+    ax2.text(-0.15, 1.05, '(b)', fontsize=7, transform=ax2.transAxes)
 
     line, p = meta_regression(grouped, 'V_prop', 'mean')
     # line, p = meta_regression(grouped, 'pV', 'mean')
@@ -155,18 +155,18 @@ def matrix_plot(data, features, propertys, num_bins, png, gs):
     plt.scatter(x=tmp_data[property + '_bin'], y=tmp_data['V_prop'],
                 color=sns.color_palette()[0], s=ms)
 
-    ax2.text(0.96, .08, f'regression p-value = {p}', fontsize=8, ha='right', color=sns.color_palette()[0], transform=ax2.transAxes)
-    ax2.set_xlabel(xlabs[property], fontsize=12)
-    ax2.set_ylabel(mainfig_ylabs['V_prop'], fontsize=11, color=sns.color_palette()[0])
+    ax2.text(0.96, .10, f'regression p-value = {p}', fontsize=fs, ha='right', color=sns.color_palette()[0], transform=ax2.transAxes)
+    ax2.set_xlabel(xlabs[property], fontsize=7)
+    ax2.set_ylabel(mainfig_ylabs['V_prop'], fontsize=7, color=sns.color_palette()[0])
     # ax2.set_ylabel(ylabs['pV'], fontsize=12, color=sns.color_palette()[0])
-    plt.xticks(fontsize=8)
+    plt.xticks(fontsize=fs)
     plt.yticks(color=sns.color_palette()[0])
 
     # add arrow
     arrow_position = (0.05, 0.9)
     plt.annotate('', xy=(arrow_position[0] + 0.52, arrow_position[1]), xytext=arrow_position,
              arrowprops=dict(arrowstyle='->', lw=1.5),
-             fontsize=10, ha='center', va='center', xycoords=ax2.transAxes)
+             fontsize=fs, ha='center', va='center', xycoords=ax2.transAxes)
     plt.text(0.305, 0.92, 'larger enhancer domains', ha='center', va='bottom', transform=ax2.transAxes)
 
     # 2nd y-axis
@@ -183,8 +183,8 @@ def matrix_plot(data, features, propertys, num_bins, png, gs):
     plt.scatter(x=tmp_data[property + '_bin'], y=tmp_data['var(mean)'],
                 color=sns.color_palette()[1], s=ms)
 
-    ax2_2.text(0.96, .02, f'regression p-value = {p}', fontsize=8, ha='right', color=sns.color_palette()[1], transform=ax2_2.transAxes)
-    ax2_2.set_ylabel(mainfig_ylabs['var(mean)'], fontsize=11, color=sns.color_palette()[1])
+    ax2_2.text(0.96, .02, f'regression p-value = {p}', fontsize=fs, ha='right', color=sns.color_palette()[1], transform=ax2_2.transAxes)
+    ax2_2.set_ylabel(mainfig_ylabs['var(mean)'], fontsize=fs, color=sns.color_palette()[1])
     # ax2_2.set_ylabel(ylabs['pMean'], fontsize=12, color=sns.color_palette()[1])
     plt.yticks(color=sns.color_palette()[1])
 
@@ -274,8 +274,8 @@ def matrix_plot(data, features, propertys, num_bins, png, gs):
 
 
     # main figure
-    property = 'LOEUF'
-    grouped = data.groupby(property + '_bin')
+    # property = 'LOEUF'
+    # grouped = data.groupby(property + '_bin')
 
 
 
@@ -305,9 +305,10 @@ def main():
     # print(len(genes), len(remlJK_genes))
 
     # make subplots for reml p value plot and main matrix plot
-    mpl.rcParams["lines.linewidth"] = 0.7
-    main_fig = plt.figure(figsize=(12, 7), dpi=600)
-    grids = gridspec.GridSpec(nrows=2, ncols=2, width_ratios=(2.2, 1))
+    # mpl.rcParams["lines.linewidth"] = 0.7
+    mpl.rcParams.update({'font.size': 5, 'font.family': 'sans-serif', 'lines.linewidth': 0.7})
+    main_fig = plt.figure(figsize=(7.08, 4.0), dpi=600)
+    grids = gridspec.GridSpec(nrows=2, ncols=2, width_ratios=(1.7, 1))
 
     # p values scatter plot
     remlJK_data = pd.DataFrame({'reml_beta':reml_beta_ps, 'reml_V':reml_V_ps, 'gene': remlJK_genes})
@@ -325,7 +326,7 @@ def main():
             fig, ax = plt.subplots(dpi=600)
         elif method == 'reml':
             ax = plt.subplot(grids[:, 0])
-            ax.text(-0.05, 1.02, '(A)', fontsize=20, transform=ax.transAxes)
+            ax.text(-0.05, 1.02, '(a)', fontsize=7, transform=ax.transAxes)
 
         ## heatscatter
         draw.scatter(tmp_data[method+'_beta'], tmp_data[method+'_V'], s=5, heatscatter=True, linregress=False, ax=ax)
@@ -380,8 +381,8 @@ def main():
 
         ax.axvline(tmp_threshold, color='0.8', ls='--', zorder=0)
 
-        ax.set_xlabel('$-log_{10}$ p(mean differentiation)', fontsize=14)
-        ax.set_ylabel('$-log_{10}$ p(variance differentiation)', fontsize=14)
+        ax.set_xlabel('$-log_{10}$ p(mean differentiation)', fontsize=7)
+        ax.set_ylabel('$-log_{10}$ p(variance differentiation)', fontsize=7)
 
         if method == 'he':
             fig.tight_layout(pad=1)

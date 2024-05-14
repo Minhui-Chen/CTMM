@@ -66,6 +66,7 @@ def main():
 
     ax.axhline(0, ls='--', color='0.8', zorder=0)
     ax.set_xlabel('')
+    ax.text(0.45, -0.25, "Cell types", ha='center', va='center', fontsize=fs + 2, transform=ax.transAxes)
     ax.set_ylabel('Variance in Free model')
 
     # change ticks in Free model

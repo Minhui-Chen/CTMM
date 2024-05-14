@@ -35,18 +35,20 @@ def main():
         ctp_data[f'V-{ct}-hom'] = ctp_data[f'V-{ct}']+ctp_data['hom2']
 
     # plot
-    mpl.rcParams.update({'font.size': 11})
-    fig, axes = plt.subplots(ncols=2, figsize=(12, 4), dpi=600)
+    mpl.rcParams.update({'font.size': 6, 'font.family': 'sans-serif'})
+    fig, axes = plt.subplots(ncols=2, figsize=(7.08, 2.8), dpi=600)
     color = sns.color_palette()[0]
     
     ## Free model
     data = ctp_data[['hom2']+[f'V-{ct}' for ct in CTs]]
     data.to_csv(snakemake.output.dataA, sep='\t', index=False)
     data = data.clip(upper=2)
-    sns.violinplot(data=data, ax=axes[0], cut=0, color=color)
+    sns.scatterplot(x=data.median().index, y=data.median(), 
+                    marker='.', linewidth=0.5, s=10, color='white', zorder=10, ax=axes[0])
+    sns.violinplot(data=data, ax=axes[0], cut=0, color=color, linewidth=0.8)
     axes[0].axhline(0, ls='--', color='0.8', zorder=0)
-    axes[0].set_xlabel('')
-    axes[0].set_ylabel('Variance in Free model', fontsize=12)
+    axes[0].set_xlabel('Cell types', fontsize=7)
+    axes[0].set_ylabel('Variance in Free model', fontsize=7)
 
     # change ticks in Free model
     fig.canvas.draw_idle()
@@ -76,11 +78,9 @@ def main():
         ctp_cov = pd.DataFrame(ctp_cov, columns=CT_pairs)
         data = pd.melt( ctp_cov )
 
-        threshold = [-1.0, 1.5]
-        data.loc[data['value'] > threshold[1], 'value'] = threshold[1]
-        data.loc[data['value'] < threshold[0], 'value'] = threshold[0]
+        data['value'] = data['value'].clip(lower=-1, upper=1.5)
 
-        ylab = 'Covariance between CTs in Full model'
+        ylab = 'Covariance in Full model'
     else:
         ctp_cor = []
         k = 0
@@ -103,10 +103,9 @@ def main():
         data = pd.melt( ctp_cor )
 
         threshold = [-1.5, 1.5]
-        data.loc[data['value'] > threshold[1], 'value'] = threshold[1]
-        data.loc[data['value'] < threshold[0], 'value'] = threshold[0]
+        data['value'] = data['value'].clip(lower=threshold[0], upper=threshold[1])
 
-        ylab = 'Correlation between CTs in Full model'
+        ylab = 'Correlation in Full model'
     #threshold = [np.mean(data['value']) - 3*np.std(data['value']), np.mean(data['value']) + 3*np.std(data['value'])]
     my_pal = {}
     for pair in CT_pairs:
@@ -116,10 +115,12 @@ def main():
         else:
             my_pal[pair] = sns.color_palette('muted')[0]
     data.to_csv(snakemake.output.dataB, sep='\t', index=False)
-    sns.violinplot( x='variable', y='value', data=data, ax=axes[1], cut=0, palette=my_pal )
+    sns.scatterplot(x=data.groupby('variable')['value'].median().index, y=data.groupby('variable')['value'].median(), 
+                    marker='.', linewidth=0.5, s=10, color='white', zorder=10, ax=axes[1])
+    sns.violinplot(x='variable', y='value', data=data, ax=axes[1], cut=0, palette=my_pal, linewidth=0.8)
     axes[1].axhline(0, ls='--', color='0.9', zorder=0)
-    axes[1].set_ylabel( ylab, fontsize=12 )
-    axes[1].set_xlabel('')
+    axes[1].set_ylabel(ylab, fontsize=7)
+    axes[1].set_xlabel('Pairs of cell types', fontsize=7)
     # change ticks in Full model
     fig.canvas.draw_idle()
     plt.sca(axes[1])
@@ -133,9 +134,9 @@ def main():
     plt.xticks(locs, labels)
 
    
-    axes[0].text(-0.05, 1.05, '(A)', fontsize=16, transform=axes[0].transAxes)
-    axes[1].text(-0.05, 1.05, '(B)', fontsize=16, transform=axes[1].transAxes)
-    fig.tight_layout(pad=2, w_pad=3)
+    axes[0].text(-0.05, 1.05, '(a)', transform=axes[0].transAxes)
+    axes[1].text(-0.05, 1.05, '(b)', transform=axes[1].transAxes)
+    fig.tight_layout(w_pad=3)
     fig.savefig(snakemake.output.png)
 
 if __name__ == '__main__':
