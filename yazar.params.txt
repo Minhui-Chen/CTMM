@@ -1,0 +1,5 @@
+# ind_min_cellnum:  exclude individuals <= number of cells
+# ct_min_cellnum: For cts <= ct_min_cellnum, set nu and y to missing. only keep cts with > prop non-missing values
+ind_min_cellnum	ct_min_cellnum	prop
+10	10	0.5
+10	10	0.9
