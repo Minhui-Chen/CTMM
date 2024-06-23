@@ -2232,7 +2232,7 @@ rule yazar_nomissing_compare:
     script: 'bin/yazar/pvalue.qq.py'
 
 
-use rule yazar_L_sc_expressionpattern as yazar_nomissing_sc_expressionpattern with:
+rule yazar_nomissing_sc_expressionpattern:
     # single cell expression pattern plot
     input:
         out = f'analysis/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/ctp.HE.npy',
@@ -2241,6 +2241,9 @@ use rule yazar_L_sc_expressionpattern as yazar_nomissing_sc_expressionpattern wi
         var = 'data/Yazar2022Science/var.txt',
     output:
         png = f'results/yazar/nomissing/{yazar_paramspace.wildcard_pattern}/genes/ctp.{{gene}}.png',
+    params:
+        mycolors = mycolors,
+    script: 'scripts/yazar/sc_expressionpattern.py'
 
 
 rule yazar_nomissing_sc_expressionpattern_weakestvariance:
@@ -2285,7 +2288,6 @@ rule yazar_nomissing_sc_expressionpattern_paper:
     params:
         genes = ['ENSG00000197728', 'ENSG00000096093'],
         mycolors = mycolors,
-    script: 'bin/yazar/sc_expressionpattern.paper.py'
     script: 'bin/yazar/sc_expressionpattern.paper.py'
 
 
