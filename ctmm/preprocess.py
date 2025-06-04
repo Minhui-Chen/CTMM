@@ -183,7 +183,7 @@ def pseudobulk(counts: pd.DataFrame = None, meta: pd.DataFrame = None, ann: obje
         if sparse.issparse(X): 
             ctp2 = indicator_inv.T @ X.power(2)
             ctnu = (ctp2 - ctp.power(2)).multiply(1 / adj_cell_num)
-            print(ctp.A[:5, :5], ctp2.A[:5, :5], ctnu.A[:5, :5], adj_cell_num[:5, 0])
+            # print(ctp[:5, :5].toarray(), ctp2[:5, :5].toarray(), ctnu[:5, :5].toarray(), adj_cell_num[:5, 0])
 
             ctp = ctp.toarray()
             ctnu = ctnu.toarray()
