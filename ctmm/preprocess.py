@@ -200,11 +200,11 @@ def pseudobulk(counts: pd.DataFrame = None, meta: pd.DataFrame = None, ann: obje
         ctnu = pd.DataFrame(ctnu, index=ctp_index, columns=var.index)
 
         # group by ind-ct to compute cell numbers
-        data_grouped = obs.reset_index(drop=False, names='cell').groupby(['ind', 'ct'])
+        data_grouped = obs.reset_index().groupby(['ind', 'ct'])
 
 
     # compute cell numbers
-    cell_counts = data_grouped['cell'].count().unstack(fill_value=0).astype('int')
+    cell_counts = data_grouped.size().unstack(fill_value=0).astype('int')
 
     # filter individuals
     inds = cell_counts.index[cell_counts.sum(axis=1) > ind_cut].tolist()
