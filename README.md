@@ -110,13 +110,13 @@ free, p_wald = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f,
     method='BFGS', optim_by_R=True)
 ```
 
-For convience, we also provide functions to generate CTMM input data from cell's gene expressiond data that have been through a thorough process of quality control and normalization :
+For convenience, we also provide functions to generate CTMM input data from cell's gene expression data that have been through a thorough process of quality control and normalization :
 
 ```python
 from ctmm import preprocess
 
 # We need two input files: counts and meta.
-# counts file contains gene expression level across all cells (from all cell types and individuals). Each row corresponds to a single genes and each column corresponds to a single cell. Use gene names as dataframe row INDEX and cell IDs as dataframe COLUMNS label.
+# counts file contains gene expression level across all cells (from all cell types and individuals). Each row corresponds to a single gene, and each column corresponds to a single cell. Use gene names as dataframe row INDEX and cell IDs as dataframe COLUMNS label.
 # meta file contains three columns: cell, ind, ct. 'cell' contains cell IDs, corresponding to column labels in counts. 'ind' contains individual IDs. 'ct' contains cell type, indicating the assignment of cells to cell types.
 counts = pd.read_table('test/counts.gz', index_col=0)
 meta = pd.read_table('test/meta.gz')
@@ -124,12 +124,18 @@ meta = pd.read_table('test/meta.gz')
 # compute ctp (cell type-specific pseudobulk) and ctnu (cell type-specific noise variance) and P (cell type proportions)
 ctp, ctnu, P, _ = preprocess.pseudobulk(counts=counts, meta=meta, ind_cut=100, ct_cut=10) # remove individuals with <= 100 cells, set ctp and ctnu to missing for individual-cell type pairs with <=10 cells 
 
-# imputate ctp and ctnu that were set to missing in the previous step, using the program softImpute
-ctp = preprocess.softimpute( ctp )
-ctnu = preprocess.softimpute( ctnu )
+# remove individuals or cell types to make sure that all genes are expressed in all cell types
+# for example, all genes are expressed in CT1, CT2, and CT3
+ctp = ctp[['CT1', 'CT2', 'CT3']]
+ctnu = ctnu[['CT1', 'CT2', 'CT3']]
+P = P[['CT1', 'CT2', 'CT3']]
+P = P.divide(P.sum(axis=1), axis=0)
+# alternatively, impute ctp and ctnu that were set to missing in the previous step, using the program softImpute
+# ctp = preprocess.softimpute( ctp )
+# ctnu = preprocess.softimpute( ctnu )
 
-# generate CTMM input data for each gene (here, use FUCA2 as an example).
-op, nu, ctp, ctnu = preprocess.std( ctp, ctnu, P, 'ENSG00000001036_FUCA2' )
+# Optional: scale gene expression level so that op has a mean of 0 and a variance of 1
+op, nu, ctp, ctnu = preprocess.std( ctp, ctnu, P)
 ```
  
 # Support
