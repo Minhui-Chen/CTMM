@@ -141,4 +141,4 @@ op, nu, ctp, ctnu = preprocess.std( ctp, ctnu, P)
 # Support
 
 Please report any bugs or feature requests in the [Issue Tracker](https://github.com/Minhui-Chen/CTMM/issues). 
-If users have any questions or comments, please contact MinhuiC (minhuic@uchicago.edu).
+If users have any questions or comments, please contact MinhuiC (minhui.chen at vcuhealth.org).
