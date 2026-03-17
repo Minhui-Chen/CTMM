@@ -1,7 +1,7 @@
 # CTMM
 Python package to fit CTMM (Cell Type-specific linear Mixed Model). CTMM estimates the variance of gene expression specific to each cell type and shared across cell types. For a full description of CTMM, including strengths and limitations, see:
   
-* M Chen, A Dahl. (2023) [A robust model for cell type-specific interindividual variation in single-cell RNA sequencing data](https://www.biorxiv.org/content/10.1101/2023.02.24.529987v1). bioRxiv.
+* M Chen, A Dahl. (2023) [A robust model for cell type-specific interindividual variation in single-cell RNA sequencing data](https://www.nature.com/articles/s41467-024-49242-9). 
 
 ## Analysis scripts
 This repository contains scripts for simulations and real data analysis for our paper.
