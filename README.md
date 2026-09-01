@@ -1,12 +1,12 @@
 # CTMM
 Python package to fit CTMM (Cell Type-specific linear Mixed Model). CTMM estimates the variance of gene expression specific to each cell type and shared across cell types. For a full description of CTMM, including strengths and limitations, see:
   
-* M Chen, A Dahl. (2023) [A robust model for cell type-specific interindividual variation in single-cell RNA sequencing data](https://www.nature.com/articles/s41467-024-49242-9). 
+* M Chen, A Dahl. (2024) [A robust model for cell type-specific interindividual variation in single-cell RNA sequencing data](https://www.nature.com/articles/s41467-024-49242-9). 
 
 ## Analysis scripts
 This repository contains scripts for simulations and real data analysis for our paper.
 
-* [ctmm](ctmm) contains CTMM python package
+* [ctmm](ctmm) contains the CTMM python package. It is also published on PyPI (``pip install ctmm``) from the standalone [ctmm_python](https://github.com/Minhui-Chen/ctmm_python) repository.
 
 * [Snakefile](Snakefile) contains steps for perform simulations and iPSCs analyses
 
@@ -14,21 +14,30 @@ This repository contains scripts for simulations and real data analysis for our 
 
 * [cuomo](bin/cuomo) in bin/cuomo contains scripts to analyze iPSCs from Cuomo et al. 2020 Nat Commun
 
+## Requirements
+CTMM calls R routines through [rpy2](https://rpy2.github.io/), so a working R installation is required. On **R 3.6–4.4** use ``rpy2 3.5.x`` (the PyPI release pins ``rpy2 >= 3.4, < 3.6``); on **R ≥ 4.5** use ``rpy2 >= 3.6``. Install the R packages the routines depend on:
+
+    install.packages(c("abind", "mvtnorm", "numDeriv", "softImpute", "tensor"))
+
+(``MASS`` and ``Matrix`` are also used and ship with R.)
+
 ## Installation
-Users can download the latest repository and then use ``pip``:
+The CTMM python package is on PyPI:
+
+    pip install ctmm
+
+The PyPI release pins ``rpy2 < 3.6``, which only supports R ≤ 4.4. On **R ≥ 4.5**, upgrade rpy2 afterwards:
+
+    pip install ctmm
+    pip install "rpy2>=3.6"
+
+The second command prints a dependency-conflict warning (``ctmm 1.1.0 requires rpy2<3.6, but you have rpy2 3.6.x``). This is expected and safe to ignore: CTMM works with ``rpy2 >= 3.6``, and the pin is only a lower-bound safeguard for older R.
+
+To reproduce the analyses in this repository (the ``Snakefile`` pipeline and the scripts under ``bin/``), install from source instead:
 
     git clone https://github.com/Minhui-Chen/CTMM.git
     cd CTMM
     pip install .
-
-Before installation, we recommend to create a virtual environment using [venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/) module or [conda](https://docs.conda.io/en/latest/) to ensure package compatibility. Take ``venv`` for example, 
-
-    cd CTMM
-    python3 -m venv env
-    source env/bin/activate
-    pip install .
-    (do your work)
-    deactivate
 
 ## Input format
 CTMM can fit two types of pseudobulk gene expression data: Overall Pseudobulk (OP) and Cell Type-specific Pseudobulk (CTP).
@@ -113,6 +122,7 @@ free, p_wald = ctp.free_REML(y_f=CTP_f, P_f=P_f, ctnu_f=ctnu_f,
 For convenience, we also provide functions to generate CTMM input data from cell's gene expression data that have been through a thorough process of quality control and normalization :
 
 ```python
+import pandas as pd
 from ctmm import preprocess
 
 # We need two input files: counts and meta.
